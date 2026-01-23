@@ -57,8 +57,9 @@ function loadFromLocal() {
 }
 
 function updateHostBadge(mode) {
-  const map = { auto: "自动", domestic: "国内加速", overseas: "海外国际" };
-  document.getElementById("hostBadge").textContent = map[mode] || "自动";
+  const map = { auto: "自动", domestic: "国内", overseas: "海外" };
+  const el = document.getElementById("hostBadge");
+  if (el) el.textContent = map[mode] || "自动";
 }
 
 function formatCredits(val) {
