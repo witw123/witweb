@@ -73,7 +73,7 @@ def init_db(admin_username: str, admin_password: str) -> None:
               username VARCHAR(64) UNIQUE,
               password TEXT,
               nickname TEXT,
-              avatar_url TEXT
+              avatar_url LONGTEXT
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """
         )
