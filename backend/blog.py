@@ -27,10 +27,12 @@ def list_posts(page: int = 1, size: int = 10, query: str | None = None, author: 
         filters.append("p.author = ?")
         params.append(author)
     where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
-    total = cur.execute(
+    cur.execute(
         q(f"SELECT COUNT(*) AS cnt FROM posts p {where_sql}"),
         params,
-    ).fetchone()["cnt"]
+    )
+    total_row = cur.fetchone()
+    total = total_row["cnt"] if total_row else 0
     offset = (page - 1) * size
     rows = cur.execute(
         q(f"""
