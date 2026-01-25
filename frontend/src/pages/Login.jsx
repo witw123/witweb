@@ -59,6 +59,9 @@ export default function Login() {
           <button className="button primary" type="submit">
             登录
           </button>
+          <a className="button ghost" href="/" rel="noreferrer">
+            返回主页
+          </a>
           <a className="button ghost" href="/register" target="_blank" rel="noreferrer">
             注册
           </a>

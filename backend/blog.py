@@ -6,9 +6,11 @@ from fastapi import HTTPException
 from ipaddress import ip_address
 
 try:
-    from .db import get_conn
+    from .db import get_conn, adapt_query
 except ImportError:
-    from db import get_conn
+    from db import get_conn, adapt_query
+
+q = adapt_query
 
 
 def list_posts(page: int = 1, size: int = 10, q: str | None = None, author: str | None = None) -> dict:
@@ -26,12 +28,12 @@ def list_posts(page: int = 1, size: int = 10, q: str | None = None, author: str 
         params.append(author)
     where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
     total = cur.execute(
-        f"SELECT COUNT(*) AS cnt FROM posts p {where_sql}",
+        q(f"SELECT COUNT(*) AS cnt FROM posts p {where_sql}"),
         params,
     ).fetchone()["cnt"]
     offset = (page - 1) * size
     rows = cur.execute(
-        f"""
+        q(f"""
         SELECT
           p.title,
           p.slug,
@@ -49,7 +51,7 @@ def list_posts(page: int = 1, size: int = 10, q: str | None = None, author: str 
         {where_sql}
         ORDER BY p.id DESC
         LIMIT ? OFFSET ?
-        """,
+        """),
         (*params, size, offset),
     ).fetchall()
     etag = _posts_etag(cur, q or "", author or "", total)
@@ -67,7 +69,7 @@ def get_post(slug: str, username: str | None = None) -> dict:
     conn = get_conn()
     cur = conn.cursor()
     row = cur.execute(
-        """
+        q("""
         SELECT
           p.id,
           p.title,
@@ -84,7 +86,7 @@ def get_post(slug: str, username: str | None = None) -> dict:
         FROM posts p
         LEFT JOIN users u ON u.username = p.author
         WHERE p.slug = ?
-        """,
+        """),
         (slug,),
     ).fetchone()
     conn.close()
@@ -95,7 +97,7 @@ def get_post(slug: str, username: str | None = None) -> dict:
         conn = get_conn()
         cur = conn.cursor()
         liked = cur.execute(
-            "SELECT id FROM likes WHERE post_id = ? AND username = ?",
+            q("SELECT id FROM likes WHERE post_id = ? AND username = ?"),
             (data["id"], username),
         ).fetchone()
         conn.close()
@@ -108,7 +110,7 @@ def create_post(title: str, slug: str | None, content: str, author: str, tags: s
     cur = conn.cursor()
     final_slug = _ensure_unique_slug(cur, slug or _slugify(title))
     cur.execute(
-        "INSERT INTO posts (title, slug, content, created_at, author, tags) VALUES (?, ?, ?, ?, ?, ?)",
+        q("INSERT INTO posts (title, slug, content, created_at, author, tags) VALUES (?, ?, ?, ?, ?, ?)"),
         (
             title,
             final_slug,
@@ -166,7 +168,7 @@ def delete_post(slug: str, username: str, admin_username: str) -> None:
     conn = get_conn()
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT id, author FROM posts WHERE slug = ?",
+        q("SELECT id, author FROM posts WHERE slug = ?"),
         (slug,),
     ).fetchone()
     if row is None:
@@ -177,13 +179,13 @@ def delete_post(slug: str, username: str, admin_username: str) -> None:
         raise HTTPException(status_code=403, detail="Forbidden")
     post_id = row["id"]
     cur.execute(
-        "DELETE FROM comment_votes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ?)",
+        q("DELETE FROM comment_votes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ?)"),
         (post_id,),
     )
-    cur.execute("DELETE FROM comments WHERE post_id = ?", (post_id,))
-    cur.execute("DELETE FROM likes WHERE post_id = ?", (post_id,))
-    cur.execute("DELETE FROM dislikes WHERE post_id = ?", (post_id,))
-    cur.execute("DELETE FROM posts WHERE id = ?", (post_id,))
+    cur.execute(q("DELETE FROM comments WHERE post_id = ?"), (post_id,))
+    cur.execute(q("DELETE FROM likes WHERE post_id = ?"), (post_id,))
+    cur.execute(q("DELETE FROM dislikes WHERE post_id = ?"), (post_id,))
+    cur.execute(q("DELETE FROM posts WHERE id = ?"), (post_id,))
     conn.commit()
     conn.close()
 
@@ -201,7 +203,7 @@ def _ensure_unique_slug(cur, base_slug: str) -> str:
     base_slug = base_slug or f"post-{int(datetime.now(timezone.utc).timestamp())}"
     slug = base_slug
     suffix = 2
-    while cur.execute("SELECT id FROM posts WHERE slug = ?", (slug,)).fetchone():
+    while cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,)).fetchone():
         slug = f"{base_slug}-{suffix}"
         suffix += 1
     return slug
@@ -210,12 +212,12 @@ def _ensure_unique_slug(cur, base_slug: str) -> str:
 def list_comments(slug: str) -> list[dict]:
     conn = get_conn()
     cur = conn.cursor()
-    row = cur.execute("SELECT id FROM posts WHERE slug = ?", (slug,)).fetchone()
+    row = cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,)).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail="Post not found")
     rows = cur.execute(
-        """
+        q("""
         SELECT
           c.id,
           c.author,
@@ -232,7 +234,7 @@ def list_comments(slug: str) -> list[dict]:
         LEFT JOIN users u ON u.username = c.author
         WHERE c.post_id = ?
         ORDER BY c.id DESC
-        """,
+        """),
         (row["id"],),
     ).fetchall()
     conn.close()
@@ -247,12 +249,12 @@ def list_comments(slug: str) -> list[dict]:
 def add_comment(slug: str, author: str, content: str, parent_id: int | None, ip_address: str) -> None:
     conn = get_conn()
     cur = conn.cursor()
-    row = cur.execute("SELECT id FROM posts WHERE slug = ?", (slug,)).fetchone()
+    row = cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,)).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail="Post not found")
     cur.execute(
-        "INSERT INTO comments (post_id, author, content, created_at, parent_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)",
+        q("INSERT INTO comments (post_id, author, content, created_at, parent_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)"),
         (row["id"], author, content, datetime.now(timezone.utc).isoformat(), parent_id, ip_address),
     )
     conn.commit()
@@ -262,21 +264,21 @@ def add_comment(slug: str, author: str, content: str, parent_id: int | None, ip_
 def toggle_like(slug: str, username: str) -> bool:
     conn = get_conn()
     cur = conn.cursor()
-    row = cur.execute("SELECT id FROM posts WHERE slug = ?", (slug,)).fetchone()
+    row = cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,)).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail="Post not found")
     existing = cur.execute(
-        "SELECT id FROM likes WHERE post_id = ? AND username = ?",
+        q("SELECT id FROM likes WHERE post_id = ? AND username = ?"),
         (row["id"], username),
     ).fetchone()
     if existing:
-        cur.execute("DELETE FROM likes WHERE id = ?", (existing["id"],))
+        cur.execute(q("DELETE FROM likes WHERE id = ?"), (existing["id"],))
         conn.commit()
         conn.close()
         return False
     cur.execute(
-        "INSERT INTO likes (post_id, username, created_at) VALUES (?, ?, ?)",
+        q("INSERT INTO likes (post_id, username, created_at) VALUES (?, ?, ?)"),
         (row["id"], username, datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
@@ -287,21 +289,21 @@ def toggle_like(slug: str, username: str) -> bool:
 def toggle_dislike(slug: str, username: str) -> bool:
     conn = get_conn()
     cur = conn.cursor()
-    row = cur.execute("SELECT id FROM posts WHERE slug = ?", (slug,)).fetchone()
+    row = cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,)).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail="Post not found")
     existing = cur.execute(
-        "SELECT id FROM dislikes WHERE post_id = ? AND username = ?",
+        q("SELECT id FROM dislikes WHERE post_id = ? AND username = ?"),
         (row["id"], username),
     ).fetchone()
     if existing:
-        cur.execute("DELETE FROM dislikes WHERE id = ?", (existing["id"],))
+        cur.execute(q("DELETE FROM dislikes WHERE id = ?"), (existing["id"],))
         conn.commit()
         conn.close()
         return False
     cur.execute(
-        "INSERT INTO dislikes (post_id, username, created_at) VALUES (?, ?, ?)",
+        q("INSERT INTO dislikes (post_id, username, created_at) VALUES (?, ?, ?)"),
         (row["id"], username, datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
@@ -315,17 +317,17 @@ def vote_comment(comment_id: int, username: str, value: int) -> None:
     conn = get_conn()
     cur = conn.cursor()
     existing = cur.execute(
-        "SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?",
+        q("SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?"),
         (comment_id, username),
     ).fetchone()
     if existing:
         cur.execute(
-            "UPDATE comment_votes SET value = ?, created_at = ? WHERE id = ?",
+            q("UPDATE comment_votes SET value = ?, created_at = ? WHERE id = ?"),
             (value, datetime.now(timezone.utc).isoformat(), existing["id"]),
         )
     else:
         cur.execute(
-            "INSERT INTO comment_votes (comment_id, username, value, created_at) VALUES (?, ?, ?, ?)",
+            q("INSERT INTO comment_votes (comment_id, username, value, created_at) VALUES (?, ?, ?, ?)"),
             (comment_id, username, value, datetime.now(timezone.utc).isoformat()),
         )
     conn.commit()

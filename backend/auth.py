@@ -6,9 +6,11 @@ from jose import JWTError, jwt
 from passlib.hash import bcrypt
 
 try:
-    from .db import get_conn
+    from .db import get_conn, adapt_query
 except ImportError:
-    from db import get_conn
+    from db import get_conn, adapt_query
+
+q = adapt_query
 
 SECRET_KEY = os.getenv("BLOG_SECRET", "change-this-secret")
 ALGORITHM = "HS256"
@@ -36,7 +38,7 @@ def authenticate_user(username: str, password: str) -> bool:
     conn = get_conn()
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT password FROM users WHERE username = ?", (username,)
+        q("SELECT password FROM users WHERE username = ?"), (username,)
     ).fetchone()
     conn.close()
     if row is None:
@@ -48,7 +50,7 @@ def get_user_profile(username: str) -> dict | None:
     conn = get_conn()
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT username, nickname, avatar_url FROM users WHERE username = ?",
+        q("SELECT username, nickname, avatar_url FROM users WHERE username = ?"),
         (username,),
     ).fetchone()
     conn.close()
@@ -76,13 +78,13 @@ def create_user(username: str, password: str, nickname: str, avatar_url: str) ->
     conn = get_conn()
     cur = conn.cursor()
     existing = cur.execute(
-        "SELECT id FROM users WHERE username = ?", (username,)
+        q("SELECT id FROM users WHERE username = ?"), (username,)
     ).fetchone()
     if existing is not None:
         conn.close()
         return False
     cur.execute(
-        "INSERT INTO users (username, password, nickname, avatar_url) VALUES (?, ?, ?, ?)",
+        q("INSERT INTO users (username, password, nickname, avatar_url) VALUES (?, ?, ?, ?)"),
         (username, bcrypt.hash(password), nickname, avatar_url),
     )
     conn.commit()
@@ -94,7 +96,7 @@ def update_profile(username: str, nickname: str, avatar_url: str) -> dict:
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE users SET nickname = ?, avatar_url = ? WHERE username = ?",
+        q("UPDATE users SET nickname = ?, avatar_url = ? WHERE username = ?"),
         (nickname, avatar_url, username),
     )
     conn.commit()
