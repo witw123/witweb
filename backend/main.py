@@ -3,10 +3,16 @@ from pathlib import Path
 import os
 import threading
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import core
+try:
+    from . import auth, blog, core, db
+except ImportError:
+    import auth
+    import blog
+    import core
+    import db
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -16,14 +22,24 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = Path(__file__).resolve().parent
 STATIC_DIR = ROOT_DIR / "frontend" / "dist"
 ASSETS_DIR = STATIC_DIR / "assets"
+STUDIO_DIR = ROOT_DIR / "frontend" / "studio"
 DOWNLOADS_DIR = BACKEND_DIR / "downloads"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 if ASSETS_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+if STUDIO_DIR.exists():
+    app.mount("/studio", StaticFiles(directory=str(STUDIO_DIR), html=True), name="studio")
 if DOWNLOADS_DIR.exists():
     app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
+
+ADMIN_USERNAME = "witw"
+ADMIN_PASSWORD = "witw"
+
+@app.on_event("startup")
+def on_startup():
+    db.init_db(ADMIN_USERNAME, ADMIN_PASSWORD)
 
 @app.get("/")
 def root():
@@ -35,6 +51,13 @@ def root():
         "error": "frontend_not_built",
         "hint": "run `npm install` then `npm run build` in frontend/",
     }
+
+@app.get("/studio")
+def studio_root():
+    index_file = STUDIO_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    raise HTTPException(status_code=404, detail="Not Found")
 
 class GenReq(BaseModel):
     prompt: str
@@ -96,6 +119,114 @@ class ActiveTaskRemoveReq(BaseModel):
 
 class VideoDeleteReq(BaseModel):
     name: str
+
+class LoginReq(BaseModel):
+    username: str
+    password: str
+
+class RegisterReq(BaseModel):
+    username: str
+    password: str
+    nickname: str = ""
+    avatar_url: str = ""
+
+class PostReq(BaseModel):
+    title: str
+    slug: Optional[str] = None
+    content: str
+    tags: Optional[str] = ""
+
+class CommentReq(BaseModel):
+    content: str
+    author: Optional[str] = None
+    parent_id: Optional[int] = None
+
+class ProfileReq(BaseModel):
+    nickname: str = ""
+    avatar_url: str = ""
+
+@app.post("/api/login")
+def login(req: LoginReq):
+    if auth.authenticate_user(req.username, req.password):
+        profile = auth.get_user_profile(req.username)
+        return {"token": auth.create_token(req.username), "profile": profile}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.post("/api/register")
+def register(req: RegisterReq):
+    if not req.username or not req.password:
+        raise HTTPException(status_code=400, detail="Missing credentials")
+    nickname = req.nickname or req.username
+    created = auth.create_user(req.username, req.password, nickname, req.avatar_url or "")
+    if not created:
+        raise HTTPException(status_code=409, detail="Username already exists")
+    profile = auth.get_user_profile(req.username)
+    return {"token": auth.create_token(req.username), "profile": profile}
+
+@app.get("/api/blog")
+def blog_list():
+    return blog.list_posts()
+
+@app.get("/api/blog/{slug}")
+def blog_detail(slug: str, authorization: Optional[str] = Header(None)):
+    username = auth.optional_user(authorization)
+    return blog.get_post(slug, username)
+
+@app.post("/api/admin/post")
+def admin_post(req: PostReq, user=Depends(auth.verify_token)):
+    if not req.title.strip() or not req.content.strip():
+        raise HTTPException(status_code=400, detail="Title and content required")
+    blog.create_post(req.title, req.slug, req.content, user, req.tags or "")
+    return {"ok": True, "user": user}
+
+@app.delete("/api/admin/post/{slug}")
+def admin_delete_post(slug: str, user=Depends(auth.verify_token)):
+    blog.delete_post(slug, user, ADMIN_USERNAME)
+    return {"ok": True}
+
+@app.get("/api/blog/{slug}/comments")
+def blog_comments(slug: str):
+    return blog.list_comments(slug)
+
+@app.post("/api/blog/{slug}/comment")
+def blog_comment(
+    slug: str,
+    req: CommentReq,
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    username = auth.optional_user(authorization)
+    author = username or (req.author or "访客")
+    client_ip = request.client.host if request.client else ""
+    blog.add_comment(slug, author, req.content, req.parent_id, client_ip)
+    return {"ok": True}
+
+@app.post("/api/blog/{slug}/like")
+def blog_like(slug: str, user=Depends(auth.verify_token)):
+    liked = blog.toggle_like(slug, user)
+    return {"ok": True, "liked": liked}
+
+@app.post("/api/blog/{slug}/dislike")
+def blog_dislike(slug: str, user=Depends(auth.verify_token)):
+    disliked = blog.toggle_dislike(slug, user)
+    return {"ok": True, "disliked": disliked}
+
+@app.post("/api/comment/{comment_id}/like")
+def comment_like(comment_id: int, user=Depends(auth.verify_token)):
+    blog.vote_comment(comment_id, user, 1)
+    return {"ok": True}
+
+@app.post("/api/comment/{comment_id}/dislike")
+def comment_dislike(comment_id: int, user=Depends(auth.verify_token)):
+    blog.vote_comment(comment_id, user, -1)
+    return {"ok": True}
+
+@app.post("/api/profile")
+def update_profile(req: ProfileReq, user=Depends(auth.verify_token)):
+    nickname = req.nickname or user
+    avatar_url = req.avatar_url or ""
+    profile = auth.update_profile(user, nickname, avatar_url)
+    return {"ok": True, "profile": profile}
 
 @app.post("/config/api-key")
 def set_key(req: ApiKeyReq):
@@ -258,6 +389,15 @@ def shutdown(request: Request):
         os._exit(0)
     threading.Timer(0.2, _exit).start()
     return {"ok": True}
+
+@app.get("/{full_path:path}")
+def spa_fallback(full_path: str):
+    if full_path.startswith(("api", "static", "assets", "downloads", "studio")):
+        raise HTTPException(status_code=404, detail="Not Found")
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    raise HTTPException(status_code=404, detail="Not Found")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

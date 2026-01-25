@@ -10,4 +10,5 @@ services:
     volumes:
       - ./backend/data:/app/backend/data
       - ./backend/downloads:/app/backend/downloads
+      - ./backend/blog.db:/app/backend/blog.db
     restart: unless-stopped
