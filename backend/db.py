@@ -59,6 +59,12 @@ def init_db(admin_username: str, admin_password: str) -> None:
     conn = get_conn()
     cur = conn.cursor()
 
+    def _mysql_create_index(sql: str) -> None:
+        try:
+            cur.execute(sql)
+        except Exception:
+            pass
+
     if is_mysql():
         cur.execute(
             """
@@ -128,32 +134,32 @@ def init_db(admin_username: str, admin_password: str) -> None:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """
         )
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_likes_post_user ON likes(post_id, username)"
+        _mysql_create_index(
+            "ALTER TABLE likes ADD UNIQUE INDEX idx_likes_post_user (post_id, username)"
         )
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_dislikes_post_user ON dislikes(post_id, username)"
+        _mysql_create_index(
+            "ALTER TABLE dislikes ADD UNIQUE INDEX idx_dislikes_post_user (post_id, username)"
         )
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_comment_vote ON comment_votes(comment_id, username)"
+        _mysql_create_index(
+            "ALTER TABLE comment_votes ADD UNIQUE INDEX idx_comment_vote (comment_id, username)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author)"
+        _mysql_create_index(
+            "CREATE INDEX idx_posts_author ON posts(author)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)"
+        _mysql_create_index(
+            "CREATE INDEX idx_posts_created_at ON posts(created_at)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)"
+        _mysql_create_index(
+            "CREATE INDEX idx_comments_post ON comments(post_id)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at)"
+        _mysql_create_index(
+            "CREATE INDEX idx_comments_created_at ON comments(created_at)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id)"
+        _mysql_create_index(
+            "CREATE INDEX idx_likes_post ON likes(post_id)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_dislikes_post ON dislikes(post_id)"
+        _mysql_create_index(
+            "CREATE INDEX idx_dislikes_post ON dislikes(post_id)"
         )
     else:
         cur.execute(
