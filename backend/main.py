@@ -172,7 +172,7 @@ def blog_list(
     q: Optional[str] = None,
     author: Optional[str] = None,
 ):
-    data = blog.list_posts(page=page, size=size, q=q, author=author)
+    data = blog.list_posts(page=page, size=size, query=q, author=author)
     etag = data.get("etag")
     if etag:
         if request.headers.get("if-none-match") == etag:

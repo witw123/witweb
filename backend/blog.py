@@ -13,16 +13,16 @@ except ImportError:
 q = adapt_query
 
 
-def list_posts(page: int = 1, size: int = 10, q: str | None = None, author: str | None = None) -> dict:
+def list_posts(page: int = 1, size: int = 10, query: str | None = None, author: str | None = None) -> dict:
     conn = get_conn()
     cur = conn.cursor()
     page = max(1, int(page))
     size = max(1, min(50, int(size)))
     filters = []
     params: list = []
-    if q:
+    if query:
         filters.append("p.title LIKE ?")
-        params.append(f"%{q}%")
+        params.append(f"%{query}%")
     if author:
         filters.append("p.author = ?")
         params.append(author)
@@ -54,7 +54,7 @@ def list_posts(page: int = 1, size: int = 10, q: str | None = None, author: str 
         """),
         (*params, size, offset),
     ).fetchall()
-    etag = _posts_etag(cur, q or "", author or "", total)
+    etag = _posts_etag(cur, query or "", author or "", total)
     conn.close()
     return {
         "items": [dict(row) for row in rows],
