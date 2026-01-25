@@ -296,3 +296,26 @@ POST /videos/delete
 ## License
 
 本项目未指定 License。
+
+## API 配置脚本
+
+使用 `scripts/config_api.sh` 进行 API Key/Token/Host Mode 配置（交互式）：
+
+```bash
+chmod +x scripts/config_api.sh
+./scripts/config_api.sh
+```
+
+如果服务不在本机，可使用 `SERVER_URL` 指定：
+
+```bash
+SERVER_URL="http://<服务器IP>:8000" ./scripts/config_api.sh
+```
+
+## ???????????
+
+???? Docker ???
+
+```bash
+cd /opt/sora2_web && git pull && cd frontend && npm install && npm run build && (pkill -f "backend.main:app" || pkill -f "backend/main.py" || true) && cd /opt/sora2_web && nohup python3 -m uvicorn main:app --app-dir backend --host :: --port 8000 > /opt/sora2_web/server.log 2>&1 &
+```
