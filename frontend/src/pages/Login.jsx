@@ -32,7 +32,7 @@ export default function Login() {
       <header className="header">
         <div>
           <h1>Sora2 Studio Pro</h1>
-          <p className="muted">管理员登录 · 进入工作区</p>
+          <p className="muted">登录 · 进入工作区</p>
         </div>
       </header>
 
@@ -42,7 +42,7 @@ export default function Login() {
           <input
             value={username}
             onChange={(event) => setUsername(event.target.value)}
-            placeholder="witw"
+            placeholder="请输入账号"
           />
         </label>
         <label>
@@ -51,7 +51,7 @@ export default function Login() {
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="witw"
+            placeholder="请输入密码"
           />
         </label>
         {error && <p className="error">账号或密码错误。</p>}

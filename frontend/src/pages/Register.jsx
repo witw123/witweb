@@ -9,6 +9,19 @@ export default function Register() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  function handleAvatarChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setAvatarUrl("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarUrl(String(reader.result || ""));
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleRegister(event) {
     event.preventDefault();
     setError("");
@@ -62,12 +75,8 @@ export default function Register() {
           />
         </label>
         <label>
-          头像 URL
-          <input
-            value={avatarUrl}
-            onChange={(event) => setAvatarUrl(event.target.value)}
-            placeholder="https://..."
-          />
+          头像上传
+          <input type="file" accept="image/*" onChange={handleAvatarChange} />
         </label>
         <label>
           密码

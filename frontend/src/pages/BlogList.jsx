@@ -21,6 +21,8 @@ export default function BlogList() {
   const [status, setStatus] = useState("loading");
   const isAdmin = profileData?.username === "witw";
   const [authorFilter, setAuthorFilter] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
+  const etagRef = useRef("");
 
   useEffect(() => {
     try {
@@ -57,10 +59,39 @@ export default function BlogList() {
     if (showLoading) {
       setStatus("loading");
     }
-    fetch("/api/blog")
-      .then((res) => res.json())
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      size: String(pageSize),
+    });
+    if (submittedQuery.trim()) {
+      params.set("q", submittedQuery.trim());
+    }
+    if (authorFilter) {
+      params.set("author", authorFilter);
+    }
+    fetch(`/api/blog?${params.toString()}`, {
+      headers: etagRef.current ? { "If-None-Match": etagRef.current } : {},
+    })
+      .then(async (res) => {
+        if (res.status === 304) {
+          setStatus("ready");
+          return null;
+        }
+        const nextEtag = res.headers.get("ETag");
+        if (nextEtag) {
+          etagRef.current = nextEtag;
+        }
+        return res.json();
+      })
       .then((data) => {
-        setPosts(Array.isArray(data) ? data : []);
+        if (!data) return;
+        if (Array.isArray(data)) {
+          setPosts(data);
+          setTotalCount(data.length);
+        } else {
+          setPosts(Array.isArray(data.items) ? data.items : []);
+          setTotalCount(data.total || 0);
+        }
         setStatus("ready");
       })
       .catch(() => {
@@ -72,7 +103,7 @@ export default function BlogList() {
 
   useEffect(() => {
     loadPosts({ showLoading: true });
-  }, []);
+  }, [currentPage, submittedQuery, authorFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -151,12 +182,7 @@ export default function BlogList() {
     navigate("/");
   }
 
-  const filteredPosts = posts.filter((post) => {
-    const titleMatch = post.title.toLowerCase().includes(normalizedQuery);
-    const authorMatch = authorFilter ? post.author === authorFilter : true;
-    return titleMatch && authorMatch;
-  });
-  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <div className="page">
@@ -227,7 +253,7 @@ export default function BlogList() {
                           }
                         }}
                       >
-                        <strong>{posts.length}</strong>
+                        <strong>{totalCount}</strong>
                         <span>文章</span>
                       </button>
                     </div>
@@ -350,14 +376,12 @@ export default function BlogList() {
                   仅看我的文章
                 </button>
               )}
-              <span className="muted">共 {posts.length} 篇</span>
+              <span className="muted">共 {totalCount} 篇</span>
             </div>
           </div>
 
           <div className="list">
-            {filteredPosts
-              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-              .map((post) => {
+            {posts.map((post) => {
                 const title = post.title;
                 const rawPreview = (post.content || "").replace(/\s+/g, " ").trim();
                 const preview =

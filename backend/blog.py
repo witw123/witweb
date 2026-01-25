@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hashlib
 import re
 
 from fastapi import HTTPException
@@ -10,11 +11,27 @@ except ImportError:
     from db import get_conn
 
 
-def list_posts() -> list[dict]:
+def list_posts(page: int = 1, size: int = 10, q: str | None = None, author: str | None = None) -> dict:
     conn = get_conn()
     cur = conn.cursor()
+    page = max(1, int(page))
+    size = max(1, min(50, int(size)))
+    filters = []
+    params: list = []
+    if q:
+        filters.append("p.title LIKE ?")
+        params.append(f"%{q}%")
+    if author:
+        filters.append("p.author = ?")
+        params.append(author)
+    where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
+    total = cur.execute(
+        f"SELECT COUNT(*) AS cnt FROM posts p {where_sql}",
+        params,
+    ).fetchone()["cnt"]
+    offset = (page - 1) * size
     rows = cur.execute(
-        """
+        f"""
         SELECT
           p.title,
           p.slug,
@@ -29,11 +46,21 @@ def list_posts() -> list[dict]:
           (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
         FROM posts p
         LEFT JOIN users u ON u.username = p.author
+        {where_sql}
         ORDER BY p.id DESC
-        """
+        LIMIT ? OFFSET ?
+        """,
+        (*params, size, offset),
     ).fetchall()
+    etag = _posts_etag(cur, q or "", author or "", total)
     conn.close()
-    return [dict(row) for row in rows]
+    return {
+        "items": [dict(row) for row in rows],
+        "total": total,
+        "page": page,
+        "size": size,
+        "etag": etag,
+    }
 
 
 def get_post(slug: str, username: str | None = None) -> dict:
@@ -93,6 +120,46 @@ def create_post(title: str, slug: str | None, content: str, author: str, tags: s
     )
     conn.commit()
     conn.close()
+
+
+def _posts_etag(cur, q: str, author: str, total: int) -> str:
+    def _max_time(table: str) -> str:
+        row = cur.execute(f"SELECT MAX(created_at) AS ts FROM {table}").fetchone()
+        return row["ts"] or ""
+
+    max_post = _max_time("posts")
+    max_like = _max_time("likes")
+    max_dislike = _max_time("dislikes")
+    max_comment = _max_time("comments")
+    max_vote = _max_time("comment_votes")
+    counts = cur.execute(
+        """
+        SELECT
+          (SELECT COUNT(*) FROM posts) AS posts,
+          (SELECT COUNT(*) FROM likes) AS likes,
+          (SELECT COUNT(*) FROM dislikes) AS dislikes,
+          (SELECT COUNT(*) FROM comments) AS comments,
+          (SELECT COUNT(*) FROM comment_votes) AS votes
+        """
+    ).fetchone()
+    raw = "|".join(
+        [
+            q,
+            author,
+            str(total),
+            str(counts["posts"]),
+            str(counts["likes"]),
+            str(counts["dislikes"]),
+            str(counts["comments"]),
+            str(counts["votes"]),
+            max_post,
+            max_like,
+            max_dislike,
+            max_comment,
+            max_vote,
+        ]
+    )
+    return f'W/"{hashlib.sha1(raw.encode("utf-8")).hexdigest()}"'
 
 
 def delete_post(slug: str, username: str, admin_username: str) -> None:

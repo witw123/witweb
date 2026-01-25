@@ -94,6 +94,24 @@ def init_db(admin_username: str, admin_password: str) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_dislikes_post_user ON dislikes(post_id, username)"
     )
     cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_dislikes_post ON dislikes(post_id)"
+    )
+    cur.execute(
         """
         CREATE TABLE IF NOT EXISTS comment_votes (
           id INTEGER PRIMARY KEY,

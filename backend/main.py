@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 import threading
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 try:
@@ -164,8 +164,26 @@ def register(req: RegisterReq):
     return {"token": auth.create_token(req.username), "profile": profile}
 
 @app.get("/api/blog")
-def blog_list():
-    return blog.list_posts()
+def blog_list(
+    request: Request,
+    response: Response,
+    page: int = 1,
+    size: int = 5,
+    q: Optional[str] = None,
+    author: Optional[str] = None,
+):
+    data = blog.list_posts(page=page, size=size, q=q, author=author)
+    etag = data.get("etag")
+    if etag:
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304)
+        response.headers["ETag"] = etag
+    return {
+        "items": data.get("items", []),
+        "total": data.get("total", 0),
+        "page": data.get("page", page),
+        "size": data.get("size", size),
+    }
 
 @app.get("/api/blog/{slug}")
 def blog_detail(slug: str, authorization: Optional[str] = Header(None)):
