@@ -1,0 +1,232 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sora2 Studio Pro | 导演级 AI 创作终端</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+
+<div class="app-shell">
+  <nav class="app-nav">
+    <div class="brand">
+      <h1>Sora2 Studio Pro</h1>
+      <p>专业级智能视频工作站</p>
+    </div>
+    <div class="nav-stats">
+      <div class="chip" style="cursor:default">
+        <i data-lucide="zap" size="14" style="color:var(--accent)"></i> 余额: <span id="accountCredits" style="font-weight:700">加载中...</span>
+      </div>
+      <div class="chip">
+        <i data-lucide="globe" size="14" style="color:var(--success)"></i>
+        <select id="hostMode" style="min-width:110px" onchange="setHostMode()">
+          <option value="auto">自动</option>
+          <option value="domestic">国内</option>
+          <option value="overseas">海外</option>
+        </select>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <section class="card">
+      <div class="card-header">
+        <h2><i data-lucide="clapperboard" size="16"></i> 创意工作区</h2>
+        <span id="resultStatus" class="pill">准备就绪</span>
+      </div>
+      <div class="card-body">
+        <div class="editor-grid">
+          <div class="editor-left">
+            <div class="form-item">
+              <label>视频描述词 (Prompt)</label>
+              <textarea id="prompt" rows="4" placeholder="例如：电影感镜头，一只机械鸟飞跃赛博朋克城市的霓虹街道..."></textarea>
+            </div>
+            <div class="form-item form-center">
+              <label>本地参考底图 (可选)</label>
+              <div class="file-row">
+                <input id="refImageFile" class="file-input" type="file" accept="image/*">
+                <button class="btn btn-ghost file-btn" type="button" onclick="document.getElementById('refImageFile').click()">选择文件</button>
+                <button class="btn btn-ghost file-cancel" type="button" onclick="clearRefImage()">取消</button>
+              </div>
+              <div id="refImagePreviewWrap" style="margin-top:8px; display:none">
+                <img id="refImagePreview" style="width:100%; max-height:180px; object-fit:cover; border-radius:8px; border:1px solid var(--border)">
+              </div>
+            </div>
+            <div class="form-item">
+              <label>引用角色 ID（可选）</label>
+              <div style="display:flex; gap:8px">
+                <input id="characterRef" placeholder="character.name">
+                <button id="addCharacterRefBtn" type="button" class="btn btn-ghost" style="padding:4px 8px; font-size:11px">添加ID</button>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px">将以 @character_id 形式追加到提示词</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:6px">最近角色 ID（点击插入）</div>
+              <div id="characterRefList" class="ref-list"></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px">
+              <div class="form-item">
+                <label>画面比例</label>
+              <select id="aspectRatio">
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+              </select>
+            </div>
+              <div class="form-item">
+                <label>视频质量</label>
+                <select id="size">
+                  <option value="large">Large</option>
+                  <option value="small">Small</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-item">
+              <label>视频时长</label>
+              <select id="duration">
+                <option value="10">10 秒</option>
+                <option value="15" selected>15 秒</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%; height:48px; font-size:15px" onclick="gen()">
+              <i data-lucide="sparkles" size="18"></i> 开始构建视频
+            </button>
+          </div>
+
+          <div class="editor-right">
+            <div class="editor-right-panel">
+              <div style="display:flex; justify-content:space-between; align-items:center">
+                <span style="font-size:12px; font-weight:700; color:var(--text-muted)">正在生成</span>
+                <button class="btn btn-ghost" style="padding:2px 6px; font-size:10px" onclick="refreshActiveTasks()">刷新</button>
+              </div>
+              <div id="activeTasks" class="active-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-grid">
+      <div class="card">
+        <div class="card-header">
+          <h2><i data-lucide="folder-video" size="16"></i> 服务器视频库</h2>
+          <div class="video-actions">
+            <button class="btn btn-ghost" style="padding:4px 10px" onclick="loadLocalVideos()">刷新列表</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="section-title">
+            <span>可访问下载</span>
+            <span>Hover Preview</span>
+          </div>
+          <div id="localVideoList" class="video-grid"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <aside class="app-side">
+    <section class="card">
+      <div class="card-header">
+        <h2><i data-lucide="user-plus" size="16"></i> 角色资产</h2>
+        <div class="role-tabs">
+          <button id="tabUpload" class="btn" style="padding:4px 10px; font-size:11px; background:var(--card)" onclick="switchCharMode('upload')">上传</button>
+          <button id="tabPid" class="btn" style="padding:4px 10px; font-size:11px; background:transparent" onclick="switchCharMode('pid')">PID</button>
+        </div>
+      </div>
+      <div class="card-body role-panel">
+        <div class="role-section">
+          <div class="role-merged">
+            <div class="role-block">
+              <h3>素材来源</h3>
+              <div id="charModeUpload">
+                <div class="form-item">
+                  <label>上传本地视频</label>
+                  <div class="file-row">
+                    <input id="charFile" class="file-input" type="file" accept="video/*">
+                    <button class="btn btn-ghost file-btn" type="button" onclick="document.getElementById('charFile').click()">选择文件</button>
+                    <button class="btn btn-ghost file-cancel" type="button" onclick="clearCharVideo()">取消</button>
+                  </div>
+                  <div id="charVideoPreviewWrap" style="margin-top:8px; display:none">
+                    <video id="charVideoPreview" controls style="width:100%; max-height:180px; border-radius:8px; border:1px solid var(--border)"></video>
+                  </div>
+                </div>
+                <div class="form-item">
+                  <label>参考 URL</label>
+                  <input id="charUrl" placeholder="https://...">
+                </div>
+              </div>
+              <div id="charModePid" style="display:none">
+                <div class="form-item">
+                  <label>源任务 PID</label>
+                  <input id="charPid" placeholder="s_xxxx">
+                </div>
+              </div>
+            </div>
+            <div class="role-block">
+              <h3>提取参数</h3>
+              <div class="form-item">
+                <label>特征时间段 (秒)</label>
+                <input id="charTimestamps" value="0,3">
+              </div>
+              <div class="form-item">
+                <label>回调地址 (webHook)</label>
+                <input id="charWebHook" placeholder="https://... (不使用填空)">
+              </div>
+              <div class="form-item">
+                <label>关闭进度 (shutProgress)</label>
+                <select id="charShutProgress">
+                  <option value="">默认</option>
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="role-actions">
+          <button class="btn btn-ghost" onclick="executeCharAction()">开始提取特征</button>
+          <button class="btn btn-ghost" onclick="copyCharacterId()">复制角色 ID</button>
+        </div>
+        <div id="charStatusBox" class="role-status">
+          <div class="row">
+            <span>状态</span>
+            <span id="characterStatus" class="role-badge">等待中</span>
+          </div>
+          <div class="row">
+            <span>进度</span>
+            <span id="characterProgress">-</span>
+          </div>
+          <div class="row">
+            <span>失败原因</span>
+            <span id="characterFailure">-</span>
+          </div>
+          <div class="row">
+            <span>角色 ID</span>
+            <span id="characterId">-</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2><i data-lucide="terminal" size="16"></i> 实时渲染日志</h2>
+        <button class="btn btn-ghost" style="font-size:10px" onclick="document.getElementById('log').textContent=''">清空</button>
+      </div>
+      <div class="card-body">
+        <div class="section-title">
+          <span>系统流</span>
+          <span>Live</span>
+        </div>
+        <div id="log" class="console"></div>
+      </div>
+    </section>
+
+  </aside>
+</div>
+
+</body>
+</html>

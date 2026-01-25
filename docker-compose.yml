@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  sora2:
+    build: .
+    image: sora2-web
+    container_name: sora2-web
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./backend/downloads:/app/backend/downloads
+    restart: unless-stopped
