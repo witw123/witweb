@@ -293,10 +293,6 @@ POST /videos/delete
 - API 报错或网络异常会在接口返回中体现错误信息。
 - 如需变更 API 主机，可通过 `host_mode` 选择 `domestic` 或 `overseas`。
 
-## License
-
-本项目未指定 License。
-
 ## API 配置脚本
 
 使用 `scripts/config_api.sh` 进行 API Key/Token/Host Mode 配置（交互式）：
@@ -312,10 +308,13 @@ chmod +x scripts/config_api.sh
 SERVER_URL="http://<服务器IP>:8000" ./scripts/config_api.sh
 ```
 
-## ???????????
+## 更新并重启（单条命令）
 
-???? Docker ???
+适用于非 Docker 部署：
 
 ```bash
 cd /opt/sora2_web && git pull && cd frontend && npm install && npm run build && (pkill -f "backend.main:app" || pkill -f "backend/main.py" || true) && cd /opt/sora2_web && nohup python3 -m uvicorn main:app --app-dir backend --host :: --port 8000 > /opt/sora2_web/server.log 2>&1 &
 ```
+## License
+
+本项目未指定 License。
