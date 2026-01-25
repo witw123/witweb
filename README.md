@@ -293,7 +293,10 @@ POST /videos/delete
 - API 报错或网络异常会在接口返回中体现错误信息。
 - 如需变更 API 主机，可通过 `host_mode` 选择 `domestic` 或 `overseas`。
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 96f04918a8faa25010efb9bda17b922414405039
 ## API 配置脚本
 
 使用 `scripts/config_api.sh` 进行 API Key/Token/Host Mode 配置（交互式）：
@@ -318,4 +321,8 @@ cd /opt/sora2_web && git pull && cd frontend && npm install && npm run build && 
 ```
 ## License
 
+<<<<<<< HEAD
 本项目未指定 License。
+=======
+本项目未指定 License。
+>>>>>>> 96f04918a8faa25010efb9bda17b922414405039
