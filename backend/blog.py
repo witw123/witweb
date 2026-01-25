@@ -203,9 +203,11 @@ def _ensure_unique_slug(cur, base_slug: str) -> str:
     base_slug = base_slug or f"post-{int(datetime.now(timezone.utc).timestamp())}"
     slug = base_slug
     suffix = 2
-    while cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,)).fetchone():
+    cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,))
+    while cur.fetchone():
         slug = f"{base_slug}-{suffix}"
         suffix += 1
+        cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,))
     return slug
 
 
