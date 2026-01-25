@@ -37,9 +37,10 @@ def verify_token(authorization: str = Header(None)) -> str:
 def authenticate_user(username: str, password: str) -> bool:
     conn = get_conn()
     cur = conn.cursor()
-    row = cur.execute(
+    cur.execute(
         q("SELECT password FROM users WHERE username = ?"), (username,)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     conn.close()
     if row is None:
         return False
@@ -49,10 +50,11 @@ def authenticate_user(username: str, password: str) -> bool:
 def get_user_profile(username: str) -> dict | None:
     conn = get_conn()
     cur = conn.cursor()
-    row = cur.execute(
+    cur.execute(
         q("SELECT username, nickname, avatar_url FROM users WHERE username = ?"),
         (username,),
-    ).fetchone()
+    )
+    row = cur.fetchone()
     conn.close()
     if row is None:
         return None
@@ -77,9 +79,10 @@ def optional_user(authorization: str | None) -> str | None:
 def create_user(username: str, password: str, nickname: str, avatar_url: str) -> bool:
     conn = get_conn()
     cur = conn.cursor()
-    existing = cur.execute(
+    cur.execute(
         q("SELECT id FROM users WHERE username = ?"), (username,)
-    ).fetchone()
+    )
+    existing = cur.fetchone()
     if existing is not None:
         conn.close()
         return False
