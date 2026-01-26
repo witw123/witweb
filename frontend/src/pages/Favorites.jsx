@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { getFavoritesCache, setFavoritesCache } from "../utils/memoryStore";
+import { getCachedJson, setCachedJson } from "../utils/cache";
 
 export default function Favorites() {
   const [items, setItems] = useState([]);
@@ -8,11 +10,39 @@ export default function Favorites() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
   const navigate = useNavigate();
+  const profile = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("profile") || "");
+    } catch {
+      return null;
+    }
+  })();
+  const token = localStorage.getItem("token");
+  const cacheUserKeys = [profile?.username, token, "anon"].filter(Boolean);
+  const cacheKeySignature = cacheUserKeys.join("|");
+  const localCacheKeys = cacheUserKeys.map((key) => `cache:favorites:${key}:${page}`);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
+      return;
+    }
+    let cached = null;
+    for (const key of cacheUserKeys) {
+      cached = getFavoritesCache(`${key}:${page}`);
+      if (cached) break;
+    }
+    if (!cached) {
+      for (const key of localCacheKeys) {
+        cached = getCachedJson(key);
+        if (cached) break;
+      }
+    }
+    if (cached) {
+      setItems(Array.isArray(cached.items) ? cached.items : []);
+      setTotal(cached.total || 0);
+      setStatus("ready");
       return;
     }
     setStatus("loading");
@@ -21,17 +51,27 @@ export default function Favorites() {
     })
       .then((res) => res.json())
       .then((data) => {
-        setItems(Array.isArray(data.items) ? data.items : []);
-        setTotal(data.total || 0);
+        const payload = {
+          items: Array.isArray(data.items) ? data.items : [],
+          total: data.total || 0,
+        };
+        setItems(payload.items);
+        setTotal(payload.total);
+        cacheUserKeys.forEach((key) => {
+          setFavoritesCache(`${key}:${page}`, payload);
+        });
+        localCacheKeys.forEach((key) => {
+          setCachedJson(key, payload);
+        });
         setStatus("ready");
       })
       .catch(() => setStatus("error"));
-  }, [page, navigate]);
+  }, [page, navigate, cacheKeySignature]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="page">
+    <div className="page favorites-page">
       <header className="header">
         <div>
           <h1>AI Studio</h1>
@@ -52,7 +92,12 @@ export default function Favorites() {
             <div className="card-head">
               <div className="author">
                 {post.author_avatar ? (
-                  <img src={post.author_avatar} alt={post.author_name} />
+                  <img
+                    src={post.author_avatar}
+                    alt={post.author_name}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <div className="avatar-fallback">{post.author_name?.[0] || "U"}</div>
                 )}

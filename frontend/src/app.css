@@ -189,6 +189,26 @@ a {
   margin-bottom: 10px;
 }
 
+.post-card-top-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.post-card-top-actions .meta-like {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 20, 30, 0.6);
+}
+
+.favorite-on {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.12);
+}
+
 .author {
   display: inline-flex;
   align-items: center;
@@ -260,10 +280,30 @@ a {
   gap: 12px;
 }
 
+.form.compact {
+  gap: 8px;
+}
+
+.form.compact label {
+  gap: 4px;
+}
+
+.form.compact input,
+.form.compact textarea {
+  padding: 8px 10px;
+}
+
 label {
   display: grid;
   gap: 6px;
   font-weight: 600;
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 input,
@@ -399,6 +439,12 @@ textarea {
   padding: 12px;
   border-radius: var(--radius-md);
   overflow: auto;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
 .split {
@@ -905,6 +951,19 @@ textarea {
   flex-wrap: wrap;
 }
 
+.profile-actions.vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.profile-actions.vertical .button {
+  justify-content: center;
+}
+
+.profile-actions.vertical .button {
+  font-size: 13px;
+}
+
 .avatar-upload {
   display: grid;
   gap: 10px;
@@ -952,12 +1011,127 @@ textarea {
     align-items: flex-start;
   }
 
-  .post-toolbar,
+  .post-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .post-toolbar .button {
+    justify-content: center;
+  }
+
   .post-footer {
     justify-content: flex-start;
   }
 
   .page {
     padding: 18px 16px 64px;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .search {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .post-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .post-card-actions {
+    justify-content: space-between;
+  }
+
+  .meta-detail {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .meta-actions {
+    flex-wrap: wrap;
+  }
+
+  .comment-meta {
+    gap: 8px;
+  }
+
+  .comment-form-actions {
+    justify-content: flex-start;
+  }
+
+  .image-modal-card {
+    width: 92vw;
+  }
+
+  .profile-pop {
+    width: min(280px, 90vw);
+  }
+
+  .favorites-page .post-card-actions {
+    justify-content: flex-start;
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .favorites-page .post-card-meta {
+    gap: 6px;
+  }
+
+  .favorites-page .post-card-footer {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .header {
+    padding: 8px 12px;
+  }
+
+  .card {
+    padding: 14px 16px;
+  }
+
+  .post-card-actions {
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .meta-actions {
+    flex-wrap: wrap;
+  }
+
+  .favorites-page .card h2 {
+    font-size: 20px;
+  }
+
+  .favorites-page .excerpt {
+    font-size: 14px;
+  }
+
+  .comment-item {
+    grid-template-columns: 28px 1fr;
+  }
+
+  .comment-item img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .comment-body {
+    font-size: 14px;
   }
 }

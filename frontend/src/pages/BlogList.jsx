@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { getCachedJson, setCachedJson } from "../utils/cache";
+import { clearCommentsCache, clearListCache, clearPostCache, getListCache, setListCache as setListCacheMemory } from "../utils/memoryStore";
+import { resizeImageFile, resizeImageToDataUrl } from "../utils/image";
 
 export default function BlogList() {
   const [posts, setPosts] = useState([]);
@@ -34,11 +37,18 @@ export default function BlogList() {
   const [authorFilter, setAuthorFilter] = useState("");
   const [totalCount, setTotalCount] = useState(0);
   const etagRef = useRef("");
+  const listCacheKeyRef = useRef("");
+  const listFallbackCacheKeyRef = useRef("");
+  const totalCountRef = useRef(0);
 
   useEffect(() => {
     try {
       const storedProfile = localStorage.getItem("profile");
-      setProfileData(storedProfile ? JSON.parse(storedProfile) : null);
+      const parsedProfile = storedProfile ? JSON.parse(storedProfile) : null;
+      setProfileData(parsedProfile);
+      if (parsedProfile?.username) {
+        setCachedJson(`cache:profile:${parsedProfile.username}`, parsedProfile);
+      }
     } catch {
       setProfileData(null);
     }
@@ -52,15 +62,68 @@ export default function BlogList() {
   }, [profileData]);
 
   useEffect(() => {
+    totalCountRef.current = totalCount;
+  }, [totalCount]);
+
+  function normalizeListPayload(data) {
+    if (Array.isArray(data)) {
+      return { items: data, total: data.length };
+    }
+    return {
+      items: Array.isArray(data?.items) ? data.items : [],
+      total: data?.total || 0,
+    };
+  }
+
+  function buildListCacheKey(params, username) {
+    return `cache:blog:${username}:${params.toString()}`;
+  }
+
+  function setListCache(value) {
+    if (listCacheKeyRef.current) {
+      setCachedJson(listCacheKeyRef.current, value);
+      setListCacheMemory(listCacheKeyRef.current, value);
+    }
+    if (listFallbackCacheKeyRef.current && listFallbackCacheKeyRef.current !== listCacheKeyRef.current) {
+      setCachedJson(listFallbackCacheKeyRef.current, value);
+      setListCacheMemory(listFallbackCacheKeyRef.current, value);
+    }
+  }
+
+  function applyPostUpdates(updater) {
+    setPosts((prev) => {
+      const next = updater(prev);
+      setListCache({
+        items: next,
+        total: totalCountRef.current,
+      });
+      return next;
+    });
+  }
+
+  useEffect(() => {
     if (!profileData?.username) {
       setUserPostCount(0);
       return;
     }
-    fetch(`/api/blog?author=${encodeURIComponent(profileData.username)}&page=1&size=1`)
+    const params = new URLSearchParams({
+      author: profileData.username,
+      page: "1",
+      size: "1",
+    });
+    const cacheKey = buildListCacheKey(params, profileData.username);
+    const cached = getCachedJson(cacheKey);
+    if (cached && typeof cached.total === "number") {
+      setUserPostCount(cached.total);
+      return;
+    }
+    fetch(`/api/blog?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data && typeof data.total === "number") {
-          setUserPostCount(data.total);
+        const normalized = normalizeListPayload(data);
+        if (typeof normalized.total === "number") {
+          setUserPostCount(normalized.total);
+          setCachedJson(cacheKey, normalized);
         }
       })
       .catch(() => {
@@ -97,10 +160,7 @@ export default function BlogList() {
   }, [showSuggestions]);
 
   function loadPosts(options = {}) {
-    const { showLoading = false } = options;
-    if (showLoading) {
-      setStatus("loading");
-    }
+    const { showLoading = false, force = false } = options;
     const params = new URLSearchParams({
       page: String(currentPage),
       size: String(pageSize),
@@ -114,9 +174,35 @@ export default function BlogList() {
     if (tagFilter.trim()) {
       params.set("tag", tagFilter.trim());
     }
-    fetch(`/api/blog?${params.toString()}`, {
-      headers: etagRef.current ? { "If-None-Match": etagRef.current } : {},
-    })
+    const username = profileData?.username || "anon";
+    const cacheKey = buildListCacheKey(params, username);
+    const fallbackKey = buildListCacheKey(params, "anon");
+    listCacheKeyRef.current = cacheKey;
+    listFallbackCacheKeyRef.current = fallbackKey;
+    if (!force) {
+      const cachedMemory =
+        getListCache(cacheKey) || (cacheKey != fallbackKey ? getListCache(fallbackKey) : null);
+      const cached =
+        cachedMemory ||
+        getCachedJson(cacheKey) ||
+        (cacheKey != fallbackKey ? getCachedJson(fallbackKey) : null);
+      if (cached) {
+        const normalized = normalizeListPayload(cached);
+        setPosts(normalized.items);
+        setTotalCount(normalized.total);
+        setStatus("ready");
+        return;
+      }
+    }
+    if (showLoading) {
+      setStatus("loading");
+    }
+    const token = localStorage.getItem("token");
+    const headers = {
+      ...(etagRef.current ? { "If-None-Match": etagRef.current } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    fetch(`/api/blog?${params.toString()}`, { headers })
       .then(async (res) => {
         if (res.status === 304) {
           setStatus("ready");
@@ -130,13 +216,10 @@ export default function BlogList() {
       })
       .then((data) => {
         if (!data) return;
-        if (Array.isArray(data)) {
-          setPosts(data);
-          setTotalCount(data.length);
-        } else {
-          setPosts(Array.isArray(data.items) ? data.items : []);
-          setTotalCount(data.total || 0);
-        }
+        const normalized = normalizeListPayload(data);
+        setPosts(normalized.items);
+        setTotalCount(normalized.total);
+        setListCache(normalized);
         setStatus("ready");
       })
       .catch(() => {
@@ -148,7 +231,7 @@ export default function BlogList() {
 
   useEffect(() => {
     loadPosts({ showLoading: true });
-  }, [currentPage, submittedQuery, authorFilter]);
+  }, [currentPage, submittedQuery, authorFilter, tagFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -161,6 +244,7 @@ export default function BlogList() {
   useEffect(() => {
     setCurrentPage(1);
   }, [tagFilter]);
+
 
   async function publish() {
     setPublishStatus("");
@@ -190,15 +274,13 @@ export default function BlogList() {
     setTitle("");
     setTags("");
     setContent("");
-    loadPosts({ showLoading: false });
-  }
-
-  function buildImageMarkup(url) {
-    if (!imageWidth.trim()) {
-      return `![](${url})`;
+    if (listCacheKeyRef.current) {
+      clearListCache(listCacheKeyRef.current);
     }
-    const widthValue = imageWidth.trim();
-    return `<img src="${url}" style="max-width: 100%; width: ${widthValue};" />`;
+    if (listFallbackCacheKeyRef.current) {
+      clearListCache(listFallbackCacheKeyRef.current);
+    }
+    loadPosts({ showLoading: false, force: true });
   }
 
   function handleImageSelect(file) {
@@ -218,8 +300,9 @@ export default function BlogList() {
       navigate("/login");
       return null;
     }
+    const resized = await resizeImageFile(file, 1600);
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", resized);
     const res = await fetch("/api/upload-image", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -277,6 +360,9 @@ export default function BlogList() {
     const data = await res.json();
     if (data.profile) {
       localStorage.setItem("profile", JSON.stringify(data.profile));
+      if (data.profile?.username) {
+        setCachedJson(`cache:profile:${data.profile.username}`, data.profile);
+      }
       setProfileData(data.profile);
     }
   }
@@ -326,7 +412,12 @@ export default function BlogList() {
             <div className="profile-menu" ref={profileRef}>
               <button className="user-chip vertical" type="button" onClick={() => setShowProfile(!showProfile)}>
                 {profileData.avatar_url ? (
-                  <img src={profileData.avatar_url} alt={profileData.nickname} />
+                  <img
+                    src={profileData.avatar_url}
+                    alt={profileData.nickname}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <div className="avatar-fallback">{profileData.nickname?.[0] || "U"}</div>
                 )}
@@ -339,6 +430,8 @@ export default function BlogList() {
                         <img
                           src={profileData.avatar_url}
                           alt={profileData.nickname}
+                          loading="lazy"
+                          decoding="async"
                           onClick={() => document.getElementById("avatarFile")?.click()}
                         />
                       ) : (
@@ -388,21 +481,18 @@ export default function BlogList() {
                         className="file-input"
                         type="file"
                         accept="image/*"
-                        onChange={(event) => {
+                        onChange={async (event) => {
                           const file = event.target.files?.[0];
                           if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            const nextAvatar = String(reader.result || "");
-                            setProfileAvatar(nextAvatar);
-                            saveProfile({ avatar_url: nextAvatar });
-                          };
-                          reader.readAsDataURL(file);
+                          const nextAvatar = await resizeImageToDataUrl(file, 256);
+                          if (!nextAvatar) return;
+                          setProfileAvatar(nextAvatar);
+                          saveProfile({ avatar_url: nextAvatar });
                           event.target.value = "";
                         }}
                       />
                     </div>
-                    <div className="profile-actions">
+                    <div className="profile-actions vertical">
                       <a className="button ghost" href="/favorites" target="_blank" rel="noreferrer">
                         我的收藏
                       </a>
@@ -419,7 +509,7 @@ export default function BlogList() {
       </header>
       <div className="split">
         <aside className="side-panel">
-          <div className="card form">
+          <div className="card form compact">
             <h3>发布新文章</h3>
             {!localStorage.getItem("token") ? (
               <>
@@ -447,8 +537,8 @@ export default function BlogList() {
                   />
                 </label>
                 <label>
-                  Markdown 内容
-                  <div className="comment-form-actions">
+                  <div className="label-row">
+                    <span>内容</span>
                     <label className="button ghost small" style={{ margin: 0 }}>
                       上传图片
                       <input
@@ -463,11 +553,11 @@ export default function BlogList() {
                       />
                     </label>
                   </div>
-            <textarea
-              rows={10}
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              ref={contentRef}
+                  <textarea
+                    rows={14}
+                    value={content}
+                    onChange={(event) => setContent(event.target.value)}
+                    ref={contentRef}
               placeholder="使用 Markdown 写作..."
             />
           </label>
@@ -686,11 +776,56 @@ export default function BlogList() {
                     <div className="card-head">
                       <div className="author">
                         {post.author_avatar ? (
-                          <img src={post.author_avatar} alt={post.author_name} />
+                          <img
+                            src={post.author_avatar}
+                            alt={post.author_name}
+                            loading="lazy"
+                            decoding="async"
+                          />
                         ) : (
                           <div className="avatar-fallback">{post.author_name?.[0] || "U"}</div>
                         )}
                         <span>{post.author_name || post.author || "匿名"}</span>
+                      </div>
+                      <div className="post-card-top-actions">
+                        <button
+                          className={`meta-like ${post.favorited_by_me ? "favorite-on" : ""}`}
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+    const token = localStorage.getItem("token");
+                            if (!token) {
+                              navigate("/login");
+                              return;
+                            }
+                            fetch(`/api/blog/${post.slug}/favorite`, {
+                              method: "POST",
+                              headers: { Authorization: `Bearer ${token}` },
+                            })
+                              .then((res) => res.json())
+                              .then((data) => {
+                                if (!data) return;
+                                applyPostUpdates((prev) =>
+                                  prev.map((item) =>
+                                    item.slug === post.slug
+                                      ? {
+                                          ...item,
+                                          like_count: data.like_count ?? item.like_count,
+                                          dislike_count: data.dislike_count ?? item.dislike_count,
+                                          comment_count: data.comment_count ?? item.comment_count,
+                                          favorite_count: data.favorite_count ?? item.favorite_count,
+                                          favorited_by_me:
+                                            data.favorited ?? item.favorited_by_me,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              })
+                              .catch(() => {});
+                          }}
+                        >
+                          {post.favorited_by_me ? "★ 取消收藏" : "☆ 收藏"} {post.favorite_count ?? 0}
+                        </button>
                       </div>
                     </div>
                     <h2>
@@ -726,47 +861,43 @@ export default function BlogList() {
                           type="button"
                           onClick={(event) => {
                             event.preventDefault();
-                            const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
                             if (!token) {
                               navigate("/login");
                               return;
                             }
-                              fetch(`/api/blog/${post.slug}/like`, {
-                                method: "POST",
-                                headers: { Authorization: `Bearer ${token}` },
-                              })
-                                .then(() => loadPosts({ showLoading: false }))
-                                .catch(() => {});
-                            }}
-                          >
-                          赞 {post.like_count ?? 0}
-                        </button>
-                        <button
-                          className="meta-like"
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            const token = localStorage.getItem("token");
-                            if (!token) {
-                              navigate("/login");
-                              return;
-                            }
-                            fetch(`/api/blog/${post.slug}/favorite`, {
+                            fetch(`/api/blog/${post.slug}/like`, {
                               method: "POST",
                               headers: { Authorization: `Bearer ${token}` },
                             })
-                              .then(() => loadPosts({ showLoading: false }))
+                              .then((res) => res.json())
+                              .then((data) => {
+                                if (!data) return;
+                                applyPostUpdates((prev) =>
+                                  prev.map((item) =>
+                                    item.slug === post.slug
+                                      ? {
+                                          ...item,
+                                          like_count: data.like_count ?? item.like_count,
+                                          dislike_count: data.dislike_count ?? item.dislike_count,
+                                          comment_count: data.comment_count ?? item.comment_count,
+                                          favorite_count: data.favorite_count ?? item.favorite_count,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              })
                               .catch(() => {});
                           }}
                         >
-                          收藏 {post.favorite_count ?? 0}
+                          👍 赞 {post.like_count ?? 0}
                         </button>
                         <button
                           className="meta-like"
                           type="button"
                           onClick={(event) => {
                             event.preventDefault();
-                            const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
                             if (!token) {
                               navigate("/login");
                               return;
@@ -776,14 +907,28 @@ export default function BlogList() {
                               headers: { Authorization: `Bearer ${token}` },
                             })
                               .then((res) => res.json())
-                              .then(() => loadPosts({ showLoading: false }))
+                              .then((data) => {
+                                if (!data) return;
+                                applyPostUpdates((prev) =>
+                                  prev.map((item) =>
+                                    item.slug === post.slug
+                                      ? {
+                                          ...item,
+                                          like_count: data.like_count ?? item.like_count,
+                                          dislike_count: data.dislike_count ?? item.dislike_count,
+                                          comment_count: data.comment_count ?? item.comment_count,
+                                          favorite_count: data.favorite_count ?? item.favorite_count,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              })
                               .catch(() => {});
                           }}
                         >
-                          踩 {post.dislike_count ?? 0}
+                          👎 踩 {post.dislike_count ?? 0}
                         </button>
-                        <span>评论 {post.comment_count ?? 0}</span>
-                        <span className="read-more">阅读全文 →</span>
+                        <span>💬 评论 {post.comment_count ?? 0}</span>
                         {isAdmin && (
                           <button
                             className="meta-like"
@@ -792,7 +937,7 @@ export default function BlogList() {
                               event.preventDefault();
                               const ok = confirm("确认删除这篇文章吗？");
                               if (!ok) return;
-                              const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
                               if (!token) {
                                 navigate("/login");
                                 return;
@@ -801,7 +946,17 @@ export default function BlogList() {
                                 method: "DELETE",
                                 headers: { Authorization: `Bearer ${token}` },
                               })
-                                .then(() => loadPosts({ showLoading: false }))
+                                .then(() => {
+                                  clearPostCache(post.slug);
+                                  clearCommentsCache(post.slug);
+                                  if (listCacheKeyRef.current) {
+                                    clearListCache(listCacheKeyRef.current);
+                                  }
+                                  if (listFallbackCacheKeyRef.current) {
+                                    clearListCache(listFallbackCacheKeyRef.current);
+                                  }
+                                  loadPosts({ showLoading: false, force: true });
+                                })
                                 .catch(() => {});
                             }}
                           >

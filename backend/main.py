@@ -7,6 +7,7 @@ import uuid
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 try:
     from . import auth, blog, core, db
@@ -19,6 +20,14 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 app = FastAPI(title="Sora2 Web Studio")
+app.add_middleware(GZipMiddleware, minimum_size=800)
+
+_blog_cache = {}
+_blog_cache_lock = threading.Lock()
+_BLOG_CACHE_TTL = 10
+_comments_cache = {}
+_comments_cache_lock = threading.Lock()
+_COMMENTS_CACHE_TTL = 10
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -47,6 +56,26 @@ ADMIN_PASSWORD = "witw"
 @app.on_event("startup")
 def on_startup():
     db.init_db(ADMIN_USERNAME, ADMIN_PASSWORD)
+
+def _clear_blog_cache() -> None:
+    with _blog_cache_lock:
+        _blog_cache.clear()
+
+def _clear_comments_cache(slug: str | None) -> None:
+    if not slug:
+        return
+    with _comments_cache_lock:
+        _comments_cache.pop(slug, None)
+
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith(("/assets/", "/uploads/", "/static/")):
+        response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+    elif path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
 
 @app.get("/")
 def root():
@@ -188,8 +217,31 @@ def blog_list(
     q: Optional[str] = None,
     author: Optional[str] = None,
     tag: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
 ):
-    data = blog.list_posts(page=page, size=size, query=q, author=author, tag=tag)
+    username = auth.optional_user(authorization)
+    cache_key = (page, size, q or "", author or "", tag or "")
+    now = time.time()
+    with _blog_cache_lock:
+        cached = _blog_cache.get(cache_key)
+        if cached and cached["expires_at"] > now:
+            data = cached["data"]
+        else:
+            data = None
+    if data is None:
+        data = blog.list_posts(
+            page=page,
+            size=size,
+            query=q,
+            author=author,
+            tag=tag,
+            username=username,
+        )
+        with _blog_cache_lock:
+            _blog_cache[cache_key] = {
+                "expires_at": now + _BLOG_CACHE_TTL,
+                "data": data,
+            }
     etag = data.get("etag")
     if etag:
         if request.headers.get("if-none-match") == etag:
@@ -212,6 +264,7 @@ def admin_post(req: PostReq, user=Depends(auth.verify_token)):
     if not req.title.strip() or not req.content.strip():
         raise HTTPException(status_code=400, detail="Title and content required")
     blog.create_post(req.title, req.slug, req.content, user, req.tags or "")
+    _clear_blog_cache()
     return {"ok": True, "user": user}
 
 @app.put("/api/blog/{slug}")
@@ -219,17 +272,30 @@ def update_post(slug: str, req: UpdatePostReq, user=Depends(auth.verify_token)):
     if not req.title.strip() or not req.content.strip():
         raise HTTPException(status_code=400, detail="Title and content required")
     blog.update_post(slug, req.title, req.content, req.tags or "", user)
+    _clear_blog_cache()
     return {"ok": True}
 
 @app.delete("/api/admin/post/{slug}")
 def admin_delete_post(slug: str, user=Depends(auth.verify_token)):
     blog.delete_post(slug, user, ADMIN_USERNAME)
+    _clear_blog_cache()
     return {"ok": True}
 
 @app.get("/api/blog/{slug}/comments")
 @app.get("/api/blog/{slug}/comment")
 def blog_comments(slug: str):
-    return blog.list_comments(slug)
+    now = time.time()
+    with _comments_cache_lock:
+        cached = _comments_cache.get(slug)
+        if cached and cached["expires_at"] > now:
+            return cached["data"]
+    data = blog.list_comments(slug)
+    with _comments_cache_lock:
+        _comments_cache[slug] = {
+            "expires_at": now + _COMMENTS_CACHE_TTL,
+            "data": data,
+        }
+    return data
 
 @app.post("/api/blog/{slug}/comments")
 @app.post("/api/blog/{slug}/comment")
@@ -243,22 +309,30 @@ def blog_comment(
     author = username or (req.author or "访客")
     client_ip = request.client.host if request.client else ""
     blog.add_comment(slug, author, req.content, req.parent_id, client_ip)
+    _clear_blog_cache()
+    _clear_comments_cache(slug)
     return {"ok": True}
 
 @app.post("/api/blog/{slug}/like")
 def blog_like(slug: str, user=Depends(auth.verify_token)):
     liked = blog.toggle_like(slug, user)
-    return {"ok": True, "liked": liked}
+    _clear_blog_cache()
+    counts = blog.get_post_counts(slug)
+    return {"ok": True, "liked": liked, **counts}
 
 @app.post("/api/blog/{slug}/dislike")
 def blog_dislike(slug: str, user=Depends(auth.verify_token)):
     disliked = blog.toggle_dislike(slug, user)
-    return {"ok": True, "disliked": disliked}
+    _clear_blog_cache()
+    counts = blog.get_post_counts(slug)
+    return {"ok": True, "disliked": disliked, **counts}
 
 @app.post("/api/blog/{slug}/favorite")
 def blog_favorite(slug: str, user=Depends(auth.verify_token)):
     favorited = blog.toggle_favorite(slug, user)
-    return {"ok": True, "favorited": favorited}
+    _clear_blog_cache()
+    counts = blog.get_post_counts(slug)
+    return {"ok": True, "favorited": favorited, **counts}
 
 @app.get("/api/favorites")
 def favorites_list(user=Depends(auth.verify_token), page: int = 1, size: int = 10):
@@ -267,11 +341,15 @@ def favorites_list(user=Depends(auth.verify_token), page: int = 1, size: int = 1
 @app.post("/api/comment/{comment_id}/like")
 def comment_like(comment_id: int, user=Depends(auth.verify_token)):
     blog.vote_comment(comment_id, user, 1)
+    slug = blog.get_post_slug_for_comment(comment_id)
+    _clear_comments_cache(slug)
     return {"ok": True}
 
 @app.post("/api/comment/{comment_id}/dislike")
 def comment_dislike(comment_id: int, user=Depends(auth.verify_token)):
     blog.vote_comment(comment_id, user, -1)
+    slug = blog.get_post_slug_for_comment(comment_id)
+    _clear_comments_cache(slug)
     return {"ok": True}
 
 @app.post("/api/profile")

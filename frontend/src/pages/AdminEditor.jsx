@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { marked } from "marked";
+import { resizeImageFile } from "../utils/image";
 
 export default function AdminEditor() {
   const [title, setTitle] = useState("");
@@ -22,7 +23,15 @@ export default function AdminEditor() {
     }
   })();
 
-  const preview = useMemo(() => marked.parse(content || ""), [content]);
+  const preview = useMemo(() => {
+    const renderer = new marked.Renderer();
+    renderer.image = (href, title, text) => {
+      const safeTitle = title ? ` title="${title}"` : "";
+      const alt = text || "";
+      return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
+    };
+    return marked.parse(content || "", { renderer });
+  }, [content]);
 
   async function publish() {
     setStatus("");
@@ -79,8 +88,9 @@ export default function AdminEditor() {
       navigate("/login");
       return null;
     }
+    const resized = await resizeImageFile(file, 1600);
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", resized);
     const res = await fetch("/api/upload-image", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -163,8 +173,8 @@ export default function AdminEditor() {
             />
           </label>
           <label>
-            Markdown 内容
-            <div className="comment-form-actions">
+            <div className="label-row">
+              <span>内容</span>
               <label className="button ghost small" style={{ margin: 0 }}>
                 上传图片
                 <input

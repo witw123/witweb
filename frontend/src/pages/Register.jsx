@@ -1,5 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { setCachedJson } from "../utils/cache";
+import { resizeImageToDataUrl } from "../utils/image";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -9,17 +11,14 @@ export default function Register() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  function handleAvatarChange(event) {
+  async function handleAvatarChange(event) {
     const file = event.target.files?.[0];
     if (!file) {
       setAvatarUrl("");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAvatarUrl(String(reader.result || ""));
-    };
-    reader.readAsDataURL(file);
+    const resized = await resizeImageToDataUrl(file, 256);
+    setAvatarUrl(resized || "");
   }
 
   async function handleRegister(event) {
@@ -44,8 +43,11 @@ export default function Register() {
     localStorage.setItem("token", data.token);
     if (data.profile) {
       localStorage.setItem("profile", JSON.stringify(data.profile));
+      if (data.profile?.username) {
+        setCachedJson(`cache:profile:${data.profile.username}`, data.profile);
+      }
     }
-    navigate("/admin");
+    navigate("/");
   }
 
   return (

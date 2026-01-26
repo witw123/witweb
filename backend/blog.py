@@ -19,6 +19,7 @@ def list_posts(
     query: str | None = None,
     author: str | None = None,
     tag: str | None = None,
+    username: str | None = None,
 ) -> dict:
     conn = get_conn()
     cur = conn.cursor()
@@ -35,6 +36,7 @@ def list_posts(
     if tag:
         filters.append("p.tags LIKE ?")
         params.append(f"%{tag}%")
+    user_value = username or ""
     where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
     cur.execute(
         q(f"SELECT COUNT(*) AS cnt FROM posts p {where_sql}"),
@@ -57,14 +59,20 @@ def list_posts(
           (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
           (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
           (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
-          (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count
+          (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count,
+          CASE
+            WHEN ? = '' THEN 0
+            ELSE EXISTS(
+              SELECT 1 FROM favorites f2 WHERE f2.post_id = p.id AND f2.username = ?
+            )
+          END AS favorited_by_me
         FROM posts p
         LEFT JOIN users u ON u.username = p.author
         {where_sql}
         ORDER BY p.id DESC
         LIMIT ? OFFSET ?
         """),
-        (*params, size, offset),
+        (*params, user_value, user_value, size, offset),
     )
     rows = cur.fetchall()
     etag = _posts_etag(cur, query or "", author or "", tag or "", total)
@@ -397,6 +405,47 @@ def toggle_favorite(slug: str, username: str) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+def get_post_counts(slug: str) -> dict:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        q("""
+        SELECT
+          (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
+          (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
+          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+          (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count
+        FROM posts p
+        WHERE p.slug = ?
+        """),
+        (slug,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return dict(row)
+
+
+def get_post_slug_for_comment(comment_id: int) -> str | None:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        q("""
+        SELECT p.slug
+        FROM comments c
+        JOIN posts p ON p.id = c.post_id
+        WHERE c.id = ?
+        """),
+        (comment_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return row["slug"]
 
 
 def list_favorites(page: int, size: int, username: str) -> dict:

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { marked } from "marked";
+import { clearPostCache, getCommentsCache, getPostCache, setCommentsCache, setPostCache } from "../utils/memoryStore";
+import { resizeImageFile } from "../utils/image";
+import { getCachedJson, setCachedJson } from "../utils/cache";
 
 export default function BlogPost() {
   const { slug } = useParams();
@@ -27,6 +30,7 @@ export default function BlogPost() {
   const [showSizeModal, setShowSizeModal] = useState(false);
   const editPreviewRef = useRef(null);
   const imageReplaceInputRef = useRef(null);
+  const refreshCommentsTimer = useRef(null);
   const profile = (() => {
     try {
       return JSON.parse(localStorage.getItem("profile") || "");
@@ -35,6 +39,11 @@ export default function BlogPost() {
     }
   })();
   const canEdit = profile?.username && post?.author && profile.username === post.author;
+  const token = localStorage.getItem("token");
+  const cacheUserKeys = [profile?.username, token, "anon"].filter(Boolean);
+  const cacheKeySignature = `${cacheUserKeys.join("|")}:${slug}`;
+  const localPostKeys = cacheUserKeys.map((key) => `cache:post:${key}:${slug}`);
+  const localCommentKeys = cacheUserKeys.map((key) => `cache:comments:${key}:${slug}`);
 
   function slugify(text) {
     return String(text || "")
@@ -44,7 +53,26 @@ export default function BlogPost() {
       .replace(/^-+|-+$/g, "");
   }
 
-  function loadPost() {
+  function loadPost(options = {}) {
+    const { force = false } = options;
+    if (!force) {
+      for (const key of cacheUserKeys) {
+        const cached = getPostCache(`${key}:${slug}`);
+        if (cached) {
+          setPost(cached);
+          setStatus("ready");
+          return;
+        }
+      }
+      for (const key of localPostKeys) {
+        const cached = getCachedJson(key);
+        if (cached) {
+          setPost(cached);
+          setStatus("ready");
+          return;
+        }
+      }
+    }
     const token = localStorage.getItem("token");
     fetch(`/api/blog/${slug}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -52,25 +80,81 @@ export default function BlogPost() {
       .then((res) => res.json())
       .then((data) => {
         setPost(data);
+        cacheUserKeys.forEach((key) => setPostCache(`${key}:${slug}`, data));
+        localPostKeys.forEach((key) => setCachedJson(key, data));
         setStatus("ready");
       })
       .catch(() => setStatus("error"));
   }
 
-  function loadComments() {
+  function loadComments(options = {}) {
+    const { force = false } = options;
+    if (!force) {
+      for (const key of cacheUserKeys) {
+        const cached = getCommentsCache(`${key}:${slug}`);
+        if (cached) {
+          setComments(Array.isArray(cached) ? cached : []);
+          return;
+        }
+      }
+      for (const key of localCommentKeys) {
+        const cached = getCachedJson(key);
+        if (cached) {
+          setComments(Array.isArray(cached) ? cached : []);
+          return;
+        }
+      }
+    }
     fetch(`/api/blog/${slug}/comments`)
       .then((res) => res.json())
       .then((data) => {
-        setComments(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setComments(list);
+        cacheUserKeys.forEach((key) => setCommentsCache(`${key}:${slug}`, list));
+        localCommentKeys.forEach((key) => setCachedJson(key, list));
       })
       .catch(() => setComments([]));
   }
 
   useEffect(() => {
-    setStatus("loading");
-    loadPost();
-    loadComments();
-  }, [slug]);
+    let cachedPost = null;
+    for (const key of cacheUserKeys) {
+      cachedPost = getPostCache(`${key}:${slug}`);
+      if (cachedPost) break;
+    }
+    if (!cachedPost) {
+      for (const key of localPostKeys) {
+        cachedPost = getCachedJson(key);
+        if (cachedPost) break;
+      }
+    }
+    let cachedComments = null;
+    for (const key of cacheUserKeys) {
+      cachedComments = getCommentsCache(`${key}:${slug}`);
+      if (cachedComments) break;
+    }
+    if (!cachedComments) {
+      for (const key of localCommentKeys) {
+        cachedComments = getCachedJson(key);
+        if (cachedComments) break;
+      }
+    }
+    if (cachedPost) {
+      setPost(cachedPost);
+      setStatus("ready");
+    } else {
+      setStatus("loading");
+    }
+    if (cachedComments) {
+      setComments(Array.isArray(cachedComments) ? cachedComments : []);
+    }
+    if (!cachedPost) {
+      loadPost({ force: true });
+    }
+    if (!cachedComments) {
+      loadComments({ force: true });
+    }
+  }, [slug, cacheKeySignature]);
 
   useEffect(() => {
     if (post) {
@@ -93,7 +177,16 @@ export default function BlogPost() {
       return;
     }
     await res.json().catch(() => ({}));
-    loadPost();
+    loadPost({ force: true });
+  }
+
+  function scheduleCommentsRefresh() {
+    if (refreshCommentsTimer.current) {
+      clearTimeout(refreshCommentsTimer.current);
+    }
+    refreshCommentsTimer.current = setTimeout(() => {
+      loadComments({ force: true });
+    }, 800);
   }
 
   async function handleComment(event) {
@@ -130,8 +223,8 @@ export default function BlogPost() {
     setReplyTo(null);
     setCommentStatus("评论已发布。");
     setCommentPage(1);
-    loadComments();
-    loadPost();
+    loadComments({ force: true });
+    loadPost({ force: true });
   }
 
   async function handleSaveEdit() {
@@ -163,7 +256,8 @@ export default function BlogPost() {
       return;
     }
     setIsEditing(false);
-    loadPost();
+    clearPostCache(slug);
+    loadPost({ force: true });
   }
 
   function buildImageMarkup(url) {
@@ -192,8 +286,9 @@ export default function BlogPost() {
       setEditStatus("Login required.");
       return null;
     }
+    const resized = await resizeImageFile(file, 1600);
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", resized);
     const res = await fetch("/api/upload-image", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -276,11 +371,24 @@ export default function BlogPost() {
       items.push({ id, text, level });
       return `<h${level} id="${id}">${text}</h${level}>`;
     };
+    renderer.image = (href, title, text) => {
+      const safeTitle = title ? ` title="${title}"` : "";
+      const alt = text || "";
+      return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
+    };
     const html = marked.parse(post?.content || "", { renderer });
     return { html, toc: items };
   }, [post?.content]);
 
-  const editPreviewHtml = useMemo(() => marked.parse(editContent || ""), [editContent]);
+  const editPreviewHtml = useMemo(() => {
+    const renderer = new marked.Renderer();
+    renderer.image = (href, title, text) => {
+      const safeTitle = title ? ` title="${title}"` : "";
+      const alt = text || "";
+      return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
+    };
+    return marked.parse(editContent || "", { renderer });
+  }, [editContent]);
 
   function buildCommentTree(list) {
     const nodes = new Map();
@@ -338,7 +446,12 @@ export default function BlogPost() {
         className={`comment-item${isReply ? " reply" : ""}`}
       >
         {node.author_avatar ? (
-          <img src={node.author_avatar} alt={node.author_name} />
+          <img
+            src={node.author_avatar}
+            alt={node.author_name}
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="avatar-fallback">{node.author_name?.[0] || "U"}</div>
         )}
@@ -366,7 +479,7 @@ export default function BlogPost() {
                   method: "POST",
                   headers: { Authorization: `Bearer ${token}` },
                 })
-                  .then(loadComments)
+                  .then(() => scheduleCommentsRefresh())
                   .catch(() => {});
               }}
             >
@@ -382,7 +495,7 @@ export default function BlogPost() {
                   method: "POST",
                   headers: { Authorization: `Bearer ${token}` },
                 })
-                  .then(loadComments)
+                  .then(() => scheduleCommentsRefresh())
                   .catch(() => {});
               }}
             >
@@ -450,18 +563,23 @@ export default function BlogPost() {
         <div className="meta meta-detail">
           <div className="meta-author">
             {post.author_avatar ? (
-              <img src={post.author_avatar} alt={post.author_name} />
+              <img
+                src={post.author_avatar}
+                alt={post.author_name}
+                loading="lazy"
+                decoding="async"
+              />
             ) : (
               <div className="avatar-fallback">{post.author_name?.[0] || "U"}</div>
             )}
             <span>{post.author_name || post.author}</span>
           </div>
-          <div className="meta-actions">
-            <button className="comment-action" type="button" onClick={handleLike}>
-              赞 {post.like_count ?? 0}
+          <div className="post-card-actions">
+            <button className="meta-like" type="button" onClick={handleLike}>
+              👍 赞 {post.like_count ?? 0}
             </button>
             <button
-              className="comment-action"
+              className={`meta-like ${post.favorited_by_me ? "favorite-on" : ""}`}
               type="button"
               onClick={() => {
                 const token = localStorage.getItem("token");
@@ -474,14 +592,14 @@ export default function BlogPost() {
                   headers: { Authorization: `Bearer ${token}` },
                 })
                   .then((res) => res.json())
-                  .then(() => loadPost())
+                  .then(() => loadPost({ force: true }))
                   .catch(() => {});
               }}
             >
-              收藏 {post.favorite_count ?? 0}
+              {post.favorited_by_me ? "★ 取消收藏" : "☆ 收藏"} {post.favorite_count ?? 0}
             </button>
             <button
-              className="comment-action"
+              className="meta-like"
               type="button"
               onClick={() => {
                 const token = localStorage.getItem("token");
@@ -491,13 +609,13 @@ export default function BlogPost() {
                   headers: { Authorization: `Bearer ${token}` },
                 })
                   .then((res) => res.json())
-                  .then(() => loadPost())
+                  .then(() => loadPost({ force: true }))
                   .catch(() => {});
               }}
             >
-              踩 {post.dislike_count ?? 0}
+              👎 踩 {post.dislike_count ?? 0}
             </button>
-            <span>💬 {post.comment_count ?? 0}</span>
+            <span>💬 评论 {post.comment_count ?? 0}</span>
           </div>
         </div>
       )}

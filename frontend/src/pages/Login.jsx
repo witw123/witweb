@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+﻿import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { setCachedJson } from "../utils/cache";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -16,13 +17,16 @@ export default function Login() {
       body: JSON.stringify({ username, password }),
     });
     if (!res.ok) {
-      setError("Invalid username or password.");
+      setError("账号或密码错误。");
       return;
     }
     const data = await res.json();
     localStorage.setItem("token", data.token);
     if (data.profile) {
       localStorage.setItem("profile", JSON.stringify(data.profile));
+      if (data.profile?.username) {
+        setCachedJson(`cache:profile:${data.profile.username}`, data.profile);
+      }
     }
     navigate("/");
   }
@@ -54,17 +58,17 @@ export default function Login() {
             placeholder="请输入密码"
           />
         </label>
-        {error && <p className="error">账号或密码错误。</p>}
+        {error && <p className="error">{error}</p>}
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <button className="button primary" type="submit">
             登录
           </button>
-          <a className="button ghost" href="/" rel="noreferrer">
+          <Link className="button ghost" to="/">
             返回主页
-          </a>
-          <a className="button ghost" href="/register" target="_blank" rel="noreferrer">
+          </Link>
+          <Link className="button ghost" to="/register">
             注册
-          </a>
+          </Link>
         </div>
       </form>
     </div>
