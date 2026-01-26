@@ -2,8 +2,10 @@ from typing import Optional
 from pathlib import Path
 import os
 import threading
+import time
+import uuid
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 try:
@@ -24,6 +26,9 @@ STATIC_DIR = ROOT_DIR / "frontend" / "dist"
 ASSETS_DIR = STATIC_DIR / "assets"
 STUDIO_DIR = ROOT_DIR / "frontend" / "studio"
 DOWNLOADS_DIR = BACKEND_DIR / "downloads"
+UPLOADS_DIR = BACKEND_DIR / "uploads"
+
+UPLOADS_DIR.mkdir(exist_ok=True)
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
@@ -33,6 +38,8 @@ if STUDIO_DIR.exists():
     app.mount("/studio", StaticFiles(directory=str(STUDIO_DIR), html=True), name="studio")
 if DOWNLOADS_DIR.exists():
     app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
+if UPLOADS_DIR.exists():
+    app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 ADMIN_USERNAME = "witw"
 ADMIN_PASSWORD = "witw"
@@ -150,6 +157,10 @@ class ProfileReq(BaseModel):
     nickname: str = ""
     avatar_url: str = ""
 
+def _safe_filename(filename: str) -> str:
+    name = Path(filename).name
+    return "".join(ch for ch in name if ch.isalnum() or ch in ("-", "_", ".", " "))
+
 @app.post("/api/login")
 def login(req: LoginReq):
     if auth.authenticate_user(req.username, req.password):
@@ -176,8 +187,9 @@ def blog_list(
     size: int = 5,
     q: Optional[str] = None,
     author: Optional[str] = None,
+    tag: Optional[str] = None,
 ):
-    data = blog.list_posts(page=page, size=size, query=q, author=author)
+    data = blog.list_posts(page=page, size=size, query=q, author=author, tag=tag)
     etag = data.get("etag")
     if etag:
         if request.headers.get("if-none-match") == etag:
@@ -203,10 +215,10 @@ def admin_post(req: PostReq, user=Depends(auth.verify_token)):
     return {"ok": True, "user": user}
 
 @app.put("/api/blog/{slug}")
-def update_post(slug: str, req: UpdatePostReq):
+def update_post(slug: str, req: UpdatePostReq, user=Depends(auth.verify_token)):
     if not req.title.strip() or not req.content.strip():
         raise HTTPException(status_code=400, detail="Title and content required")
-    blog.update_post(slug, req.title, req.content, req.tags or "")
+    blog.update_post(slug, req.title, req.content, req.tags or "", user)
     return {"ok": True}
 
 @app.delete("/api/admin/post/{slug}")
@@ -243,6 +255,15 @@ def blog_dislike(slug: str, user=Depends(auth.verify_token)):
     disliked = blog.toggle_dislike(slug, user)
     return {"ok": True, "disliked": disliked}
 
+@app.post("/api/blog/{slug}/favorite")
+def blog_favorite(slug: str, user=Depends(auth.verify_token)):
+    favorited = blog.toggle_favorite(slug, user)
+    return {"ok": True, "favorited": favorited}
+
+@app.get("/api/favorites")
+def favorites_list(user=Depends(auth.verify_token), page: int = 1, size: int = 10):
+    return blog.list_favorites(page=page, size=size, username=user)
+
 @app.post("/api/comment/{comment_id}/like")
 def comment_like(comment_id: int, user=Depends(auth.verify_token)):
     blog.vote_comment(comment_id, user, 1)
@@ -259,6 +280,25 @@ def update_profile(req: ProfileReq, user=Depends(auth.verify_token)):
     avatar_url = req.avatar_url or ""
     profile = auth.update_profile(user, nickname, avatar_url)
     return {"ok": True, "profile": profile}
+
+@app.post("/api/upload-image")
+def upload_image(file: UploadFile = File(...), user=Depends(auth.verify_token)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing file")
+    content_type = (file.content_type or "").lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files allowed")
+    safe_name = _safe_filename(file.filename)
+    ext = Path(safe_name).suffix or ".png"
+    unique_name = f"{int(time.time())}-{uuid.uuid4().hex}{ext}"
+    target = UPLOADS_DIR / unique_name
+    with target.open("wb") as f:
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+    return {"ok": True, "url": f"/uploads/{unique_name}"}
 
 @app.post("/config/api-key")
 def set_key(req: ApiKeyReq):

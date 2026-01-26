@@ -134,6 +134,16 @@ def init_db(admin_username: str, admin_password: str) -> None:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS favorites (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              post_id INT,
+              username VARCHAR(64),
+              created_at VARCHAR(64)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
         _mysql_create_index(
             "ALTER TABLE likes ADD UNIQUE INDEX idx_likes_post_user (post_id, username)"
         )
@@ -160,6 +170,12 @@ def init_db(admin_username: str, admin_password: str) -> None:
         )
         _mysql_create_index(
             "CREATE INDEX idx_dislikes_post ON dislikes(post_id)"
+        )
+        _mysql_create_index(
+            "ALTER TABLE favorites ADD UNIQUE INDEX idx_favorites_post_user (post_id, username)"
+        )
+        _mysql_create_index(
+            "CREATE INDEX idx_favorites_post ON favorites(post_id)"
         )
     else:
         cur.execute(
@@ -247,6 +263,19 @@ def init_db(admin_username: str, admin_password: str) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_comment_vote ON comment_votes(comment_id, username)"
         )
         cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS favorites (
+              id INTEGER PRIMARY KEY,
+              post_id INTEGER,
+              username TEXT,
+              created_at TEXT
+            )
+            """
+        )
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_post_user ON favorites(post_id, username)"
+        )
+        cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author)"
         )
         cur.execute(
@@ -263,6 +292,9 @@ def init_db(admin_username: str, admin_password: str) -> None:
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_dislikes_post ON dislikes(post_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_favorites_post ON favorites(post_id)"
         )
 
     if is_mysql():

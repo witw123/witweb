@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AdminEditor from "./pages/AdminEditor";
 import BlogList from "./pages/BlogList";
 import BlogPost from "./pages/BlogPost";
+import Favorites from "./pages/Favorites";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
@@ -19,6 +20,14 @@ export default function Router() {
     <Routes>
       <Route path="/" element={<BlogList />} />
       <Route path="/post/:slug" element={<BlogPost />} />
+      <Route
+        path="/favorites"
+        element={
+          <RequireAuth>
+            <Favorites />
+          </RequireAuth>
+        }
+      />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route

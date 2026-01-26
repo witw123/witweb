@@ -13,7 +13,13 @@ except ImportError:
 q = adapt_query
 
 
-def list_posts(page: int = 1, size: int = 10, query: str | None = None, author: str | None = None) -> dict:
+def list_posts(
+    page: int = 1,
+    size: int = 10,
+    query: str | None = None,
+    author: str | None = None,
+    tag: str | None = None,
+) -> dict:
     conn = get_conn()
     cur = conn.cursor()
     page = max(1, int(page))
@@ -26,6 +32,9 @@ def list_posts(page: int = 1, size: int = 10, query: str | None = None, author: 
     if author:
         filters.append("p.author = ?")
         params.append(author)
+    if tag:
+        filters.append("p.tags LIKE ?")
+        params.append(f"%{tag}%")
     where_sql = f"WHERE {' AND '.join(filters)}" if filters else ""
     cur.execute(
         q(f"SELECT COUNT(*) AS cnt FROM posts p {where_sql}"),
@@ -47,7 +56,8 @@ def list_posts(page: int = 1, size: int = 10, query: str | None = None, author: 
           COALESCE(u.avatar_url, '') AS author_avatar,
           (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
           (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
-          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+          (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count
         FROM posts p
         LEFT JOIN users u ON u.username = p.author
         {where_sql}
@@ -57,7 +67,7 @@ def list_posts(page: int = 1, size: int = 10, query: str | None = None, author: 
         (*params, size, offset),
     )
     rows = cur.fetchall()
-    etag = _posts_etag(cur, query or "", author or "", total)
+    etag = _posts_etag(cur, query or "", author or "", tag or "", total)
     conn.close()
     return {
         "items": [dict(row) for row in rows],
@@ -85,7 +95,8 @@ def get_post(slug: str, username: str | None = None) -> dict:
           COALESCE(u.avatar_url, '') AS author_avatar,
           (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
           (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
-          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
+          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+          (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count
         FROM posts p
         LEFT JOIN users u ON u.username = p.author
         WHERE p.slug = ?
@@ -105,8 +116,14 @@ def get_post(slug: str, username: str | None = None) -> dict:
             (data["id"], username),
         )
         liked = cur.fetchone()
+        cur.execute(
+            q("SELECT id FROM favorites WHERE post_id = ? AND username = ?"),
+            (data["id"], username),
+        )
+        favorited = cur.fetchone()
         conn.close()
         data["liked_by_me"] = liked is not None
+        data["favorited_by_me"] = favorited is not None
     return data
 
 
@@ -129,21 +146,29 @@ def create_post(title: str, slug: str | None, content: str, author: str, tags: s
     conn.close()
 
 
-def update_post(slug: str, title: str, content: str, tags: str = "") -> None:
+def update_post(slug: str, title: str, content: str, tags: str, username: str) -> None:
     conn = get_conn()
     cur = conn.cursor()
+    cur.execute(
+        q("SELECT author FROM posts WHERE slug = ?"),
+        (slug,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Post not found")
+    if row["author"] != username:
+        conn.close()
+        raise HTTPException(status_code=403, detail="Forbidden")
     cur.execute(
         q("UPDATE posts SET title = ?, content = ?, tags = ? WHERE slug = ?"),
         (title, content, tags, slug),
     )
-    if cur.rowcount == 0:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Post not found")
     conn.commit()
     conn.close()
 
 
-def _posts_etag(cur, q: str, author: str, total: int) -> str:
+def _posts_etag(cur, q: str, author: str, tag: str, total: int) -> str:
     def _max_time(table: str) -> str:
         cur.execute(f"SELECT MAX(created_at) AS ts FROM {table}")
         row = cur.fetchone()
@@ -154,6 +179,7 @@ def _posts_etag(cur, q: str, author: str, total: int) -> str:
     max_dislike = _max_time("dislikes")
     max_comment = _max_time("comments")
     max_vote = _max_time("comment_votes")
+    max_favorite = _max_time("favorites")
     cur.execute(
         """
         SELECT
@@ -161,7 +187,8 @@ def _posts_etag(cur, q: str, author: str, total: int) -> str:
           (SELECT COUNT(*) FROM likes) AS likes,
           (SELECT COUNT(*) FROM dislikes) AS dislikes,
           (SELECT COUNT(*) FROM comments) AS comments,
-          (SELECT COUNT(*) FROM comment_votes) AS votes
+          (SELECT COUNT(*) FROM comment_votes) AS votes,
+          (SELECT COUNT(*) FROM favorites) AS favorites
         """
     )
     counts = cur.fetchone()
@@ -169,17 +196,20 @@ def _posts_etag(cur, q: str, author: str, total: int) -> str:
         [
             q,
             author,
+            tag,
             str(total),
             str(counts["posts"]),
             str(counts["likes"]),
             str(counts["dislikes"]),
             str(counts["comments"]),
             str(counts["votes"]),
+            str(counts["favorites"]),
             max_post,
             max_like,
             max_dislike,
             max_comment,
             max_vote,
+            max_favorite,
         ]
     )
     return f'W/"{hashlib.sha1(raw.encode("utf-8")).hexdigest()}"'
@@ -340,6 +370,79 @@ def toggle_dislike(slug: str, username: str) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+def toggle_favorite(slug: str, username: str) -> bool:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(q("SELECT id FROM posts WHERE slug = ?"), (slug,))
+    row = cur.fetchone()
+    if row is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Post not found")
+    cur.execute(
+        q("SELECT id FROM favorites WHERE post_id = ? AND username = ?"),
+        (row["id"], username),
+    )
+    existing = cur.fetchone()
+    if existing:
+        cur.execute(q("DELETE FROM favorites WHERE id = ?"), (existing["id"],))
+        conn.commit()
+        conn.close()
+        return False
+    cur.execute(
+        q("INSERT INTO favorites (post_id, username, created_at) VALUES (?, ?, ?)"),
+        (row["id"], username, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def list_favorites(page: int, size: int, username: str) -> dict:
+    conn = get_conn()
+    cur = conn.cursor()
+    page = max(1, int(page))
+    size = max(1, min(50, int(size)))
+    cur.execute(
+        q("SELECT COUNT(*) AS cnt FROM favorites WHERE username = ?"),
+        (username,),
+    )
+    total_row = cur.fetchone()
+    total = total_row["cnt"] if total_row else 0
+    offset = (page - 1) * size
+    cur.execute(
+        q("""
+        SELECT
+          p.title,
+          p.slug,
+          p.content,
+          p.created_at,
+          p.author,
+          p.tags,
+          COALESCE(u.nickname, p.author) AS author_name,
+          COALESCE(u.avatar_url, '') AS author_avatar,
+          (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
+          (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
+          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+          (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count
+        FROM favorites f
+        JOIN posts p ON p.id = f.post_id
+        LEFT JOIN users u ON u.username = p.author
+        WHERE f.username = ?
+        ORDER BY f.id DESC
+        LIMIT ? OFFSET ?
+        """),
+        (username, size, offset),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return {
+        "items": [dict(row) for row in rows],
+        "total": total,
+        "page": page,
+        "size": size,
+    }
 
 
 def vote_comment(comment_id: int, username: str, value: int) -> None:

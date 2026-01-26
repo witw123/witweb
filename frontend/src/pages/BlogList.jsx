@@ -6,18 +6,29 @@ export default function BlogList() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const normalizedQuery = submittedQuery.trim().toLowerCase();
+  const [tagFilter, setTagFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [content, setContent] = useState("");
   const [publishStatus, setPublishStatus] = useState("");
+  const [imageWidth, setImageWidth] = useState("");
+  const [imageSizePercent, setImageSizePercent] = useState(100);
+  const [showSizeModal, setShowSizeModal] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState(null);
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState("");
   const [showProfile, setShowProfile] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileAvatar, setProfileAvatar] = useState("");
   const [profileData, setProfileData] = useState(null);
+  const [userPostCount, setUserPostCount] = useState(0);
   const navigate = useNavigate();
   const profileRef = useRef(null);
+  const contentRef = useRef(null);
+  const searchRef = useRef(null);
   const [status, setStatus] = useState("loading");
   const isAdmin = profileData?.username === "witw";
   const [authorFilter, setAuthorFilter] = useState("");
@@ -41,6 +52,23 @@ export default function BlogList() {
   }, [profileData]);
 
   useEffect(() => {
+    if (!profileData?.username) {
+      setUserPostCount(0);
+      return;
+    }
+    fetch(`/api/blog?author=${encodeURIComponent(profileData.username)}&page=1&size=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.total === "number") {
+          setUserPostCount(data.total);
+        }
+      })
+      .catch(() => {
+        setUserPostCount(0);
+      });
+  }, [profileData]);
+
+  useEffect(() => {
     function handleClickOutside(event) {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setShowProfile(false);
@@ -53,6 +81,20 @@ export default function BlogList() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showProfile]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    }
+    if (showSuggestions) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showSuggestions]);
 
   function loadPosts(options = {}) {
     const { showLoading = false } = options;
@@ -68,6 +110,9 @@ export default function BlogList() {
     }
     if (authorFilter) {
       params.set("author", authorFilter);
+    }
+    if (tagFilter.trim()) {
+      params.set("tag", tagFilter.trim());
     }
     fetch(`/api/blog?${params.toString()}`, {
       headers: etagRef.current ? { "If-None-Match": etagRef.current } : {},
@@ -113,6 +158,10 @@ export default function BlogList() {
     setCurrentPage(1);
   }, [authorFilter]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tagFilter]);
+
   async function publish() {
     setPublishStatus("");
     if (!title.trim() || !content.trim()) {
@@ -142,6 +191,64 @@ export default function BlogList() {
     setTags("");
     setContent("");
     loadPosts({ showLoading: false });
+  }
+
+  function buildImageMarkup(url) {
+    if (!imageWidth.trim()) {
+      return `![](${url})`;
+    }
+    const widthValue = imageWidth.trim();
+    return `<img src="${url}" style="max-width: 100%; width: ${widthValue};" />`;
+  }
+
+  function handleImageSelect(file) {
+    if (!file) return;
+    if (pendingPreviewUrl) {
+      URL.revokeObjectURL(pendingPreviewUrl);
+    }
+    const preview = URL.createObjectURL(file);
+    setPendingImageFile(file);
+    setPendingPreviewUrl(preview);
+    setShowSizeModal(true);
+  }
+
+  async function uploadImage(file) {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return null;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload-image", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const data = await res.json();
+    return data.url || null;
+  }
+
+  function insertImageMarkup(url, widthValue) {
+    const markup = widthValue
+      ? `<img src="${url}" style="max-width: 100%; width: ${widthValue};" />`
+      : `![](${url})`;
+    const textarea = contentRef.current;
+    if (!textarea) {
+      setContent((prev) => `${prev}\n\n${markup}\n`);
+      return;
+    }
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    setContent((prev) => `${prev.slice(0, start)}${markup}${prev.slice(end)}`);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = start + markup.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
   }
 
   async function saveProfile(overrides = {}) {
@@ -183,6 +290,24 @@ export default function BlogList() {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const tagSuggestions = Array.from(
+    new Set(
+      posts
+        .flatMap((post) => (post.tags || "").split(/[,，]/))
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  );
+  const titleSuggestions = Array.from(
+    new Set(posts.map((post) => post.title).filter(Boolean)),
+  );
+  const normalizedInput = searchInput.trim().toLowerCase();
+  const filteredTags = normalizedInput
+    ? tagSuggestions.filter((tag) => tag.toLowerCase().includes(normalizedInput))
+    : [];
+  const filteredTitles = normalizedInput
+    ? titleSuggestions.filter((title) => title.toLowerCase().includes(normalizedInput))
+    : [];
 
   return (
     <div className="page">
@@ -253,7 +378,7 @@ export default function BlogList() {
                           }
                         }}
                       >
-                        <strong>{totalCount}</strong>
+                        <strong>{userPostCount}</strong>
                         <span>文章</span>
                       </button>
                     </div>
@@ -278,6 +403,9 @@ export default function BlogList() {
                       />
                     </div>
                     <div className="profile-actions">
+                      <a className="button ghost" href="/favorites" target="_blank" rel="noreferrer">
+                        我的收藏
+                      </a>
                       <button className="button ghost" type="button" onClick={handleLogout}>
                         退出登录
                       </button>
@@ -320,13 +448,101 @@ export default function BlogList() {
                 </label>
                 <label>
                   Markdown 内容
-                  <textarea
-                    rows={10}
-                    value={content}
-                    onChange={(event) => setContent(event.target.value)}
-                    placeholder="使用 Markdown 写作..."
+                  <div className="comment-form-actions">
+                    <label className="button ghost small" style={{ margin: 0 }}>
+                      上传图片
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          handleImageSelect(file);
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+            <textarea
+              rows={10}
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              ref={contentRef}
+              placeholder="使用 Markdown 写作..."
+            />
+          </label>
+          {showSizeModal && pendingImageFile && (
+            <div className="image-modal">
+              <div className="image-modal-card">
+                <div className="image-modal-title">调整图片大小</div>
+                <div className="image-modal-preview">
+                  <img
+                    src={pendingPreviewUrl}
+                    alt="preview"
+                    style={{
+                      maxWidth: "100%",
+                      width: imageWidth.trim()
+                        ? imageWidth.trim()
+                        : `${imageSizePercent}%`,
+                    }}
                   />
-                </label>
+                </div>
+                <div className="image-modal-row">
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    value={imageSizePercent}
+                    onChange={(event) => setImageSizePercent(Number(event.target.value))}
+                  />
+                  <span>{imageSizePercent}%</span>
+                </div>
+                <input
+                  className="image-width-input"
+                  value={imageWidth}
+                  onChange={(event) => setImageWidth(event.target.value)}
+                  placeholder="或输入宽度，如 360px / 60%"
+                />
+                <div className="comment-form-actions">
+                  <button
+                    className="button primary small"
+                    type="button"
+                    onClick={async () => {
+                      const widthValue = imageWidth.trim()
+                        ? imageWidth.trim()
+                        : `${imageSizePercent}%`;
+                      const url = await uploadImage(pendingImageFile);
+                      if (url) {
+                        insertImageMarkup(url, widthValue);
+                      }
+                      if (pendingPreviewUrl) {
+                        URL.revokeObjectURL(pendingPreviewUrl);
+                      }
+                      setPendingPreviewUrl("");
+                      setPendingImageFile(null);
+                      setShowSizeModal(false);
+                    }}
+                  >
+                    插入图片
+                  </button>
+                  <button
+                    className="button ghost small"
+                    type="button"
+                    onClick={() => {
+                      if (pendingPreviewUrl) {
+                        URL.revokeObjectURL(pendingPreviewUrl);
+                      }
+                      setPendingPreviewUrl("");
+                      setPendingImageFile(null);
+                      setShowSizeModal(false);
+                    }}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
                 {publishStatus && <p className="status">{publishStatus}</p>}
                 <button className="button primary" type="button" onClick={publish}>
                   发布
@@ -346,15 +562,72 @@ export default function BlogList() {
             <h3>最新文章</h3>
             <div className="search">
               <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                ref={searchRef}
+                value={searchInput}
+                onChange={(event) => {
+                  setSearchInput(event.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    setSubmittedQuery(query);
+                    setSubmittedQuery(searchInput);
+                    setTagFilter(searchInput);
+                    setQuery(searchInput);
+                    setShowSuggestions(false);
                   }
                 }}
-                placeholder="搜索标题..."
+                placeholder="搜索标题或标签..."
               />
+              {showSuggestions && (filteredTags.length > 0 || filteredTitles.length > 0) && (
+                <div
+                  className="search-suggestions"
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  {filteredTags.length > 0 && (
+                    <>
+                      <div className="suggestion-group">标签</div>
+                      {filteredTags.map((tag) => (
+                        <button
+                          key={`tag-${tag}`}
+                          className="suggestion-item"
+                          type="button"
+                          onClick={() => {
+                            setTagFilter(tag);
+                            setSubmittedQuery("");
+                            setQuery("");
+                            setSearchInput(tag);
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {filteredTitles.length > 0 && (
+                    <>
+                      <div className="suggestion-group">文章</div>
+                      {filteredTitles.map((title) => (
+                        <button
+                          key={`title-${title}`}
+                          className="suggestion-item"
+                          type="button"
+                          onClick={() => {
+                            setSubmittedQuery(title);
+                            setTagFilter("");
+                            setQuery(title);
+                            setSearchInput(title);
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          {title}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
               {submittedQuery && (
                 <button
                   className="button ghost"
@@ -362,6 +635,7 @@ export default function BlogList() {
                   onClick={() => {
                     setQuery("");
                     setSubmittedQuery("");
+                    setSearchInput("");
                   }}
                 >
                   清空
@@ -374,6 +648,18 @@ export default function BlogList() {
                   onClick={() => setAuthorFilter("")}
                 >
                   仅看我的文章
+                </button>
+              )}
+              {tagFilter && (
+                <button
+                  className="button ghost"
+                  type="button"
+                  onClick={() => {
+                    setTagFilter("");
+                    setSearchInput("");
+                  }}
+                >
+                  清除标签
                 </button>
               )}
               <span className="muted">共 {totalCount} 篇</span>
@@ -454,6 +740,26 @@ export default function BlogList() {
                             }}
                           >
                           赞 {post.like_count ?? 0}
+                        </button>
+                        <button
+                          className="meta-like"
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            const token = localStorage.getItem("token");
+                            if (!token) {
+                              navigate("/login");
+                              return;
+                            }
+                            fetch(`/api/blog/${post.slug}/favorite`, {
+                              method: "POST",
+                              headers: { Authorization: `Bearer ${token}` },
+                            })
+                              .then(() => loadPosts({ showLoading: false }))
+                              .catch(() => {});
+                          }}
+                        >
+                          收藏 {post.favorite_count ?? 0}
                         </button>
                         <button
                           className="meta-like"
