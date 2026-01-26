@@ -57,7 +57,7 @@ export default function AdminEditor() {
     <div className="page">
       <header className="header">
         <div>
-          <h1>Sora2 Studio Pro</h1>
+          <h1>AI Studio</h1>
           <p className="muted">工作区 · 讨论区管理</p>
         </div>
         <div className="actions">

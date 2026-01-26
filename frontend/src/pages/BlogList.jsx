@@ -188,7 +188,7 @@ export default function BlogList() {
     <div className="page">
       <header className="header">
         <div>
-          <h1>Sora2 Studio Pro</h1>
+          <h1>AI Studio</h1>
           <p className="muted">讨论区 · 分享创作日志与经验</p>
         </div>
         <nav className="nav-links">

@@ -31,7 +31,7 @@ export default function Login() {
     <div className="page">
       <header className="header">
         <div>
-          <h1>Sora2 Studio Pro</h1>
+          <h1>AI Studio</h1>
           <p className="muted">登录 · 进入工作区</p>
         </div>
       </header>

@@ -52,8 +52,8 @@ export default function Register() {
     <div className="page">
       <header className="header">
         <div>
-          <h1>Sora2 Studio Pro</h1>
-          <p className="muted">管理员注册 · 注册后自动登录</p>
+          <h1>AI Studio</h1>
+          <p className="muted">注册后自动登录</p>
         </div>
       </header>
 

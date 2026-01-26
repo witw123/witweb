@@ -10,6 +10,11 @@ export default function BlogPost() {
   const [commentText, setCommentText] = useState("");
   const [commentStatus, setCommentStatus] = useState("");
   const [replyTo, setReplyTo] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editTags, setEditTags] = useState("");
+  const [editStatus, setEditStatus] = useState("");
 
   function loadPost() {
     const token = localStorage.getItem("token");
@@ -38,6 +43,14 @@ export default function BlogPost() {
     loadPost();
     loadComments();
   }, [slug]);
+
+  useEffect(() => {
+    if (post) {
+      setEditTitle(post.title || "");
+      setEditContent(post.content || "");
+      setEditTags(post.tags || "");
+    }
+  }, [post]);
 
   async function handleLike() {
     const token = localStorage.getItem("token");
@@ -94,6 +107,34 @@ export default function BlogPost() {
     loadPost();
   }
 
+  async function handleSaveEdit() {
+    setEditStatus("");
+    if (!editTitle.trim() || !editContent.trim()) {
+      setEditStatus("Title and content required.");
+      return;
+    }
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/api/blog/${slug}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        title: editTitle,
+        content: editContent,
+        tags: editTags,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEditStatus(data.detail || "Save failed.");
+      return;
+    }
+    setIsEditing(false);
+    loadPost();
+  }
+
   const tagList = (post?.tags || "")
     .split(/[,，]/)
     .map((tag) => tag.trim())
@@ -103,13 +144,20 @@ export default function BlogPost() {
     <div className="page">
       <header className="header">
         <div>
-          <h1>Sora2 Studio Pro</h1>
+          <h1>AI Studio</h1>
         </div>
       </header>
       <div className="post-toolbar">
         <Link className="button ghost" to="/">
           返回讨论区
         </Link>
+        <button
+          className="button ghost"
+          type="button"
+          onClick={() => setIsEditing((value) => !value)}
+        >
+          {isEditing ? "Cancel" : "Edit"}
+        </button>
       </div>
       {post?.title && <h2 style={{ marginTop: 0 }}>{post.title}</h2>}
       {post && (
@@ -159,7 +207,45 @@ export default function BlogPost() {
 
       {status === "loading" && <p>加载中...</p>}
       {status === "error" && <p>加载失败，请稍后再试。</p>}
-      {status === "ready" && post && (
+      {isEditing && (
+        <section className="card form">
+          <label>
+            Title
+            <input
+              value={editTitle}
+              onChange={(event) => setEditTitle(event.target.value)}
+              placeholder="Title"
+            />
+          </label>
+          <label>
+            Tags
+            <input
+              value={editTags}
+              onChange={(event) => setEditTags(event.target.value)}
+              placeholder="tag1, tag2"
+            />
+          </label>
+          <label>
+            Content
+            <textarea
+              rows={10}
+              value={editContent}
+              onChange={(event) => setEditContent(event.target.value)}
+              placeholder="Write content..."
+            />
+          </label>
+          {editStatus && <p className="error">{editStatus}</p>}
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <button className="button primary" type="button" onClick={handleSaveEdit}>
+              Save
+            </button>
+            <button className="button ghost" type="button" onClick={() => setIsEditing(false)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
+      {status === "ready" && post && !isEditing && (
         <>
           <article
             className="markdown"

@@ -136,6 +136,11 @@ class PostReq(BaseModel):
     content: str
     tags: Optional[str] = ""
 
+class UpdatePostReq(BaseModel):
+    title: str
+    content: str
+    tags: Optional[str] = ""
+
 class CommentReq(BaseModel):
     content: str
     author: Optional[str] = None
@@ -196,6 +201,13 @@ def admin_post(req: PostReq, user=Depends(auth.verify_token)):
         raise HTTPException(status_code=400, detail="Title and content required")
     blog.create_post(req.title, req.slug, req.content, user, req.tags or "")
     return {"ok": True, "user": user}
+
+@app.put("/api/blog/{slug}")
+def update_post(slug: str, req: UpdatePostReq):
+    if not req.title.strip() or not req.content.strip():
+        raise HTTPException(status_code=400, detail="Title and content required")
+    blog.update_post(slug, req.title, req.content, req.tags or "")
+    return {"ok": True}
 
 @app.delete("/api/admin/post/{slug}")
 def admin_delete_post(slug: str, user=Depends(auth.verify_token)):

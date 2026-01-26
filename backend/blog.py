@@ -129,6 +129,20 @@ def create_post(title: str, slug: str | None, content: str, author: str, tags: s
     conn.close()
 
 
+def update_post(slug: str, title: str, content: str, tags: str = "") -> None:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        q("UPDATE posts SET title = ?, content = ?, tags = ? WHERE slug = ?"),
+        (title, content, tags, slug),
+    )
+    if cur.rowcount == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Post not found")
+    conn.commit()
+    conn.close()
+
+
 def _posts_etag(cur, q: str, author: str, total: int) -> str:
     def _max_time(table: str) -> str:
         cur.execute(f"SELECT MAX(created_at) AS ts FROM {table}")
