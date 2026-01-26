@@ -83,7 +83,7 @@ export default function BlogPost() {
         return null;
       }
     })();
-    const res = await fetch(`/api/blog/${slug}/comment`, {
+    const res = await fetch(`/api/blog/${slug}/comments`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

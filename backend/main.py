@@ -215,9 +215,11 @@ def admin_delete_post(slug: str, user=Depends(auth.verify_token)):
     return {"ok": True}
 
 @app.get("/api/blog/{slug}/comments")
+@app.get("/api/blog/{slug}/comment")
 def blog_comments(slug: str):
     return blog.list_comments(slug)
 
+@app.post("/api/blog/{slug}/comments")
 @app.post("/api/blog/{slug}/comment")
 def blog_comment(
     slug: str,
