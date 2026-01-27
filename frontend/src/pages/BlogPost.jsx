@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { getThumbnailUrl } from "../utils/url";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "../components/Icons";
 import { marked } from "marked";
-import { clearPostCache, getCommentsCache, getPostCache, setCommentsCache, setPostCache } from "../utils/memoryStore";
+import { clearAllListCache, clearPostCache, getCommentsCache, getPostCache, setCommentsCache, setPostCache } from "../utils/memoryStore";
 import { resizeImageFile } from "../utils/image";
 import { getCachedJson, setCachedJson } from "../utils/cache";
 
@@ -259,6 +259,14 @@ export default function BlogPost() {
     }
     setIsEditing(false);
     clearPostCache(slug);
+    clearAllListCache();
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("cache:blog:") || key.startsWith("cache:post:")) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch {}
     loadPost({ force: true });
   }
 

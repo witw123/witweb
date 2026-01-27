@@ -71,3 +71,7 @@ export function clearListCache(key) {
   listCache.delete(key);
 }
 
+export function clearAllListCache() {
+  listCache.clear();
+}
+

@@ -72,6 +72,21 @@ export async function updateProfile(profileData) {
     if (data.profile.username) {
       setCachedJson(`cache:profile:${data.profile.username}`, data.profile);
     }
+
+    // Clear cached blog data so updated avatars propagate
+    try {
+      const prefixes = [
+        "cache:blog:",
+        "cache:post:",
+        "cache:comments:",
+        "cache:favorites:",
+      ];
+      Object.keys(localStorage).forEach((key) => {
+        if (prefixes.some((prefix) => key.startsWith(prefix))) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch {}
   }
 
   return data;
