@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { getThumbnailUrl } from "../utils/url";
 import { getFavoritesCache, setFavoritesCache } from "../utils/memoryStore";
 import { getCachedJson, setCachedJson } from "../utils/cache";
+import * as blogService from "../services/blogService";
 
 export default function Favorites() {
   const [items, setItems] = useState([]);
@@ -28,6 +30,7 @@ export default function Favorites() {
       navigate("/login");
       return;
     }
+    // Check cache first
     let cached = null;
     for (const key of cacheUserKeys) {
       cached = getFavoritesCache(`${key}:${page}`);
@@ -45,11 +48,9 @@ export default function Favorites() {
       setStatus("ready");
       return;
     }
+    // Fetch from API
     setStatus("loading");
-    fetch(`/api/favorites?page=${page}&size=${pageSize}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
+    blogService.getFavorites(page, pageSize)
       .then((data) => {
         const payload = {
           items: Array.isArray(data.items) ? data.items : [],
@@ -57,6 +58,7 @@ export default function Favorites() {
         };
         setItems(payload.items);
         setTotal(payload.total);
+        // Update cache
         cacheUserKeys.forEach((key) => {
           setFavoritesCache(`${key}:${page}`, payload);
         });
@@ -71,72 +73,63 @@ export default function Favorites() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="page favorites-page">
-      <header className="header">
+    <div className="favorites-page">
+      <div className="header-actions flex justify-between items-center mb-6">
         <div>
-          <h1>AI Studio</h1>
-          <p className="muted">我的收藏</p>
+          <h1 className="text-2xl font-bold">我的收藏</h1>
         </div>
         <div className="actions">
-          <Link className="button ghost" to="/">
+          <Link className="btn-ghost" to="/">
             返回讨论区
           </Link>
         </div>
-      </header>
+      </div>
       {status === "loading" && <p>加载中...</p>}
       {status === "error" && <p>加载失败，请稍后再试。</p>}
       {status === "ready" && items.length === 0 && <p>暂无收藏。</p>}
-      <div className="list">
+      <div className="list grid">
         {items.map((post) => (
-          <Link key={post.slug} to={`/post/${post.slug}`} className="card">
-            <div className="card-head">
-              <div className="author">
+          <Link key={post.slug} to={`/ post / ${post.slug} `} className="card block no-underline text-inherit hover:border-accent transition-colors">
+            <div className="card-head flex justify-between items-start mb-2">
+              <div className="author flex items-center gap-2">
                 {post.author_avatar ? (
-                  <img
-                    src={post.author_avatar}
-                    alt={post.author_name}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <div className="avatar-fallback">{post.author_name?.[0] || "U"}</div>
-                )}
-                <span>{post.author_name || post.author || "匿名"}</span>
+                  <img src={getThumbnailUrl(post.author_avatar, 64)} alt={post.author} className="w-6 h-6 rounded-full" />
+                ) : <div className="avatar-fallback w-6 h-6 text-xs">{post.author?.[0]}</div>}
+                <span className="text-sm font-medium">{post.author}</span>
               </div>
             </div>
-            <h2>{post.title}</h2>
-            <p className="excerpt">
+            <h2 className="text-xl font-bold mb-2">{post.title}</h2>
+            <p className="text-muted text-sm mb-4 leading-relaxed line-clamp-2">
               {(post.content || "").replace(/\s+/g, " ").trim().slice(0, 140)}
             </p>
-            <div className="post-card-footer">
-              <div className="post-card-meta">
-                <span className="muted">{new Date(post.created_at).toLocaleString()}</span>
+            <div className="flex justify-between items-center mt-auto">
+              <div className="text-xs text-muted">
+                {new Date(post.created_at).toLocaleString()}
               </div>
-              <div className="post-card-actions">
-                <span>赞 {post.like_count ?? 0}</span>
-                <span>踩 {post.dislike_count ?? 0}</span>
-                <span>评论 {post.comment_count ?? 0}</span>
-                <span>收藏 {post.favorite_count ?? 0}</span>
+              <div className="flex gap-2 text-sm text-secondary">
+                <span>👍 {post.like_count ?? 0}</span>
+                <span>💬 {post.comment_count ?? 0}</span>
+                <span>★ {post.favorite_count ?? 0}</span>
               </div>
             </div>
           </Link>
         ))}
       </div>
       {totalPages > 1 && (
-        <div className="pagination">
+        <div className="pagination flex justify-center gap-4 mt-8 items-center">
           <button
-            className="button ghost"
+            className="btn-ghost"
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
           >
             上一页
           </button>
-          <span className="muted">
+          <span className="text-muted text-sm">
             第 {page} / {totalPages} 页
           </span>
           <button
-            className="button ghost"
+            className="btn-ghost"
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}

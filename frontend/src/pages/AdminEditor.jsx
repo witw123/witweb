@@ -122,43 +122,15 @@ export default function AdminEditor() {
     });
   }
 
-  function logout() {
-    localStorage.removeItem("token");
-    navigate("/");
-  }
-
   return (
-    <div className="page">
-      <header className="header">
-        <div>
-          <h1>AI Studio</h1>
-          <p className="muted">工作区 · 讨论区管理</p>
-        </div>
-        <div className="actions">
-          <Link className="button ghost" to="/">
-            返回讨论区
-          </Link>
-          {profile ? (
-            <div className="user-chip">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.nickname} />
-              ) : (
-                <div className="avatar-fallback">{profile.nickname?.[0] || "U"}</div>
-              )}
-              <span>{profile.nickname || profile.username}</span>
-            </div>
-          ) : null}
-          <button className="button ghost" onClick={logout}>
-            退出登录
-          </button>
-        </div>
-      </header>
+    <div className="admin-page">
 
       <div className="grid">
         <div className="card form">
           <label>
             标题
             <input
+              className="input"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="文章标题"
@@ -167,15 +139,16 @@ export default function AdminEditor() {
           <label>
             标签
             <input
+              className="input"
               value={tags}
               onChange={(event) => setTags(event.target.value)}
               placeholder="例如：动画, 角色, 经验"
             />
           </label>
           <label>
-            <div className="label-row">
+            <div className="flex justify-between items-center mb-2">
               <span>内容</span>
-              <label className="button ghost small" style={{ margin: 0 }}>
+              <label className="btn-ghost btn-sm cursor-pointer" style={{ margin: 0 }}>
                 上传图片
                 <input
                   type="file"
@@ -190,6 +163,7 @@ export default function AdminEditor() {
               </label>
             </div>
             <textarea
+              className="input"
               rows={12}
               value={content}
               onChange={(event) => setContent(event.target.value)}
@@ -198,40 +172,57 @@ export default function AdminEditor() {
             />
           </label>
           {showSizeModal && pendingImageFile && (
-            <div className="image-modal">
-              <div className="image-modal-card">
-                <div className="image-modal-title">调整图片大小</div>
-                <div className="image-modal-preview">
+            <div className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.8)', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="card" style={{ width: '400px', maxWidth: '90%' }}>
+                <h3 className="text-lg font-bold mb-4">调整图片大小</h3>
+                <div className="mb-4 bg-black/20 p-2 rounded flex justify-center" style={{ background: 'rgba(0,0,0,0.2)' }}>
                   <img
                     src={pendingPreviewUrl}
                     alt="preview"
                     style={{
                       maxWidth: "100%",
+                      maxHeight: "300px",
                       width: imageWidth.trim()
                         ? imageWidth.trim()
                         : `${imageSizePercent}%`,
                     }}
                   />
                 </div>
-                <div className="image-modal-row">
+                <div className="flex items-center gap-2 mb-4">
                   <input
                     type="range"
                     min="10"
                     max="100"
+                    className="flex-1"
+                    style={{ flex: 1 }}
                     value={imageSizePercent}
                     onChange={(event) => setImageSizePercent(Number(event.target.value))}
                   />
-                  <span>{imageSizePercent}%</span>
+                  <span className="text-sm w-12 text-right">{imageSizePercent}%</span>
                 </div>
                 <input
-                  className="image-width-input"
+                  className="input mb-4"
                   value={imageWidth}
                   onChange={(event) => setImageWidth(event.target.value)}
                   placeholder="或输入宽度，如 360px / 60%"
                 />
-                <div className="comment-form-actions">
+                <div className="flex gap-2 justify-end">
                   <button
-                    className="button primary small"
+                    className="btn-ghost"
+                    type="button"
+                    onClick={() => {
+                      if (pendingPreviewUrl) {
+                        URL.revokeObjectURL(pendingPreviewUrl);
+                      }
+                      setPendingPreviewUrl("");
+                      setPendingImageFile(null);
+                      setShowSizeModal(false);
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="btn-primary"
                     type="button"
                     onClick={async () => {
                       const widthValue = imageWidth.trim()
@@ -251,26 +242,12 @@ export default function AdminEditor() {
                   >
                     插入图片
                   </button>
-                  <button
-                    className="button ghost small"
-                    type="button"
-                    onClick={() => {
-                      if (pendingPreviewUrl) {
-                        URL.revokeObjectURL(pendingPreviewUrl);
-                      }
-                      setPendingPreviewUrl("");
-                      setPendingImageFile(null);
-                      setShowSizeModal(false);
-                    }}
-                  >
-                    取消
-                  </button>
                 </div>
               </div>
             </div>
           )}
-          {status && <p className="status">{status}</p>}
-          <button className="button primary" type="button" onClick={publish}>
+          {status && <p className="text-accent mb-2">{status}</p>}
+          <button className="btn-primary w-full" type="button" onClick={publish}>
             发布
           </button>
         </div>

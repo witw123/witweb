@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { getThumbnailUrl } from "../utils/url";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "../components/Icons";
 import { getCachedJson, setCachedJson } from "../utils/cache";
 import { clearCommentsCache, clearListCache, clearPostCache, getListCache, setListCache as setListCacheMemory } from "../utils/memoryStore";
 import { resizeImageFile, resizeImageToDataUrl } from "../utils/image";
 
 export default function BlogList() {
+  const location = useLocation();
   const [posts, setPosts] = useState([]);
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -229,14 +232,20 @@ export default function BlogList() {
       });
   }
 
+  // Load posts on mount and when filters change
   useEffect(() => {
     loadPosts({ showLoading: true });
   }, [currentPage, submittedQuery, authorFilter, tagFilter]);
 
+  // Reload posts when navigating back to this page
+  useEffect(() => {
+    loadPosts({ showLoading: false });
+  }, []);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [submittedQuery]);
-  
+
   useEffect(() => {
     setCurrentPage(1);
   }, [authorFilter]);
@@ -396,155 +405,53 @@ export default function BlogList() {
     : [];
 
   return (
-    <div className="page">
-      <header className="header">
-        <div>
-          <h1>AI Studio</h1>
-          <p className="muted">讨论区 · 分享创作日志与经验</p>
-        </div>
-        <nav className="nav-links">
-          <a className="nav-link studio-link" href="/studio" target="_blank" rel="noreferrer">
-            工作区
-          </a>
-        </nav>
-        <div className="actions">
-          {profileData ? (
-            <div className="profile-menu" ref={profileRef}>
-              <button className="user-chip vertical" type="button" onClick={() => setShowProfile(!showProfile)}>
-                {profileData.avatar_url ? (
-                  <img
-                    src={profileData.avatar_url}
-                    alt={profileData.nickname}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <div className="avatar-fallback">{profileData.nickname?.[0] || "U"}</div>
-                )}
-              </button>
-              {showProfile && (
-                <div className="profile-pop card" onMouseDown={(event) => event.stopPropagation()}>
-                  <div className="form">
-                    <div className="profile-inline">
-                      {profileData?.avatar_url ? (
-                        <img
-                          src={profileData.avatar_url}
-                          alt={profileData.nickname}
-                          loading="lazy"
-                          decoding="async"
-                          onClick={() => document.getElementById("avatarFile")?.click()}
-                        />
-                      ) : (
-                        <div
-                          className="avatar-fallback large"
-                          onClick={() => document.getElementById("avatarFile")?.click()}
-                        >
-                          {profileData?.nickname?.[0] || "U"}
-                        </div>
-                      )}
-                      <div>
-                        <div className="profile-name-edit">
-                          <input
-                            className="profile-name-input"
-                            value={profileName}
-                            onChange={(event) => setProfileName(event.target.value)}
-                            onClick={(event) => event.stopPropagation()}
-                            onBlur={saveProfile}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                saveProfile();
-                              }
-                            }}
-                            placeholder="昵称"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="profile-stats">
-                      <button
-                        className="stat-card"
-                        type="button"
-                        onClick={() => {
-                          if (profileData?.username) {
-                            setAuthorFilter(profileData.username);
-                          }
-                        }}
-                      >
-                        <strong>{userPostCount}</strong>
-                        <span>文章</span>
-                      </button>
-                    </div>
-                    <div className="avatar-upload">
-                      <input
-                        id="avatarFile"
-                        className="file-input"
-                        type="file"
-                        accept="image/*"
-                        onChange={async (event) => {
-                          const file = event.target.files?.[0];
-                          if (!file) return;
-                          const nextAvatar = await resizeImageToDataUrl(file, 256);
-                          if (!nextAvatar) return;
-                          setProfileAvatar(nextAvatar);
-                          saveProfile({ avatar_url: nextAvatar });
-                          event.target.value = "";
-                        }}
-                      />
-                    </div>
-                    <div className="profile-actions vertical">
-                      <a className="button ghost" href="/favorites" target="_blank" rel="noreferrer">
-                        我的收藏
-                      </a>
-                      <button className="button ghost" type="button" onClick={handleLogout}>
-                        退出登录
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </header>
-      <div className="split">
+    <div className="blog-list-page">
+      <div className="intro-section" style={{ marginBottom: 'var(--spacing-md)' }}>
+        <h1>AI Studio</h1>
+        <p style={{ color: 'var(--text-secondary)' }}>讨论区 · 分享创作日志与经验</p>
+      </div>
+
+      <div className="split-layout">
         <aside className="side-panel">
-          <div className="card form compact">
-            <h3>发布新文章</h3>
+          <div className="card">
+            <h3 className="text-lg font-bold mb-4">发布新文章</h3>
             {!localStorage.getItem("token") ? (
               <>
-                <p className="muted">登录后可在此发布文章。</p>
-                <Link className="button ghost" to="/login">
+                <p className="text-muted mb-4 text-sm">登录后可在此发布文章。</p>
+                <Link className="btn-primary w-full" to="/login">
                   去登录
                 </Link>
               </>
             ) : (
-              <>
-                <label>
-                  标题
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">标题</label>
                   <input
+                    className="input"
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
                     placeholder="文章标题"
                   />
-                </label>
-                <label>
-                  标签
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">标签</label>
                   <input
+                    className="input"
                     value={tags}
                     onChange={(event) => setTags(event.target.value)}
                     placeholder="例如：动画, 角色, 经验"
                   />
-                </label>
-                <label>
-                  <div className="label-row">
-                    <span>内容</span>
-                    <label className="button ghost small" style={{ margin: 0 }}>
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-sm font-medium block">内容</label>
+                    <label className="btn-ghost btn-sm cursor-pointer">
                       上传图片
                       <input
                         type="file"
                         accept="image/*"
-                        style={{ display: "none" }}
+                        className="hidden"
+                        style={{ display: 'none' }}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
                           handleImageSelect(file);
@@ -554,92 +461,91 @@ export default function BlogList() {
                     </label>
                   </div>
                   <textarea
-                    rows={14}
+                    className="input"
+                    rows={12}
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     ref={contentRef}
-              placeholder="使用 Markdown 写作..."
-            />
-          </label>
-          {showSizeModal && pendingImageFile && (
-            <div className="image-modal">
-              <div className="image-modal-card">
-                <div className="image-modal-title">调整图片大小</div>
-                <div className="image-modal-preview">
-                  <img
-                    src={pendingPreviewUrl}
-                    alt="preview"
-                    style={{
-                      maxWidth: "100%",
-                      width: imageWidth.trim()
-                        ? imageWidth.trim()
-                        : `${imageSizePercent}%`,
-                    }}
+                    placeholder="使用 Markdown 写作..."
                   />
                 </div>
-                <div className="image-modal-row">
-                  <input
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={imageSizePercent}
-                    onChange={(event) => setImageSizePercent(Number(event.target.value))}
-                  />
-                  <span>{imageSizePercent}%</span>
-                </div>
-                <input
-                  className="image-width-input"
-                  value={imageWidth}
-                  onChange={(event) => setImageWidth(event.target.value)}
-                  placeholder="或输入宽度，如 360px / 60%"
-                />
-                <div className="comment-form-actions">
-                  <button
-                    className="button primary small"
-                    type="button"
-                    onClick={async () => {
-                      const widthValue = imageWidth.trim()
-                        ? imageWidth.trim()
-                        : `${imageSizePercent}%`;
-                      const url = await uploadImage(pendingImageFile);
-                      if (url) {
-                        insertImageMarkup(url, widthValue);
-                      }
-                      if (pendingPreviewUrl) {
-                        URL.revokeObjectURL(pendingPreviewUrl);
-                      }
-                      setPendingPreviewUrl("");
-                      setPendingImageFile(null);
-                      setShowSizeModal(false);
-                    }}
-                  >
-                    插入图片
-                  </button>
-                  <button
-                    className="button ghost small"
-                    type="button"
-                    onClick={() => {
-                      if (pendingPreviewUrl) {
-                        URL.revokeObjectURL(pendingPreviewUrl);
-                      }
-                      setPendingPreviewUrl("");
-                      setPendingImageFile(null);
-                      setShowSizeModal(false);
-                    }}
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-                {publishStatus && <p className="status">{publishStatus}</p>}
-                <button className="button primary" type="button" onClick={publish}>
+
+                {showSizeModal && pendingImageFile && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.8)', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="card" style={{ width: '400px', maxWidth: '90%' }}>
+                      <h3 className="text-lg font-bold mb-4">调整图片大小</h3>
+                      <div className="mb-4 bg-black/20 p-2 rounded flex justify-center">
+                        <img
+                          src={pendingPreviewUrl}
+                          alt="preview"
+                          style={{
+                            maxWidth: "100%",
+                            maxHeight: "300px",
+                            width: imageWidth.trim()
+                              ? imageWidth.trim()
+                              : `${imageSizePercent}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <input
+                          type="range"
+                          min="10"
+                          max="100"
+                          className="flex-1"
+                          value={imageSizePercent}
+                          onChange={(event) => setImageSizePercent(Number(event.target.value))}
+                        />
+                        <span className="text-sm w-12 text-right">{imageSizePercent}%</span>
+                      </div>
+                      <input
+                        className="input mb-4"
+                        value={imageWidth}
+                        onChange={(event) => setImageWidth(event.target.value)}
+                        placeholder="或输入宽度，如 360px / 60%"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          className="btn-ghost"
+                          type="button"
+                          onClick={() => {
+                            if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+                            setPendingPreviewUrl("");
+                            setPendingImageFile(null);
+                            setShowSizeModal(false);
+                          }}
+                        >
+                          取消
+                        </button>
+                        <button
+                          className="btn-primary"
+                          type="button"
+                          onClick={async () => {
+                            const widthValue = imageWidth.trim()
+                              ? imageWidth.trim()
+                              : `${imageSizePercent}%`;
+                            const url = await uploadImage(pendingImageFile);
+                            if (url) {
+                              insertImageMarkup(url, widthValue);
+                            }
+                            if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+                            setPendingPreviewUrl("");
+                            setPendingImageFile(null);
+                            setShowSizeModal(false);
+                          }}
+                        >
+                          插入图片
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {publishStatus && <p className="text-accent text-sm">{publishStatus}</p>}
+                <button className="btn-primary w-full" type="button" onClick={publish}>
                   发布
                 </button>
-              </>
-            )
-          }
+              </div>
+            )}
           </div>
         </aside>
 
@@ -648,10 +554,11 @@ export default function BlogList() {
           {status === "error" && <p>加载失败，请稍后再试。</p>}
           {status === "ready" && posts.length === 0 && <p>暂无文章，去左侧发布第一篇吧。</p>}
 
-          <div className="section-header">
-            <h3>最新文章</h3>
-            <div className="search">
+          <div className="section-header flex justify-between items-center mb-4">
+            <h3 className="text-xl font-bold">最新文章</h3>
+            <div className="search flex gap-2 items-center relative" style={{ width: '60%' }}>
               <input
+                className="input"
                 ref={searchRef}
                 value={searchInput}
                 onChange={(event) => {
@@ -752,238 +659,243 @@ export default function BlogList() {
                   清除标签
                 </button>
               )}
-              <span className="muted">共 {totalCount} 篇</span>
             </div>
           </div>
 
-          <div className="list">
+          <div className="list grid">
             {posts.map((post) => {
-                const title = post.title;
-                const rawPreview = (post.content || "").replace(/\s+/g, " ").trim();
-                const preview =
-                  rawPreview.length > 0
-                    ? `${rawPreview.slice(0, 160)}${rawPreview.length > 160 ? "..." : ""}`
-                    : "暂无预览";
-                const tagList = (post.tags || "")
-                  .split(/[,，]/)
-                  .map((tag) => tag.trim())
-                  .filter(Boolean);
-                const matchIndex = normalizedQuery
-                  ? title.toLowerCase().indexOf(normalizedQuery)
-                  : -1;
-                return (
-                  <Link key={post.slug} to={`/post/${post.slug}`} className="card">
-                    <div className="card-head">
-                      <div className="author">
-                        {post.author_avatar ? (
-                          <img
-                            src={post.author_avatar}
-                            alt={post.author_name}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        ) : (
-                          <div className="avatar-fallback">{post.author_name?.[0] || "U"}</div>
-                        )}
-                        <span>{post.author_name || post.author || "匿名"}</span>
-                      </div>
-                      <div className="post-card-top-actions">
-                        <button
-                          className={`meta-like ${post.favorited_by_me ? "favorite-on" : ""}`}
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-    const token = localStorage.getItem("token");
-                            if (!token) {
-                              navigate("/login");
-                              return;
-                            }
-                            fetch(`/api/blog/${post.slug}/favorite`, {
-                              method: "POST",
-                              headers: { Authorization: `Bearer ${token}` },
-                            })
-                              .then((res) => res.json())
-                              .then((data) => {
-                                if (!data) return;
-                                applyPostUpdates((prev) =>
-                                  prev.map((item) =>
-                                    item.slug === post.slug
-                                      ? {
-                                          ...item,
-                                          like_count: data.like_count ?? item.like_count,
-                                          dislike_count: data.dislike_count ?? item.dislike_count,
-                                          comment_count: data.comment_count ?? item.comment_count,
-                                          favorite_count: data.favorite_count ?? item.favorite_count,
-                                          favorited_by_me:
-                                            data.favorited ?? item.favorited_by_me,
-                                        }
-                                      : item,
-                                  ),
-                                );
-                              })
-                              .catch(() => {});
-                          }}
-                        >
-                          {post.favorited_by_me ? "★ 取消收藏" : "☆ 收藏"} {post.favorite_count ?? 0}
-                        </button>
-                      </div>
-                    </div>
-                    <h2>
-                      {matchIndex >= 0 ? (
-                        <>
-                          {title.slice(0, matchIndex)}
-                          <span className="highlight">
-                            {title.slice(matchIndex, matchIndex + normalizedQuery.length)}
-                          </span>
-                          {title.slice(matchIndex + normalizedQuery.length)}
-                        </>
+              const title = post.title;
+              const rawPreview = (post.content || "").replace(/\s+/g, " ").trim();
+              const preview =
+                rawPreview.length > 0
+                  ? `${rawPreview.slice(0, 160)}${rawPreview.length > 160 ? "..." : ""}`
+                  : "暂无预览";
+              const tagList = (post.tags || "")
+                .split(/[,，]/)
+                .map((tag) => tag.trim())
+                .filter(Boolean);
+              const matchIndex = normalizedQuery
+                ? title.toLowerCase().indexOf(normalizedQuery)
+                : -1;
+              const firstImageMatch = (post.content || "").match(/!\[.*?\]\((.*?)\)|<img.*?src=["'](.*?)["']/);
+              const firstImageUrl = firstImageMatch ? (firstImageMatch[1] || firstImageMatch[2]) : null;
+              const thumbnailUrl = getThumbnailUrl(firstImageUrl, 400);
+              const avatarUrl = getThumbnailUrl(post.author_avatar, 64);
+
+              return (
+                <Link key={post.slug} to={`/post/${post.slug}`} className="card block no-underline text-inherit hover:border-accent transition-colors">
+                  <div className="card-head flex justify-between items-start mb-3">
+                    {/* ... author ... */}
+                    <div className="author flex items-center gap-2">
+                      {post.author_avatar ? (
+                        <img
+                          src={avatarUrl}
+                          alt={post.author_name}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-6 h-6 rounded-full"
+                        />
                       ) : (
-                        title
+                        <div className="avatar-fallback w-6 h-6 text-xs">{post.author_name?.[0] || "U"}</div>
                       )}
-                    </h2>
-                    <p className="excerpt">{preview}</p>
-                    <div className="post-card-footer">
-                      <div className="post-card-meta">
-                        <span className="muted">{new Date(post.created_at).toLocaleString()}</span>
-                        {tagList.length > 0 && (
-                          <div className="tag-list">
-                            {tagList.map((tag) => (
-                              <span key={tag} className="tag-pill">
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="post-card-actions">
-                        <button
-                          className="meta-like"
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-    const token = localStorage.getItem("token");
-                            if (!token) {
-                              navigate("/login");
-                              return;
-                            }
-                            fetch(`/api/blog/${post.slug}/like`, {
-                              method: "POST",
-                              headers: { Authorization: `Bearer ${token}` },
-                            })
-                              .then((res) => res.json())
-                              .then((data) => {
-                                if (!data) return;
-                                applyPostUpdates((prev) =>
-                                  prev.map((item) =>
-                                    item.slug === post.slug
-                                      ? {
-                                          ...item,
-                                          like_count: data.like_count ?? item.like_count,
-                                          dislike_count: data.dislike_count ?? item.dislike_count,
-                                          comment_count: data.comment_count ?? item.comment_count,
-                                          favorite_count: data.favorite_count ?? item.favorite_count,
-                                        }
-                                      : item,
-                                  ),
-                                );
-                              })
-                              .catch(() => {});
-                          }}
-                        >
-                          👍 赞 {post.like_count ?? 0}
-                        </button>
-                        <button
-                          className="meta-like"
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-    const token = localStorage.getItem("token");
-                            if (!token) {
-                              navigate("/login");
-                              return;
-                            }
-                            fetch(`/api/blog/${post.slug}/dislike`, {
-                              method: "POST",
-                              headers: { Authorization: `Bearer ${token}` },
-                            })
-                              .then((res) => res.json())
-                              .then((data) => {
-                                if (!data) return;
-                                applyPostUpdates((prev) =>
-                                  prev.map((item) =>
-                                    item.slug === post.slug
-                                      ? {
-                                          ...item,
-                                          like_count: data.like_count ?? item.like_count,
-                                          dislike_count: data.dislike_count ?? item.dislike_count,
-                                          comment_count: data.comment_count ?? item.comment_count,
-                                          favorite_count: data.favorite_count ?? item.favorite_count,
-                                        }
-                                      : item,
-                                  ),
-                                );
-                              })
-                              .catch(() => {});
-                          }}
-                        >
-                          👎 踩 {post.dislike_count ?? 0}
-                        </button>
-                        <span>💬 评论 {post.comment_count ?? 0}</span>
-                        {isAdmin && (
-                          <button
-                            className="meta-like"
-                            type="button"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              const ok = confirm("确认删除这篇文章吗？");
-                              if (!ok) return;
-    const token = localStorage.getItem("token");
-                              if (!token) {
-                                navigate("/login");
-                                return;
-                              }
-                              fetch(`/api/admin/post/${post.slug}`, {
-                                method: "DELETE",
-                                headers: { Authorization: `Bearer ${token}` },
-                              })
-                                .then(() => {
-                                  clearPostCache(post.slug);
-                                  clearCommentsCache(post.slug);
-                                  if (listCacheKeyRef.current) {
-                                    clearListCache(listCacheKeyRef.current);
-                                  }
-                                  if (listFallbackCacheKeyRef.current) {
-                                    clearListCache(listFallbackCacheKeyRef.current);
-                                  }
-                                  loadPosts({ showLoading: false, force: true });
-                                })
-                                .catch(() => {});
-                            }}
-                          >
-                            删除
-                          </button>
-                        )}
-                      </div>
+                      <span className="text-sm font-medium">{post.author_name || post.author || "匿名"}</span>
                     </div>
-                  </Link>
-                );
-              })}
+                    <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
+                  </div>
+
+                  <h2 className="text-xl font-bold mb-3 leading-tight">
+                    {matchIndex >= 0 ? (
+                      <>
+                        {title.slice(0, matchIndex)}
+                        <span className="highlight">
+                          {title.slice(matchIndex, matchIndex + normalizedQuery.length)}
+                        </span>
+                        {title.slice(matchIndex + normalizedQuery.length)}
+                      </>
+                    ) : (
+                      title
+                    )}
+                  </h2>
+
+                  <p className="excerpt text-muted text-sm mb-6 line-clamp-2 leading-relaxed">
+                    {preview}
+                  </p>
+
+                  <div className="post-card-footer flex justify-between items-center mt-auto">
+                    <div className="tag-list">
+                      {tagList.map((tag) => (
+                        <span key={tag} className="tag-pill">#{tag}</span>
+                      ))}
+                    </div>
+
+                    <div className="post-card-actions flex gap-1">
+                      <button
+                        className="btn-ghost btn-sm"
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          const token = localStorage.getItem("token");
+                          if (!token) {
+                            navigate("/login");
+                            return;
+                          }
+                          fetch(`/api/blog/${post.slug}/like`, {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}` },
+                          })
+                            .then((res) => res.json())
+                            .then((data) => {
+                              if (!data) return;
+                              applyPostUpdates((prev) =>
+                                prev.map((item) =>
+                                  item.slug === post.slug
+                                    ? {
+                                      ...item,
+                                      like_count: data.like_count ?? item.like_count,
+                                      dislike_count: data.dislike_count ?? item.dislike_count,
+                                      comment_count: data.comment_count ?? item.comment_count,
+                                      favorite_count: data.favorite_count ?? item.favorite_count,
+                                    }
+                                    : item,
+                                ),
+                              );
+                            })
+                            .catch(() => { });
+                        }}
+                      >
+                        <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
+                      </button>
+                      <button
+                        className="btn-ghost btn-sm"
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          const token = localStorage.getItem("token");
+                          if (!token) {
+                            navigate("/login");
+                            return;
+                          }
+                          fetch(`/api/blog/${post.slug}/dislike`, {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}` },
+                          })
+                            .then((res) => res.json())
+                            .then((data) => {
+                              if (!data) return;
+                              applyPostUpdates((prev) =>
+                                prev.map((item) =>
+                                  item.slug === post.slug
+                                    ? {
+                                      ...item,
+                                      like_count: data.like_count ?? item.like_count,
+                                      dislike_count: data.dislike_count ?? item.dislike_count,
+                                      comment_count: data.comment_count ?? item.comment_count,
+                                      favorite_count: data.favorite_count ?? item.favorite_count,
+                                    }
+                                    : item,
+                                ),
+                              );
+                            })
+                            .catch(() => { });
+                        }}
+                      >
+                        <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
+                      </button>
+                      <button
+                        className={`btn-ghost btn-sm ${post.favorited_by_me ? "text-accent" : ""}`}
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          const token = localStorage.getItem("token");
+                          if (!token) {
+                            navigate("/login");
+                            return;
+                          }
+                          fetch(`/api/blog/${post.slug}/favorite`, {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}` },
+                          })
+                            .then((res) => res.json())
+                            .then((data) => {
+                              if (!data) return;
+                              applyPostUpdates((prev) =>
+                                prev.map((item) =>
+                                  item.slug === post.slug
+                                    ? {
+                                      ...item,
+                                      like_count: data.like_count ?? item.like_count,
+                                      dislike_count: data.dislike_count ?? item.dislike_count,
+                                      comment_count: data.comment_count ?? item.comment_count,
+                                      favorite_count: data.favorite_count ?? item.favorite_count,
+                                      favorited_by_me: data.favorited ?? item.favorited_by_me,
+                                    }
+                                    : item,
+                                ),
+                              );
+                            })
+                            .catch(() => { });
+                        }}
+                      >
+                        <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
+                      </button>
+                      <span className="btn-ghost btn-sm cursor-default">
+                        <MessageCircleIcon className="inline" /> {post.comment_count ?? 0}
+                      </span>
+                      {isAdmin && (
+                        <button
+                          className="btn-ghost btn-sm"
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            const ok = confirm("确认删除这篇文章吗？");
+                            if (!ok) return;
+                            const token = localStorage.getItem("token");
+                            if (!token) {
+                              navigate("/login");
+                              return;
+                            }
+                            fetch(`/api/admin/post/${post.slug}`, {
+                              method: "DELETE",
+                              headers: { Authorization: `Bearer ${token}` },
+                            })
+                              .then(() => {
+                                clearPostCache(post.slug);
+                                clearCommentsCache(post.slug);
+                                if (listCacheKeyRef.current) {
+                                  clearListCache(listCacheKeyRef.current);
+                                }
+                                if (listFallbackCacheKeyRef.current) {
+                                  clearListCache(listFallbackCacheKeyRef.current);
+                                }
+                                loadPosts({ showLoading: false, force: true });
+                              })
+                              .catch(() => { });
+                          }}
+                        >
+                          删除
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
           {totalPages > 1 && (
-            <div className="pagination">
+            <div className="pagination flex items-center justify-center gap-4 mt-8">
               <button
-                className="button ghost"
+                className="btn-ghost"
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
                 上一页
               </button>
-              <span className="muted">
+              <span className="text-muted text-sm">
                 第 {currentPage} / {totalPages} 页
               </span>
               <button
-                className="button ghost"
+                className="btn-ghost"
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}

@@ -1,74 +1,74 @@
 ﻿import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { setCachedJson } from "../utils/cache";
+import * as authService from "../services/authService";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   async function handleLogin(event) {
     event.preventDefault();
     setError("");
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      setError("账号或密码错误。");
+
+    if (!username.trim() || !password.trim()) {
+      setError("请输入账号和密码");
       return;
     }
-    const data = await res.json();
-    localStorage.setItem("token", data.token);
-    if (data.profile) {
-      localStorage.setItem("profile", JSON.stringify(data.profile));
-      if (data.profile?.username) {
-        setCachedJson(`cache:profile:${data.profile.username}`, data.profile);
-      }
+
+    setLoading(true);
+    try {
+      await authService.login(username, password);
+      navigate("/");
+    } catch (err) {
+      setError(err.message || "登录失败，请稍后重试");
+    } finally {
+      setLoading(false);
     }
-    navigate("/");
   }
 
   return (
-    <div className="page">
-      <header className="header">
-        <div>
-          <h1>AI Studio</h1>
-          <p className="muted">登录 · 进入工作区</p>
-        </div>
-      </header>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-primary px-4">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold mb-2">AI Studio</h1>
+        <p className="text-secondary">登录 · 进入工作区</p>
+      </div>
 
-      <form className="card form" onSubmit={handleLogin}>
-        <label>
-          账号
+      <form className="card form w-full max-w-md p-8 shadow-lg" onSubmit={handleLogin}>
+        <label className="block mb-4">
+          <span className="block mb-1 font-medium">账号</span>
           <input
+            className="input"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             placeholder="请输入账号"
           />
         </label>
-        <label>
-          密码
+        <label className="block mb-6">
+          <span className="block mb-1 font-medium">密码</span>
           <input
+            className="input"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="请输入密码"
           />
         </label>
-        {error && <p className="error">{error}</p>}
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button className="button primary" type="submit">
-            登录
+        {error && <p className="text-accent mb-4 text-sm bg-accent/10 p-3 rounded border border-accent/20">{error}</p>}
+        <div className="flex flex-col gap-3">
+          <button className="btn-primary w-full justify-center" type="submit" disabled={loading}>
+            {loading ? "登录中..." : "登录"}
           </button>
-          <Link className="button ghost" to="/">
-            返回主页
-          </Link>
-          <Link className="button ghost" to="/register">
-            注册
-          </Link>
+          <div className="flex justify-between mt-2">
+            <Link className="btn-ghost text-sm" to="/">
+              ← 返回主页
+            </Link>
+            <Link className="btn-ghost text-sm" to="/register">
+              注册账号 →
+            </Link>
+          </div>
         </div>
       </form>
     </div>

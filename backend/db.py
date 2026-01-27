@@ -9,8 +9,13 @@ try:
 except ImportError:
     pymysql = None
 
-BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "blog.db"
+try:
+    from .config import DB_PATH, DATA_DIR
+except ImportError:
+    from config import DB_PATH, DATA_DIR
+
+# Ensure data directory exists
+DATA_DIR.mkdir(exist_ok=True)
 
 
 def _db_type() -> str:

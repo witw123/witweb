@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { getThumbnailUrl } from "../utils/url";
+import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "../components/Icons";
 import { marked } from "marked";
 import { clearPostCache, getCommentsCache, getPostCache, setCommentsCache, setPostCache } from "../utils/memoryStore";
 import { resizeImageFile } from "../utils/image";
@@ -268,6 +270,13 @@ export default function BlogPost() {
     return `<img src="${url}" style="max-width: 100%; width: ${widthValue};" />`;
   }
 
+  function insertImageMarkup(url, widthValue) {
+    const markup = widthValue
+      ? `<img src="${url}" style="max-width: 100%; width: ${widthValue};" />`
+      : `![](${url})`;
+    setEditContent((prev) => `${prev}\n\n${markup}\n`);
+  }
+
   function handleImageSelect(file, replaceSrc = null) {
     if (!file) return;
     if (pendingPreviewUrl) {
@@ -443,110 +452,109 @@ export default function BlogPost() {
       <div
         key={node.id}
         id={`comment-${node.id}`}
-        className={`comment-item${isReply ? " reply" : ""}`}
+        className={`comment-item p-4 border-b border-subtle ${isReply ? "ml-8 pl-4 border-l-2 border-l-subtle" : ""}`}
       >
-        {node.author_avatar ? (
-          <img
-            src={node.author_avatar}
-            alt={node.author_name}
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <div className="avatar-fallback">{node.author_name?.[0] || "U"}</div>
-        )}
-        <div>
-          <div className="comment-head">
-            <strong>{node.author_name || node.author}</strong>
-            <span className="comment-badge">Lv1</span>
-          </div>
-          {node.reply_to && (
-            <div className="comment-reply-to">
-              回复{" "}
-              <a href={`#comment-${node.reply_to_id}`}>@{node.reply_to}</a>
-            </div>
+        <div className="flex gap-4">
+          {node.author_avatar ? (
+            <img
+              src={getThumbnailUrl(node.author_avatar, 64)}
+              alt={node.author_name}
+              loading="lazy"
+              decoding="async"
+              className="w-8 h-8 rounded-full"
+            />
+          ) : (
+            <div className="avatar-fallback w-8 h-8 text-xs">{node.author_name?.[0] || "U"}</div>
           )}
-          <p className="comment-body">{node.content}</p>
-          <div className="comment-meta">
-            <span>{new Date(node.created_at).toLocaleString()}</span>
-            <button
-              className="comment-action"
-              type="button"
-              onClick={() => {
-                const token = localStorage.getItem("token");
-                if (!token) return;
-                fetch(`/api/comment/${node.id}/like`, {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token}` },
-                })
-                  .then(() => scheduleCommentsRefresh())
-                  .catch(() => {});
-              }}
-            >
-              赞 {node.like_count ?? 0}
-            </button>
-            <button
-              className="comment-action"
-              type="button"
-              onClick={() => {
-                const token = localStorage.getItem("token");
-                if (!token) return;
-                fetch(`/api/comment/${node.id}/dislike`, {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token}` },
-                })
-                  .then(() => scheduleCommentsRefresh())
-                  .catch(() => {});
-              }}
-            >
-              踩 {node.dislike_count ?? 0}
-            </button>
-            <button
-              className="comment-action"
-              type="button"
-              onClick={() => handleReplyClick(node)}
-            >
-              回复
-            </button>
-          </div>
-          {depth === 0 && node.children.length > 0 && (
-            <div className="comment-replies">
-              {replySlice.map((child) => renderComment(child, depth + 1))}
-              {node.children.length > 5 && (
-                <button
-                  className="button ghost small"
-                  type="button"
-                  onClick={() =>
-                    setExpandedReplies((prev) => ({
-                      ...prev,
-                      [node.id]: !isExpanded,
-                    }))
-                  }
-                >
-                  {isExpanded
-                    ? "收起回复"
-                    : `更多回复 (${node.children.length - 5})`}
-                </button>
-              )}
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <strong className="text-sm">{node.author_name || node.author}</strong>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent">Lv1</span>
+              <span className="text-xs text-muted ml-auto">{new Date(node.created_at).toLocaleString()}</span>
             </div>
-          )}
+            {node.reply_to && (
+              <div className="text-xs text-muted mb-2">
+                回复 <a href={`#comment-${node.reply_to_id}`} className="text-accent hover:underline">@{node.reply_to}</a>
+              </div>
+            )}
+            <p className="text-sm leading-relaxed mb-3 text-primary">{node.content}</p>
+            <div className="flex gap-3 text-xs text-muted">
+              <button
+                className="hover:text-primary transition-colors cursor-pointer"
+                type="button"
+                onClick={() => {
+                  const token = localStorage.getItem("token");
+                  if (!token) return;
+                  fetch(`/api/comment/${node.id}/like`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                    .then(() => scheduleCommentsRefresh())
+                    .catch(() => { });
+                }}
+              >
+                <ThumbsUpIcon className="inline" /> {node.like_count ?? 0}
+              </button>
+              <button
+                className="hover:text-primary transition-colors cursor-pointer"
+                type="button"
+                onClick={() => {
+                  const token = localStorage.getItem("token");
+                  if (!token) return;
+                  fetch(`/api/comment/${node.id}/dislike`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                    .then(() => scheduleCommentsRefresh())
+                    .catch(() => { });
+                }}
+              >
+                <ThumbsDownIcon className="inline" /> {node.dislike_count ?? 0}
+              </button>
+              <button
+                className="hover:text-primary transition-colors cursor-pointer"
+                type="button"
+                onClick={() => handleReplyClick(node)}
+              >
+                <MessageCircleIcon className="inline" /> 回复
+              </button>
+            </div>
+
+            {depth === 0 && node.children.length > 0 && (
+              <div className="mt-4 space-y-4">
+                {replySlice.map((child) => renderComment(child, depth + 1))}
+                {node.children.length > 5 && (
+                  <button
+                    className="text-xs text-accent hover:underline mt-2"
+                    type="button"
+                    onClick={() =>
+                      setExpandedReplies((prev) => ({
+                        ...prev,
+                        [node.id]: !isExpanded,
+                      }))
+                    }
+                  >
+                    {isExpanded
+                      ? "收起回复"
+                      : `更多回复 (${node.children.length - 5})`}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
+
   return (
-    <div className="page">
-      <header className="header">
-        <div>
-          <h1>AI Studio</h1>
-        </div>
-      </header>
-      <div className="post-toolbar">
+    <div className="blog-post-page">
+      <div className="post-toolbar mb-4 flex justify-between items-center">
         <div>
           {canEdit && (
             <button
-              className="button ghost"
+              className="btn-ghost"
               type="button"
               onClick={() => setIsEditing((value) => !value)}
             >
@@ -554,73 +562,86 @@ export default function BlogPost() {
             </button>
           )}
         </div>
-        <Link className="button ghost" to="/">
+        <Link className="btn-ghost" to="/">
           返回讨论区
         </Link>
       </div>
-      {post?.title && <h2 style={{ marginTop: 0 }}>{post.title}</h2>}
+
+      {post?.title && <h1 className="text-3xl font-bold mb-4">{post.title}</h1>}
+
       {post && (
-        <div className="meta meta-detail">
-          <div className="meta-author">
-            {post.author_avatar ? (
-              <img
-                src={post.author_avatar}
-                alt={post.author_name}
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <div className="avatar-fallback">{post.author_name?.[0] || "U"}</div>
-            )}
-            <span>{post.author_name || post.author}</span>
-          </div>
-          <div className="post-card-actions">
-            <button className="meta-like" type="button" onClick={handleLike}>
-              👍 赞 {post.like_count ?? 0}
-            </button>
-            <button
-              className={`meta-like ${post.favorited_by_me ? "favorite-on" : ""}`}
-              type="button"
-              onClick={() => {
-                const token = localStorage.getItem("token");
-                if (!token) {
-                  navigate("/login");
-                  return;
-                }
-                fetch(`/api/blog/${slug}/favorite`, {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token}` },
-                })
-                  .then((res) => res.json())
-                  .then(() => loadPost({ force: true }))
-                  .catch(() => {});
-              }}
-            >
-              {post.favorited_by_me ? "★ 取消收藏" : "☆ 收藏"} {post.favorite_count ?? 0}
-            </button>
-            <button
-              className="meta-like"
-              type="button"
-              onClick={() => {
-                const token = localStorage.getItem("token");
-                if (!token) return;
-                fetch(`/api/blog/${slug}/dislike`, {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token}` },
-                })
-                  .then((res) => res.json())
-                  .then(() => loadPost({ force: true }))
-                  .catch(() => {});
-              }}
-            >
-              👎 踩 {post.dislike_count ?? 0}
-            </button>
-            <span>💬 评论 {post.comment_count ?? 0}</span>
+        <div className="flex flex-col gap-4 mb-8 pb-8 border-b border-subtle">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {post.author_avatar ? (
+                <img
+                  src={getThumbnailUrl(post.author_avatar, 96)}
+                  alt={post.author_name}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <div className="avatar-fallback w-10 h-10 rounded-full flex items-center justify-center text-sm">
+                  {post.author_name?.[0] || "U"}
+                </div>
+              )}
+              <div className="flex flex-col">
+                <span className="font-bold text-lg">{post.author_name || post.author}</span>
+                <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button className="btn-ghost btn-sm" type="button" onClick={handleLike}>
+                <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
+              </button>
+              <button
+                className={`btn-ghost btn-sm ${post.favorited_by_me ? "text-accent" : ""}`}
+                type="button"
+                onClick={() => {
+                  const token = localStorage.getItem("token");
+                  if (!token) {
+                    navigate("/login");
+                    return;
+                  }
+                  fetch(`/api/blog/${slug}/favorite`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                    .then((res) => res.json())
+                    .then(() => loadPost({ force: true }))
+                    .catch(() => { });
+                }}
+              >
+                <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
+              </button>
+              <button
+                className="btn-ghost btn-sm"
+                type="button"
+                onClick={() => {
+                  const token = localStorage.getItem("token");
+                  if (!token) return;
+                  fetch(`/api/blog/${slug}/dislike`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                    .then((res) => res.json())
+                    .then(() => loadPost({ force: true }))
+                    .catch(() => { });
+                }}
+              >
+                <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
+              </button>
+              <span className="btn-ghost btn-sm cursor-default">
+                <MessageCircleIcon className="inline" /> {comments.length ?? 0}
+              </span>
+            </div>
           </div>
         </div>
       )}
       {tagList.length > 0 && (
-        <div className="tag-list tag-list-detail">
+        <div className="tag-list mb-6">
           {tagList.map((tag) => (
             <span key={tag} className="tag-pill">
               #{tag}
@@ -633,46 +654,52 @@ export default function BlogPost() {
       {status === "error" && <p>加载失败，请稍后再试。</p>}
       {isEditing && (
         <section className="card form">
-          <label>
-            Title
+          <label className="block mb-4">
+            <span className="block text-sm font-medium mb-1">Title</span>
             <input
+              className="input"
               value={editTitle}
               onChange={(event) => setEditTitle(event.target.value)}
               placeholder="Title"
             />
           </label>
-          <label>
-            Tags
+          <label className="block mb-4">
+            <span className="block text-sm font-medium mb-1">Tags</span>
             <input
+              className="input"
               value={editTags}
               onChange={(event) => setEditTags(event.target.value)}
               placeholder="tag1, tag2"
             />
           </label>
           <label>
-            Content
-            <div className="comment-form-actions">
-              <input
-                className="image-width-input"
-                value={imageWidth}
-                onChange={(event) => setImageWidth(event.target.value)}
-                placeholder="图片宽度，如 360px / 60%"
-              />
-              <label className="button ghost small" style={{ margin: 0 }}>
-                上传图片
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium">Content</span>
+              <div className="flex gap-2 items-center">
                 <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: "none" }}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    handleImageSelect(file);
-                    event.target.value = "";
-                  }}
+                  className="input"
+                  style={{ width: '200px', display: 'inline-block', padding: '4px 8px', fontSize: '0.8rem' }}
+                  value={imageWidth}
+                  onChange={(event) => setImageWidth(event.target.value)}
+                  placeholder="图片宽度..."
                 />
-              </label>
+                <label className="btn-ghost btn-sm cursor-pointer m-0">
+                  上传图片
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      handleImageSelect(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
             </div>
             <textarea
+              className="input"
               rows={10}
               value={editContent}
               onChange={(event) => setEditContent(event.target.value)}
@@ -692,20 +719,20 @@ export default function BlogPost() {
               event.target.value = "";
             }}
           />
-          <div className="card image-editor">
-            <div className="image-editor-title">
-              点击预览里的图片进行替换
+          <div className="card image-editor mt-4 mb-4">
+            <div className="flex justify-between items-center mb-2 text-sm text-muted">
+              <span>点击预览里的图片进行替换</span>
               {selectedImage && (
-                <div className="comment-form-actions">
+                <div className="flex gap-2">
                   <button
-                    className="button ghost small"
+                    className="btn-ghost btn-sm"
                     type="button"
                     onClick={() => imageReplaceInputRef.current?.click()}
                   >
                     更换图片
                   </button>
                   <button
-                    className="button ghost small"
+                    className="btn-ghost btn-sm"
                     type="button"
                     onClick={removeSelectedImage}
                   >
@@ -716,7 +743,7 @@ export default function BlogPost() {
             </div>
             <div
               ref={editPreviewRef}
-              className="markdown markdown-preview"
+              className="markdown markdown-preview p-4 border border-subtle rounded-lg"
               dangerouslySetInnerHTML={{ __html: editPreviewHtml }}
               onClick={(event) => {
                 const target = event.target;
@@ -741,49 +768,52 @@ export default function BlogPost() {
             />
           </div>
           {showSizeModal && (selectedImage || pendingImageFile) && (
-            <div className="image-modal">
-              <div className="image-modal-card">
-                <div className="image-modal-title">调整图片大小</div>
-                <div className="image-modal-preview">
+            <div className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.8)', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="card" style={{ width: '400px', maxWidth: '90%' }}>
+                <h3 className="text-lg font-bold mb-4">调整图片大小</h3>
+                <div className="mb-4 bg-black/20 p-2 rounded flex justify-center" style={{ background: 'rgba(0,0,0,0.2)' }}>
                   <img
                     src={pendingPreviewUrl || selectedImage}
                     alt="preview"
                     style={{
                       maxWidth: "100%",
+                      maxHeight: "300px",
                       width: imageWidth.trim()
                         ? imageWidth.trim()
                         : `${imageSizePercent}%`,
                     }}
                   />
                 </div>
-                <div className="image-modal-row">
+                <div className="flex items-center gap-2 mb-4">
                   <input
                     type="range"
                     min="10"
                     max="100"
+                    className="flex-1"
+                    style={{ flex: 1 }}
                     value={imageSizePercent}
                     onChange={(event) => setImageSizePercent(Number(event.target.value))}
                   />
-                  <span>{imageSizePercent}%</span>
+                  <span className="text-sm w-12 text-right">{imageSizePercent}%</span>
                 </div>
                 <input
-                  className="image-width-input"
+                  className="input mb-4"
                   value={imageWidth}
                   onChange={(event) => setImageWidth(event.target.value)}
                   placeholder="或输入宽度，如 360px / 60%"
                 />
-                <div className="comment-form-actions">
+                <div className="flex gap-2 justify-end">
                   {selectedImage && (
                     <>
                       <button
-                        className="button ghost small"
+                        className="btn-ghost"
                         type="button"
                         onClick={() => imageReplaceInputRef.current?.click()}
                       >
                         更换图片
                       </button>
                       <button
-                        className="button ghost small"
+                        className="btn-ghost"
                         type="button"
                         onClick={removeSelectedImage}
                       >
@@ -792,61 +822,62 @@ export default function BlogPost() {
                     </>
                   )}
                   <button
-                    className="button primary small"
+                    className="btn-primary"
                     type="button"
                     onClick={async () => {
                       const widthValue = imageWidth.trim()
                         ? imageWidth.trim()
                         : `${imageSizePercent}%`;
-                      if (pendingImageFile) {
+                      if (selectedImage) {
+                        applyImageSize(widthValue);
+                      } else {
                         const url = await uploadImage(pendingImageFile);
                         if (url) {
-                          if (selectedImage) {
-                            replaceImageSrc(selectedImage, url, widthValue);
-                          } else {
-                            const markup = widthValue
-                              ? `<img src="${url}" style="max-width: 100%; width: ${widthValue};" />`
-                              : `![](${url})`;
-                            setEditContent((prev) => `${prev}\n\n${markup}\n`);
-                          }
+                          // This part was changed from the original, ensure insertImageMarkup is defined elsewhere or handle it.
+                          // Original: setEditContent((prev) => `${prev}\n\n${markup}\n`);
+                          // Assuming insertImageMarkup is a new helper function or similar.
+                          // For faithful replacement, I'll keep the original logic if insertImageMarkup is not provided.
+                          // However, the instruction explicitly provides this new block, so I will use it.
+                          // If insertImageMarkup is not defined, this will cause an error.
+                          // Given the instruction is to "make the change", I will assume insertImageMarkup is handled.
+                          insertImageMarkup(url, widthValue);
                         }
-                      } else if (selectedImage) {
-                        applyImageSize(widthValue);
                       }
+
                       if (pendingPreviewUrl) {
                         URL.revokeObjectURL(pendingPreviewUrl);
+                        setPendingPreviewUrl("");
                       }
-                      setPendingPreviewUrl("");
                       setPendingImageFile(null);
                       setShowSizeModal(false);
                     }}
                   >
-                    应用
+                    确认
                   </button>
                   <button
-                    className="button ghost small"
+                    className="btn-ghost"
                     type="button"
                     onClick={() => {
                       if (pendingPreviewUrl) {
                         URL.revokeObjectURL(pendingPreviewUrl);
+                        setPendingPreviewUrl("");
                       }
-                      setPendingPreviewUrl("");
                       setPendingImageFile(null);
                       setShowSizeModal(false);
                     }}
                   >
-                    关闭
+                    取消
                   </button>
                 </div>
               </div>
             </div>
           )}
-          {editStatus && <p className="error">{editStatus}</p>}
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-            <button className="button primary" type="button" onClick={handleSaveEdit}>
-              Save
+          {editStatus && <p className="text-accent mb-4">{editStatus}</p>}
+          <div className="flex gap-2">
+            <button className="btn-primary" type="button" onClick={handleSaveEdit}>
+              Save Changes
             </button>
-            <button className="button ghost" type="button" onClick={() => setIsEditing(false)}>
+            <button className="btn-ghost" type="button" onClick={() => setIsEditing(false)}>
               Cancel
             </button>
           </div>

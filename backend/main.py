@@ -1,80 +1,84 @@
-from typing import Optional
+from contextlib import asynccontextmanager
 from pathlib import Path
 import os
 import threading
 import time
-import uuid
+import sys
+import os
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, Response, UploadFile
+# Allow running as script (python backend/main.py)
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = "backend"
+
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.middleware.gzip import GZipMiddleware
-from pydantic import BaseModel
-try:
-    from . import auth, blog, core, db
-except ImportError:
-    import auth
-    import blog
-    import core
-    import db
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-app = FastAPI(title="Sora2 Web Studio")
+try:
+    from .routers import auth as auth_router
+    from .routers import blog as blog_router
+    from .routers import studio as studio_router
+    from . import db
+    from .config import (
+        ADMIN_USERNAME, ADMIN_PASSWORD,
+        STATIC_DIR, ASSETS_DIR, STUDIO_DIR, DOWNLOADS_DIR, UPLOADS_DIR
+    )
+except ImportError:
+    # Fallback for direct script execution
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from backend.routers import auth as auth_router
+    from backend.routers import blog as blog_router
+    from backend.routers import studio as studio_router
+    from backend import db
+    from backend.config import (
+        ADMIN_USERNAME, ADMIN_PASSWORD,
+        STATIC_DIR, ASSETS_DIR, STUDIO_DIR, DOWNLOADS_DIR, UPLOADS_DIR
+    )
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    db.init_db(ADMIN_USERNAME, ADMIN_PASSWORD)
+    yield
+    # Shutdown
+    pass
+
+app = FastAPI(title="Sora2 Web Studio", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=800)
 
-_blog_cache = {}
-_blog_cache_lock = threading.Lock()
-_BLOG_CACHE_TTL = 10
-_comments_cache = {}
-_comments_cache_lock = threading.Lock()
-_COMMENTS_CACHE_TTL = 10
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-BACKEND_DIR = Path(__file__).resolve().parent
-STATIC_DIR = ROOT_DIR / "frontend" / "dist"
-ASSETS_DIR = STATIC_DIR / "assets"
-STUDIO_DIR = ROOT_DIR / "frontend" / "studio"
-DOWNLOADS_DIR = BACKEND_DIR / "downloads"
-UPLOADS_DIR = BACKEND_DIR / "uploads"
-
-UPLOADS_DIR.mkdir(exist_ok=True)
-
+# Mount Static Files
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 if ASSETS_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 if STUDIO_DIR.exists():
-    app.mount("/studio", StaticFiles(directory=str(STUDIO_DIR), html=True), name="studio")
+    app.mount("/studio-static", StaticFiles(directory=str(STUDIO_DIR), html=True), name="studio")
 if DOWNLOADS_DIR.exists():
     app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
 if UPLOADS_DIR.exists():
     app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
-ADMIN_USERNAME = "witw"
-ADMIN_PASSWORD = "witw"
-
-@app.on_event("startup")
-def on_startup():
-    db.init_db(ADMIN_USERNAME, ADMIN_PASSWORD)
-
-def _clear_blog_cache() -> None:
-    with _blog_cache_lock:
-        _blog_cache.clear()
-
-def _clear_comments_cache(slug: str | None) -> None:
-    if not slug:
-        return
-    with _comments_cache_lock:
-        _comments_cache.pop(slug, None)
+# Include Routers
+app.include_router(auth_router.router)
+app.include_router(blog_router.router)
+app.include_router(studio_router.router)
 
 @app.middleware("http")
 async def add_cache_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith(("/assets/", "/uploads/", "/static/")):
+    if path.startswith(("/assets/", "/uploads/", "/static/", "/studio-static/")):
         response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
     elif path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
+    else:
+        # Default for HTML/SPA routes: no-cache to ensure index.html is fresh
+        response.headers.setdefault("Cache-Control", "no-cache, no-store, must-revalidate")
     return response
 
 @app.get("/")
@@ -89,446 +93,12 @@ def root():
     }
 
 @app.get("/studio")
-def studio_root():
-    index_file = STUDIO_DIR / "index.html"
+def studio_spa():
+    # Return main frontend app for /studio route, letting React Router handle it
+    index_file = STATIC_DIR / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
-    raise HTTPException(status_code=404, detail="Not Found")
-
-class GenReq(BaseModel):
-    prompt: str
-    duration: int = 15
-    url: Optional[str] = None
-    aspectRatio: Optional[str] = None
-    size: Optional[str] = None
-    remixTargetId: Optional[str] = None
-
-class FinalizeReq(BaseModel):
-    id: str
-    prompt: str
-
-class HostReq(BaseModel):
-    host_mode: str
-
-class ResultReq(BaseModel):
-    id: str
-
-class UploadCharacterReq(BaseModel):
-    url: Optional[str] = None
-    timestamps: str
-    webHook: Optional[str] = "-1"
-    shutProgress: Optional[bool] = None
-
-class CreateCharacterReq(BaseModel):
-    pid: str
-    timestamps: str
-    webHook: Optional[str] = "-1"
-    shutProgress: Optional[bool] = None
-
-class ApiKeyReq(BaseModel):
-    api_key: str
-
-class TokenReq(BaseModel):
-    token: str
-
-class QueryDefaultsReq(BaseModel):
-    data: dict
-
-class CreateApiKeyReq(BaseModel):
-    token: str
-    type: int = 0
-    name: Optional[str] = ""
-    credits: Optional[int] = 0
-    expireTime: Optional[int] = 0
-
-class ApiKeyCreditsReq(BaseModel):
-    apiKey: str
-
-class CreditsReq(BaseModel):
-    token: str
-
-class ModelStatusReq(BaseModel):
-    model: str
-
-class ActiveTaskRemoveReq(BaseModel):
-    id: str
-
-class VideoDeleteReq(BaseModel):
-    name: str
-
-class LoginReq(BaseModel):
-    username: str
-    password: str
-
-class RegisterReq(BaseModel):
-    username: str
-    password: str
-    nickname: str = ""
-    avatar_url: str = ""
-
-class PostReq(BaseModel):
-    title: str
-    slug: Optional[str] = None
-    content: str
-    tags: Optional[str] = ""
-
-class UpdatePostReq(BaseModel):
-    title: str
-    content: str
-    tags: Optional[str] = ""
-
-class CommentReq(BaseModel):
-    content: str
-    author: Optional[str] = None
-    parent_id: Optional[int] = None
-
-class ProfileReq(BaseModel):
-    nickname: str = ""
-    avatar_url: str = ""
-
-def _safe_filename(filename: str) -> str:
-    name = Path(filename).name
-    return "".join(ch for ch in name if ch.isalnum() or ch in ("-", "_", ".", " "))
-
-@app.post("/api/login")
-def login(req: LoginReq):
-    if auth.authenticate_user(req.username, req.password):
-        profile = auth.get_user_profile(req.username)
-        return {"token": auth.create_token(req.username), "profile": profile}
-    raise HTTPException(status_code=401, detail="Invalid credentials")
-
-@app.post("/api/register")
-def register(req: RegisterReq):
-    if not req.username or not req.password:
-        raise HTTPException(status_code=400, detail="Missing credentials")
-    nickname = req.nickname or req.username
-    created = auth.create_user(req.username, req.password, nickname, req.avatar_url or "")
-    if not created:
-        raise HTTPException(status_code=409, detail="Username already exists")
-    profile = auth.get_user_profile(req.username)
-    return {"token": auth.create_token(req.username), "profile": profile}
-
-@app.get("/api/blog")
-def blog_list(
-    request: Request,
-    response: Response,
-    page: int = 1,
-    size: int = 5,
-    q: Optional[str] = None,
-    author: Optional[str] = None,
-    tag: Optional[str] = None,
-    authorization: Optional[str] = Header(None),
-):
-    username = auth.optional_user(authorization)
-    cache_key = (page, size, q or "", author or "", tag or "")
-    now = time.time()
-    with _blog_cache_lock:
-        cached = _blog_cache.get(cache_key)
-        if cached and cached["expires_at"] > now:
-            data = cached["data"]
-        else:
-            data = None
-    if data is None:
-        data = blog.list_posts(
-            page=page,
-            size=size,
-            query=q,
-            author=author,
-            tag=tag,
-            username=username,
-        )
-        with _blog_cache_lock:
-            _blog_cache[cache_key] = {
-                "expires_at": now + _BLOG_CACHE_TTL,
-                "data": data,
-            }
-    etag = data.get("etag")
-    if etag:
-        if request.headers.get("if-none-match") == etag:
-            return Response(status_code=304)
-        response.headers["ETag"] = etag
-    return {
-        "items": data.get("items", []),
-        "total": data.get("total", 0),
-        "page": data.get("page", page),
-        "size": data.get("size", size),
-    }
-
-@app.get("/api/blog/{slug}")
-def blog_detail(slug: str, authorization: Optional[str] = Header(None)):
-    username = auth.optional_user(authorization)
-    return blog.get_post(slug, username)
-
-@app.post("/api/admin/post")
-def admin_post(req: PostReq, user=Depends(auth.verify_token)):
-    if not req.title.strip() or not req.content.strip():
-        raise HTTPException(status_code=400, detail="Title and content required")
-    blog.create_post(req.title, req.slug, req.content, user, req.tags or "")
-    _clear_blog_cache()
-    return {"ok": True, "user": user}
-
-@app.put("/api/blog/{slug}")
-def update_post(slug: str, req: UpdatePostReq, user=Depends(auth.verify_token)):
-    if not req.title.strip() or not req.content.strip():
-        raise HTTPException(status_code=400, detail="Title and content required")
-    blog.update_post(slug, req.title, req.content, req.tags or "", user)
-    _clear_blog_cache()
-    return {"ok": True}
-
-@app.delete("/api/admin/post/{slug}")
-def admin_delete_post(slug: str, user=Depends(auth.verify_token)):
-    blog.delete_post(slug, user, ADMIN_USERNAME)
-    _clear_blog_cache()
-    return {"ok": True}
-
-@app.get("/api/blog/{slug}/comments")
-@app.get("/api/blog/{slug}/comment")
-def blog_comments(slug: str):
-    now = time.time()
-    with _comments_cache_lock:
-        cached = _comments_cache.get(slug)
-        if cached and cached["expires_at"] > now:
-            return cached["data"]
-    data = blog.list_comments(slug)
-    with _comments_cache_lock:
-        _comments_cache[slug] = {
-            "expires_at": now + _COMMENTS_CACHE_TTL,
-            "data": data,
-        }
-    return data
-
-@app.post("/api/blog/{slug}/comments")
-@app.post("/api/blog/{slug}/comment")
-def blog_comment(
-    slug: str,
-    req: CommentReq,
-    request: Request,
-    authorization: Optional[str] = Header(None),
-):
-    username = auth.optional_user(authorization)
-    author = username or (req.author or "访客")
-    client_ip = request.client.host if request.client else ""
-    blog.add_comment(slug, author, req.content, req.parent_id, client_ip)
-    _clear_blog_cache()
-    _clear_comments_cache(slug)
-    return {"ok": True}
-
-@app.post("/api/blog/{slug}/like")
-def blog_like(slug: str, user=Depends(auth.verify_token)):
-    liked = blog.toggle_like(slug, user)
-    _clear_blog_cache()
-    counts = blog.get_post_counts(slug)
-    return {"ok": True, "liked": liked, **counts}
-
-@app.post("/api/blog/{slug}/dislike")
-def blog_dislike(slug: str, user=Depends(auth.verify_token)):
-    disliked = blog.toggle_dislike(slug, user)
-    _clear_blog_cache()
-    counts = blog.get_post_counts(slug)
-    return {"ok": True, "disliked": disliked, **counts}
-
-@app.post("/api/blog/{slug}/favorite")
-def blog_favorite(slug: str, user=Depends(auth.verify_token)):
-    favorited = blog.toggle_favorite(slug, user)
-    _clear_blog_cache()
-    counts = blog.get_post_counts(slug)
-    return {"ok": True, "favorited": favorited, **counts}
-
-@app.get("/api/favorites")
-def favorites_list(user=Depends(auth.verify_token), page: int = 1, size: int = 10):
-    return blog.list_favorites(page=page, size=size, username=user)
-
-@app.post("/api/comment/{comment_id}/like")
-def comment_like(comment_id: int, user=Depends(auth.verify_token)):
-    blog.vote_comment(comment_id, user, 1)
-    slug = blog.get_post_slug_for_comment(comment_id)
-    _clear_comments_cache(slug)
-    return {"ok": True}
-
-@app.post("/api/comment/{comment_id}/dislike")
-def comment_dislike(comment_id: int, user=Depends(auth.verify_token)):
-    blog.vote_comment(comment_id, user, -1)
-    slug = blog.get_post_slug_for_comment(comment_id)
-    _clear_comments_cache(slug)
-    return {"ok": True}
-
-@app.post("/api/profile")
-def update_profile(req: ProfileReq, user=Depends(auth.verify_token)):
-    nickname = req.nickname or user
-    avatar_url = req.avatar_url or ""
-    profile = auth.update_profile(user, nickname, avatar_url)
-    return {"ok": True, "profile": profile}
-
-@app.post("/api/upload-image")
-def upload_image(file: UploadFile = File(...), user=Depends(auth.verify_token)):
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Missing file")
-    content_type = (file.content_type or "").lower()
-    if not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image files allowed")
-    safe_name = _safe_filename(file.filename)
-    ext = Path(safe_name).suffix or ".png"
-    unique_name = f"{int(time.time())}-{uuid.uuid4().hex}{ext}"
-    target = UPLOADS_DIR / unique_name
-    with target.open("wb") as f:
-        while True:
-            chunk = file.file.read(1024 * 1024)
-            if not chunk:
-                break
-            f.write(chunk)
-    return {"ok": True, "url": f"/uploads/{unique_name}"}
-
-@app.post("/config/api-key")
-def set_key(req: ApiKeyReq):
-    core.set_api_key(req.api_key)
-    return {"ok": True}
-
-@app.post("/config/token")
-def set_token(req: TokenReq):
-    core.set_token(req.token)
-    return {"ok": True}
-
-@app.post("/config/query-defaults")
-def set_query_defaults(req: QueryDefaultsReq):
-    core.set_query_defaults(req.data)
-    return {"ok": True}
-
-@app.post("/config/host-mode")
-def set_host_mode(req: HostReq):
-    core.set_host_mode(req.host_mode)
-    return {"ok": True}
-
-@app.get("/config")
-def get_config():
-    return core.get_config()
-
-@app.post("/generate")
-def generate(req: GenReq):
-    return core.generate_video(
-        prompt=req.prompt,
-        duration=req.duration,
-        url=req.url,
-        aspectRatio=req.aspectRatio,
-        size=req.size,
-        remixTargetId=req.remixTargetId,
-    )
-
-@app.post("/generate/start")
-def generate_start(req: GenReq):
-    task_id = core.create_video_task(
-        prompt=req.prompt,
-        duration=req.duration,
-        url=req.url,
-        aspectRatio=req.aspectRatio,
-        size=req.size,
-        remixTargetId=req.remixTargetId,
-    )
-    core.add_active_task(task_id, req.prompt)
-    return {"id": task_id}
-
-@app.post("/generate/finalize")
-def generate_finalize(req: FinalizeReq):
-    return core.finalize_video(req.id, req.prompt)
-
-@app.post("/character/upload")
-def upload_character(req: UploadCharacterReq):
-    return core.upload_character(
-        req.url,
-        req.timestamps,
-        webHook=req.webHook,
-        shutProgress=req.shutProgress,
-    )
-
-@app.post("/character/create")
-def create_character(req: CreateCharacterReq):
-    return core.create_character(
-        req.pid,
-        req.timestamps,
-        webHook=req.webHook,
-        shutProgress=req.shutProgress,
-    )
-
-@app.post("/character/upload/start")
-def upload_character_start(req: UploadCharacterReq):
-    task_id = core.upload_character_task(
-        req.url,
-        req.timestamps,
-        webHook=req.webHook,
-        shutProgress=req.shutProgress,
-    )
-    return {"id": task_id}
-
-@app.post("/character/create/start")
-def create_character_start(req: CreateCharacterReq):
-    task_id = core.create_character_task(
-        req.pid,
-        req.timestamps,
-        webHook=req.webHook,
-        shutProgress=req.shutProgress,
-    )
-    return {"id": task_id}
-
-@app.post("/result")
-def result(req: ResultReq):
-    return core.get_result(req.id)
-
-@app.post("/openapi/create-api-key")
-def create_api_key(req: CreateApiKeyReq):
-    return core.create_api_key(
-        token=req.token,
-        type=req.type,
-        name=req.name or "",
-        credits=req.credits or 0,
-        expireTime=req.expireTime or 0,
-    )
-
-@app.post("/openapi/api-key-credits")
-def api_key_credits(req: ApiKeyCreditsReq):
-    return core.get_api_key_credits(req.apiKey)
-
-@app.post("/openapi/credits")
-def credits(req: CreditsReq):
-    return core.get_credits(req.token)
-
-@app.get("/credits")
-def credits_from_config():
-    token = core.get_saved_token()
-    if not token:
-        return {"credits": None, "error": "missing token"}
-    try:
-        return core.get_credits(token)
-    except Exception as exc:
-        return {"credits": None, "error": str(exc)}
-
-@app.post("/model-status")
-def model_status(req: ModelStatusReq):
-    return core.get_model_status(req.model)
-
-@app.get("/history")
-def history():
-    return core.get_history()
-
-@app.get("/tasks/active")
-def active_tasks():
-    return core.get_active_tasks()
-
-@app.post("/tasks/active/remove")
-def active_tasks_remove(req: ActiveTaskRemoveReq):
-    core.remove_active_task(req.id)
-    return {"ok": True}
-
-@app.get("/prompt-history")
-def prompt_history():
-    return []
-
-@app.get("/videos")
-def videos():
-    return core.get_local_videos()
-
-@app.post("/videos/delete")
-def videos_delete(req: VideoDeleteReq):
-    core.delete_video(req.name)
-    return {"ok": True}
+    return FileResponse(str(STUDIO_DIR / "index.html")) # Fallback if frontend build missing
 
 @app.post("/shutdown")
 def shutdown(request: Request):
@@ -549,5 +119,6 @@ def spa_fallback(full_path: str):
         return FileResponse(str(index_file))
     raise HTTPException(status_code=404, detail="Not Found")
 
+# For direct execution
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=False)

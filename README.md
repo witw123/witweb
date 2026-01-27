@@ -1,89 +1,89 @@
-# Sora2 Web Studio
+﻿# Sora2 Web Studio
 
-基于 FastAPI 的轻量级 Web 控制台，用于调用 Sora2 视频生成/角色相关接口，并在本地保存生成的视频与历史记录。前端使用 Vite 构建，产物由后端直接托管。
+鍩轰簬 FastAPI 鐨勮交閲忕骇 Web 鎺у埗鍙帮紝鐢ㄤ簬璋冪敤 Sora2 瑙嗛鐢熸垚/瑙掕壊鐩稿叧鎺ュ彛锛屽苟鍦ㄦ湰鍦颁繚瀛樼敓鎴愮殑瑙嗛涓庡巻鍙茶褰曘€傚墠绔娇鐢?Vite 鏋勫缓锛屼骇鐗╃敱鍚庣鐩存帴鎵樼銆?
 
-## 目录结构
+## 鐩綍缁撴瀯
 
 ```
 .
-├─ backend/              # FastAPI 后端
-│  ├─ main.py            # FastAPI 服务入口
-│  ├─ core.py            # 核心逻辑
-│  ├─ data/              # 配置与历史数据（运行后生成）
-│  └─ downloads/         # 生成的视频（运行后生成）
-├─ frontend/             # Vite 前端工程
-│  ├─ index.html         # 前端源码入口
-│  ├─ src/
-│  └─ dist/              # build 后生成（部署产物）
-├─ Dockerfile
-├─ docker-compose.yml
-└─ README.md
+鈹溾攢 backend/              # FastAPI 鍚庣
+鈹? 鈹溾攢 main.py            # FastAPI 鏈嶅姟鍏ュ彛
+鈹? 鈹溾攢 core.py            # 鏍稿績閫昏緫
+鈹? 鈹溾攢 data/              # 閰嶇疆涓庡巻鍙叉暟鎹紙杩愯鍚庣敓鎴愶級
+鈹? 鈹斺攢 downloads/         # 鐢熸垚鐨勮棰戯紙杩愯鍚庣敓鎴愶級
+鈹溾攢 frontend/             # Vite 鍓嶇宸ョ▼
+鈹? 鈹溾攢 index.html         # 鍓嶇婧愮爜鍏ュ彛
+鈹? 鈹溾攢 src/
+鈹? 鈹斺攢 dist/              # build 鍚庣敓鎴愶紙閮ㄧ讲浜х墿锛?
+鈹溾攢 Dockerfile
+鈹溾攢 docker-compose.yml
+鈹斺攢 README.md
 ```
 
-## 环境要求
+## 鐜瑕佹眰
 
 - Python 3.8+
-- Node.js 18+（用于前端构建）
-- 依赖：`fastapi`、`uvicorn`、`requests`、`pydantic`
+- Node.js 18+锛堢敤浜庡墠绔瀯寤猴級
+- 渚濊禆锛歚fastapi`銆乣uvicorn`銆乣requests`銆乣pydantic`
 
-安装 Python 依赖示例：
+瀹夎 Python 渚濊禆绀轰緥锛?
 
 ```bash
 pip install fastapi uvicorn requests pydantic
 ```
 
-## 本地开发
+## 鏈湴寮€鍙?
 
-### 1) 启动后端
+### 1) 鍚姩鍚庣
 
-在仓库根目录执行：
+鍦ㄤ粨搴撴牴鐩綍鎵ц锛?
 
 ```bash
 python backend/main.py
 ```
 
-访问地址：
+璁块棶鍦板潃锛?
 
 ```
 http://localhost:8000
 ```
 
-### 2) 运行/构建前端
+### 2) 杩愯/鏋勫缓鍓嶇
 
-进入前端目录：
+杩涘叆鍓嶇鐩綍锛?
 
 ```bash
 cd frontend
 ```
 
-开发模式：
+寮€鍙戞ā寮忥細
 
 ```bash
 npm install
 npm run dev
 ```
 
-构建并由后端提供静态资源：
+鏋勫缓骞剁敱鍚庣鎻愪緵闈欐€佽祫婧愶細
 
 ```bash
 npm install
 npm run build
 ```
 
-后端会从 `frontend/dist` 提供静态资源。
+鍚庣浼氫粠 `frontend/dist` 鎻愪緵闈欐€佽祫婧愩€?
 
-## 为什么有两个 HTML 文件
+## 涓轰粈涔堟湁涓や釜 HTML 鏂囦欢
 
-- `frontend/index.html`：Vite 前端源码入口，开发和构建时使用。
-- `frontend/dist/index.html`：构建产物，`npm run build` 后生成，后端对外提供的页面。
+- `frontend/index.html`锛歏ite 鍓嶇婧愮爜鍏ュ彛锛屽紑鍙戝拰鏋勫缓鏃朵娇鐢ㄣ€?
+- `frontend/dist/index.html`锛氭瀯寤轰骇鐗╋紝`npm run build` 鍚庣敓鎴愶紝鍚庣瀵瑰鎻愪緵鐨勯〉闈€?
 
-请只编辑 `frontend/index.html`，不要手改 `frontend/dist/index.html`。
+璇峰彧缂栬緫 `frontend/index.html`锛屼笉瑕佹墜鏀?`frontend/dist/index.html`銆?
 
-## 容器化部署（Docker）
+## 瀹瑰櫒鍖栭儴缃诧紙Docker锛?
 
-前端必须先构建出 `frontend/dist`，Docker 里不跑 dev server。
+鍓嶇蹇呴』鍏堟瀯寤哄嚭 `frontend/dist`锛孌ocker 閲屼笉璺?dev server銆?
 
-### 构建前端
+### 鏋勫缓鍓嶇
 
 ```bash
 cd frontend
@@ -91,13 +91,13 @@ npm install
 npm run build
 ```
 
-### 构建镜像
+### 鏋勫缓闀滃儚
 
 ```bash
 docker build -t sora2-web .
 ```
 
-### 启动容器
+### 鍚姩瀹瑰櫒
 
 ```bash
 docker run -d \
@@ -109,13 +109,13 @@ docker run -d \
   sora2-web
 ```
 
-### 使用 docker compose
+### 浣跨敤 docker compose
 
 ```bash
 docker compose up -d
 ```
 
-常用运维命令：
+甯哥敤杩愮淮鍛戒护锛?
 
 ```bash
 docker ps
@@ -131,65 +131,65 @@ docker restart sora2-web
 docker rm -f sora2-web
 ```
 
-## 配置说明
+## 閰嶇疆璇存槑
 
-配置存储在 `backend/data/config.json`，可通过 API 更新：
+閰嶇疆瀛樺偍鍦?`backend/data/config.json`锛屽彲閫氳繃 API 鏇存柊锛?
 
-- 设置 API Key（用于请求 Sora2 API）：
+- 璁剧疆 API Key锛堢敤浜庤姹?Sora2 API锛夛細
 
 ```
 POST /config/api-key
 {"api_key": "YOUR_API_KEY"}
 ```
 
-- 设置 Token（用于额度相关接口）：
+- 璁剧疆 Token锛堢敤浜庨搴︾浉鍏虫帴鍙ｏ級锛?
 
 ```
 POST /config/token
 {"token": "YOUR_TOKEN"}
 ```
 
-- 设置 Host 模式：
+- 璁剧疆 Host 妯″紡锛?
 
 ```
 POST /config/host-mode
 {"host_mode": "auto|domestic|overseas"}
 ```
 
-- 设置默认查询参数（会合并到现有配置中）：
+- 璁剧疆榛樿鏌ヨ鍙傛暟锛堜細鍚堝苟鍒扮幇鏈夐厤缃腑锛夛細
 
 ```
 POST /config/query-defaults
 {"data": {"aspectRatio": "16:9"}}
 ```
 
-查询当前配置：
+鏌ヨ褰撳墠閰嶇疆锛?
 
 ```
 GET /config
 ```
 
-## 常用接口
+## 甯哥敤鎺ュ彛
 
-> 所有接口均为 JSON 格式
+> 鎵€鏈夋帴鍙ｅ潎涓?JSON 鏍煎紡
 
-### 生成视频（同步）
+### 鐢熸垚瑙嗛锛堝悓姝ワ級
 
 ```
 POST /generate
 {
   "prompt": "a cute cat",
   "duration": 15,
-  "url": "https://... (可选)",
+  "url": "https://... (鍙€?",
   "aspectRatio": "16:9",
   "size": "large",
-  "remixTargetId": "... (可选)"
+  "remixTargetId": "... (鍙€?"
 }
 ```
 
-### 生成视频（异步）
+### 鐢熸垚瑙嗛锛堝紓姝ワ級
 
-启动任务：
+鍚姩浠诲姟锛?
 
 ```
 POST /generate/start
@@ -199,7 +199,7 @@ POST /generate/start
 }
 ```
 
-完成任务并下载：
+瀹屾垚浠诲姟骞朵笅杞斤細
 
 ```
 POST /generate/finalize
@@ -209,16 +209,16 @@ POST /generate/finalize
 }
 ```
 
-查询结果状态：
+鏌ヨ缁撴灉鐘舵€侊細
 
 ```
 POST /result
 {"id": "TASK_ID"}
 ```
 
-### 角色相关
+### 瑙掕壊鐩稿叧
 
-上传角色：
+涓婁紶瑙掕壊锛?
 
 ```
 POST /character/upload
@@ -228,7 +228,7 @@ POST /character/upload
 }
 ```
 
-创建角色：
+鍒涘缓瑙掕壊锛?
 
 ```
 POST /character/create
@@ -238,9 +238,9 @@ POST /character/create
 }
 ```
 
-### OpenAPI 与额度
+### OpenAPI 涓庨搴?
 
-创建 API Key：
+鍒涘缓 API Key锛?
 
 ```
 POST /openapi/create-api-key
@@ -253,76 +253,69 @@ POST /openapi/create-api-key
 }
 ```
 
-查询 API Key 额度：
+鏌ヨ API Key 棰濆害锛?
 
 ```
 POST /openapi/api-key-credits
 {"apiKey": "YOUR_API_KEY"}
 ```
 
-查询账户额度：
+鏌ヨ璐︽埛棰濆害锛?
 
 ```
 POST /openapi/credits
 {"token": "YOUR_TOKEN"}
 ```
 
-### 视频管理
+### 瑙嗛绠＄悊
 
-本地视频列表：
+鏈湴瑙嗛鍒楄〃锛?
 
 ```
 GET /videos
 ```
 
-删除本地视频：
+鍒犻櫎鏈湴瑙嗛锛?
 
 ```
 POST /videos/delete
 {"name": "sora_123.mp4"}
 ```
 
-## 数据与下载说明
+## 鏁版嵁涓庝笅杞借鏄?
 
-- 生成的视频默认保存到 `backend/downloads/`
-- 历史记录保存到 `backend/data/history.json`
-- 活动任务保存到 `backend/data/active_tasks.json`
+- 鐢熸垚鐨勮棰戦粯璁や繚瀛樺埌 `backend/downloads/`
+- 鍘嗗彶璁板綍淇濆瓨鍒?`backend/data/history.json`
+- 娲诲姩浠诲姟淇濆瓨鍒?`backend/data/active_tasks.json`
 
-## 备注
+## 澶囨敞
 
-- API 报错或网络异常会在接口返回中体现错误信息。
-- 如需变更 API 主机，可通过 `host_mode` 选择 `domestic` 或 `overseas`。
+- API 鎶ラ敊鎴栫綉缁滃紓甯镐細鍦ㄦ帴鍙ｈ繑鍥炰腑浣撶幇閿欒淇℃伅銆?
+- 濡傞渶鍙樻洿 API 涓绘満锛屽彲閫氳繃 `host_mode` 閫夋嫨 `domestic` 鎴?`overseas`銆?
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 96f04918a8faa25010efb9bda17b922414405039
-## API 配置脚本
+## API 閰嶇疆鑴氭湰
 
-使用 `scripts/config_api.sh` 进行 API Key/Token/Host Mode 配置（交互式）：
+浣跨敤 `scripts/config_api.sh` 杩涜 API Key/Token/Host Mode 閰嶇疆锛堜氦浜掑紡锛夛細
 
 ```bash
 chmod +x /opt/sora2_web/scripts/config_api.sh
 /opt/sora2_web/scripts/config_api.sh
 ```
 
-如果服务不在本机，可使用 `SERVER_URL` 指定：
+濡傛灉鏈嶅姟涓嶅湪鏈満锛屽彲浣跨敤 `SERVER_URL` 鎸囧畾锛?
 
 ```bash
-SERVER_URL="http://<服务器IP>:8000" /opt/sora2_web/scripts/config_api.sh
+SERVER_URL="http://<鏈嶅姟鍣↖P>:8000" /opt/sora2_web/scripts/config_api.sh
 ```
 
-## 更新并重启（单条命令）
+## 鏇存柊骞堕噸鍚紙鍗曟潯鍛戒护锛?
 
-适用于非 Docker 部署：
+閫傜敤浜庨潪 Docker 閮ㄧ讲锛?
 
 ```bash
 cd /opt/sora2_web && git pull && cd frontend && npm install && npm run build && (pkill -f "backend.main:app" || pkill -f "backend/main.py" || true) && cd /opt/sora2_web && nohup python3 -m uvicorn main:app --app-dir backend --host :: --port 8000 > /opt/sora2_web/server.log 2>&1 &
 ```
 ## License
 
-<<<<<<< HEAD
-本项目未指定 License。
-=======
-本项目未指定 License。
->>>>>>> 96f04918a8faa25010efb9bda17b922414405039
+鏈」鐩湭鎸囧畾 License銆?
