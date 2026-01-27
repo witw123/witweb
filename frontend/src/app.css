@@ -1011,6 +1011,47 @@ textarea {
     align-items: flex-start;
   }
 
+  .nav-links,
+  .actions {
+    width: 100%;
+  }
+
+  .nav-links {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .actions {
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .profile-menu {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .profile-pop {
+    right: auto;
+    left: 0;
+    width: 100%;
+  }
+
+  .profile-inline {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .profile-name-input {
+    width: 100%;
+  }
+
+  .profile-actions.vertical .button {
+    width: 100%;
+  }
+
   .post-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -1099,6 +1140,22 @@ textarea {
 @media (max-width: 520px) {
   .header {
     padding: 8px 12px;
+  }
+
+  .header h1 {
+    font-size: 20px;
+  }
+
+  .header .muted {
+    font-size: 10px;
+  }
+
+  .profile-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .profile-pop {
+    padding: 12px;
   }
 
   .card {
