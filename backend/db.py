@@ -19,11 +19,11 @@ DATA_DIR.mkdir(exist_ok=True)
 
 
 def _db_type() -> str:
-    return os.getenv("DB_TYPE", "sqlite").strip().lower()
+    return "sqlite"
 
 
 def is_mysql() -> bool:
-    return _db_type() == "mysql"
+    return False
 
 
 def adapt_query(sql: str) -> str:
