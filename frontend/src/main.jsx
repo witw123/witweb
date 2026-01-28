@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Router from "./router";
 import "./styles/global.css";
+import "./styles/mobile.css";
 
 const container = document.getElementById("root");
 const root = createRoot(container);

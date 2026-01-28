@@ -9,7 +9,16 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isStudio = location.pathname.startsWith('/studio');
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -25,22 +34,54 @@ const Layout = ({ children }) => {
             witweb
           </Link>
 
-          <nav className="nav">
-            <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          <button
+            className="mobile-menu-toggle"
+            onClick={toggleMobileMenu}
+            aria-label="Toggle navigation"
+          >
+            <span className={`hamburger ${isMobileMenuOpen ? 'active' : ''}`}></span>
+          </button>
+
+          <nav className={`nav ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              onClick={closeMobileMenu}
+            >
               主页
             </NavLink>
-            <NavLink to="/forum" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <NavLink
+              to="/forum"
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              onClick={closeMobileMenu}
+            >
               讨论区
             </NavLink>
             {isAuthenticated && (
-              <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+                onClick={closeMobileMenu}
+              >
                 发布文章
               </NavLink>
             )}
-            <NavLink to="/studio" className={({ isActive }) => isActive || isStudio ? 'nav-link active' : 'nav-link'} target="_blank" rel="noopener noreferrer">
+            <NavLink
+              to="/studio"
+              className={({ isActive }) => isActive || isStudio ? 'nav-link active' : 'nav-link'}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={closeMobileMenu}
+            >
               工作台
             </NavLink>
           </nav>
+
+          {/* Mobile Overlay */}
+          {isMobileMenuOpen && (
+            <div className="mobile-menu-overlay" onClick={closeMobileMenu}></div>
+          )}
 
           <div className="actions">
             {isAuthenticated ? (

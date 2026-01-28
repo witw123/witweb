@@ -3,15 +3,17 @@
   --bg-primary: #050505;
   --bg-secondary: #0a0a0a;
   --bg-card: #111111;
-  
+
   --text-primary: #ededed;
   --text-secondary: #a1a1a1;
   --text-accent: #ffffff;
 
-  --accent-primary: #0070f3; /* Vercel Blue-ish */
-  --accent-secondary: #00e5ff; /* Cyan */
+  --accent-primary: #0070f3;
+  /* Vercel Blue-ish */
+  --accent-secondary: #00e5ff;
+  /* Cyan */
   --accent-glow: rgba(0, 112, 243, 0.4);
-  
+
   --border-subtle: #333333;
   --border-highlight: #444444;
 
@@ -36,14 +38,33 @@
   /* Effects */
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.5);
   --header-height: 64px;
+
+  /* Touch Targets */
+  --touch-target-min: 44px;
+
+  /* Breakpoints (for reference in JS) */
+  --breakpoint-mobile: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  :root {
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    --spacing-2xl: 32px;
+    --header-height: 56px;
+  }
 }
 
 [data-theme='light'] {
-   /* Future proofing for light mode if needed */
-   --bg-primary: #ffffff;
-   --bg-secondary: #fafafa;
-   --bg-card: #ffffff;
-   --text-primary: #000000;
-   --text-secondary: #666666;
-   --border-subtle: #eaeaea;
+  /* Future proofing for light mode if needed */
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-card: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --border-subtle: #eaeaea;
 }

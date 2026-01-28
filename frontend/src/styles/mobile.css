@@ -1,0 +1,141 @@
+/* Mobile Optimization Styles */
+@media (max-width: 768px) {
+
+  /* Layout Adjustments */
+  .container {
+    padding: 0 16px;
+  }
+
+  /* Split Layout Stacking */
+  .split-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .side-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    width: 100%;
+  }
+
+  /* Adjust card paddings */
+  .card,
+  .stat-card,
+  .admin-card {
+    padding: var(--spacing-md);
+  }
+
+  /* Blog List Specifics */
+  .blog-list-page {
+    padding-top: var(--spacing-md) !important;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .section-header .search {
+    width: 100% !important;
+  }
+
+  /* Blog Post Specifics */
+  .post-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .blog-post-page h1 {
+    font-size: 1.5rem;
+    /* Smaller title on mobile */
+    line-height: 1.3;
+  }
+
+  .blog-post-page .text-lg {
+    font-size: 1rem;
+  }
+
+  .comment-item {
+    padding: 12px;
+  }
+
+  .comment-item.ml-8 {
+    margin-left: 16px;
+    /* Reduce indentation */
+    padding-left: 12px;
+  }
+
+  /* Forum Channel List */
+  .channel-list {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* Forum Messages */
+  .channel-view {
+    height: auto;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .messages-container {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .message-input-form {
+    padding: 12px;
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-subtle);
+    z-index: 10;
+  }
+
+  /* Tables in Admin */
+  .admin-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Admin Sidebar is handled in admin-layout.css but let's ensure content margin is reset if sidebar is hidden/mini */
+  .admin-main {
+    margin-left: 70px;
+    /* Kept as mini sidebar by default for now */
+    width: calc(100% - 70px);
+  }
+
+  .admin-content {
+    padding: 16px;
+  }
+
+  /* Buttons */
+  button,
+  .btn-primary,
+  .btn-ghost,
+  .nav-link,
+  .input,
+  .admin-input {
+    min-height: var(--touch-target-min);
+  }
+
+  .btn-sm {
+    min-height: 32px;
+    /* Exception for small buttons */
+  }
+
+  /* Generic Grid Stacking */
+  .grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+}
