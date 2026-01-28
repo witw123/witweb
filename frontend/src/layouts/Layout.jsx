@@ -27,16 +27,19 @@ const Layout = ({ children }) => {
 
           <nav className="nav">
             <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              讨论区
+              主页
             </NavLink>
-            <NavLink to="/studio" className={({ isActive }) => isActive || isStudio ? 'nav-link active' : 'nav-link'} target="_blank" rel="noopener noreferrer">
-              视频生成
+            <NavLink to="/forum" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              讨论区
             </NavLink>
             {isAuthenticated && (
               <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                 发布文章
               </NavLink>
             )}
+            <NavLink to="/studio" className={({ isActive }) => isActive || isStudio ? 'nav-link active' : 'nav-link'} target="_blank" rel="noopener noreferrer">
+              工作台
+            </NavLink>
           </nav>
 
           <div className="actions">

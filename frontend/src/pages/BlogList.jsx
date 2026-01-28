@@ -405,12 +405,7 @@ export default function BlogList() {
     : [];
 
   return (
-    <div className="blog-list-page">
-      <div className="intro-section" style={{ marginBottom: 'var(--spacing-md)' }}>
-        <h1>AI Studio</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>讨论区 · 分享创作日志与经验</p>
-      </div>
-
+    <div className="blog-list-page" style={{ minHeight: 'calc(100vh - 60px)', paddingTop: '2rem', paddingBottom: '64px' }}>
       <div className="split-layout">
         <aside className="side-panel">
           <div className="card">

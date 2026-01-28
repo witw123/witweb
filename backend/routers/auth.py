@@ -1,8 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError, jwt
 from .. import auth
 from ..schemas import LoginReq, RegisterReq, ProfileReq
 
 router = APIRouter(prefix="/api", tags=["Auth"])
+security = HTTPBearer()
+
+# Dependency to get current user from token
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """Get current authenticated user from JWT token"""
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 @router.post("/login")
 def login(req: LoginReq):

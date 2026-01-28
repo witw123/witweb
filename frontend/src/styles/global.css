@@ -12,7 +12,7 @@
 
 .split-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr 300px;
   gap: var(--spacing-lg);
   align-items: start;
 }
@@ -186,9 +186,11 @@
   text-decoration: underline;
 }
 
+/* Disabled to prevent unwanted color changes on hover
 .hover\:text-accent:hover {
   color: var(--accent-primary);
 }
+*/
 
 .hover\:text-primary:hover {
   color: var(--text-primary);
@@ -737,7 +739,9 @@ a:not(.card):hover {
 
 /* Ensure card links and their children don't change color on hover */
 a.card:hover,
-a.card:hover * {
+a.card:hover *,
+a.post-card:hover,
+a.post-card:hover * {
   color: inherit !important;
 }
 

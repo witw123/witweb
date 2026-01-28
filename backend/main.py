@@ -21,6 +21,7 @@ try:
     from .routers import auth as auth_router
     from .routers import blog as blog_router
     from .routers import studio as studio_router
+    from .routers import channel as channel_router
     from . import db
     from .config import (
         ADMIN_USERNAME, ADMIN_PASSWORD,
@@ -34,6 +35,7 @@ except ImportError:
     from backend.routers import auth as auth_router
     from backend.routers import blog as blog_router
     from backend.routers import studio as studio_router
+    from backend.routers import channel as channel_router
     from backend import db
     from backend.config import (
         ADMIN_USERNAME, ADMIN_PASSWORD,
@@ -67,6 +69,7 @@ if UPLOADS_DIR.exists():
 app.include_router(auth_router.router)
 app.include_router(blog_router.router)
 app.include_router(studio_router.router)
+app.include_router(channel_router.router)
 
 @app.middleware("http")
 async def add_cache_headers(request: Request, call_next):

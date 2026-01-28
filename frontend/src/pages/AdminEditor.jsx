@@ -58,6 +58,19 @@ export default function AdminEditor() {
       return;
     }
     setStatus("Published.");
+
+    // Clear blog list caches to ensure homepage shows new article
+    try {
+      const prefixes = ["cache:blog:", "cache:post:"];
+      Object.keys(localStorage).forEach((key) => {
+        if (prefixes.some((prefix) => key.startsWith(prefix))) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {
+      console.error("Failed to clear cache:", e);
+    }
+
     setTitle("");
     setTags("");
     setContent("");

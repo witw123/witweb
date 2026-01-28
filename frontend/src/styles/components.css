@@ -104,7 +104,7 @@
 /* Grid */
 .grid {
   display: grid;
-  gap: 24px;
+  gap: 16px;
 }
 
 /* Cards */
@@ -125,8 +125,6 @@ a.card {
 a.card:hover {
   border-color: var(--accent-primary);
   transform: translateY(-2px);
-  color: inherit;
-  /* Prevent text color change */
 }
 
 .card-head {

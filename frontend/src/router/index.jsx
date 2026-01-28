@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 import AdminEditor from "../pages/AdminEditor";
 import BlogList from "../pages/BlogList";
+import Forum from "../pages/Forum";
 import BlogPost from "../pages/BlogPost";
 import Favorites from "../pages/Favorites";
 import Login from "../pages/Login";
@@ -30,6 +31,7 @@ export default function Router() {
     <Layout>
       <Routes>
         <Route path="/" element={<BlogList />} />
+        <Route path="/forum" element={<Forum />} />
         <Route path="/post/:slug" element={<BlogPost />} />
         <Route path="/studio" element={<Studio />} />
         <Route

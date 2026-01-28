@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import * as authService from "../services/authService";
 
 export default function Login() {
@@ -8,6 +9,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   async function handleLogin(event) {
     event.preventDefault();
@@ -20,7 +22,9 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await authService.login(username, password);
+      const data = await authService.login(username, password);
+      // Update AuthContext state immediately
+      login(data.token, data.profile);
       navigate("/");
     } catch (err) {
       setError(err.message || "登录失败，请稍后重试");

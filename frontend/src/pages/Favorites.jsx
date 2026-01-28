@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getThumbnailUrl } from "../utils/url";
+import PostCard from "../components/PostCard";
 import { getFavoritesCache, setFavoritesCache } from "../utils/memoryStore";
 import { getCachedJson, setCachedJson } from "../utils/cache";
 import * as blogService from "../services/blogService";
@@ -73,14 +73,15 @@ export default function Favorites() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="favorites-page">
-      <div className="header-actions flex justify-between items-center mb-6">
+    <div className="container py-8">
+      <div className="page-header mb-8">
         <div>
-          <h1 className="text-2xl font-bold">我的收藏</h1>
+          <h1 className="text-3xl font-bold mb-2">我的收藏</h1>
+          <p className="text-muted">您收藏的精彩内容</p>
         </div>
         <div className="actions">
           <Link className="btn-ghost" to="/">
-            返回讨论区
+            返回主页
           </Link>
         </div>
       </div>
@@ -89,34 +90,11 @@ export default function Favorites() {
       {status === "ready" && items.length === 0 && <p>暂无收藏。</p>}
       <div className="list grid">
         {items.map((post) => (
-          <Link key={post.slug} to={`/ post / ${post.slug} `} className="card block no-underline text-inherit hover:border-accent transition-colors">
-            <div className="card-head flex justify-between items-start mb-2">
-              <div className="author flex items-center gap-2">
-                {post.author_avatar ? (
-                  <img src={getThumbnailUrl(post.author_avatar, 64)} alt={post.author} className="w-6 h-6 rounded-full" />
-                ) : <div className="avatar-fallback w-6 h-6 text-xs">{post.author?.[0]}</div>}
-                <span className="text-sm font-medium">{post.author}</span>
-              </div>
-            </div>
-            <h2 className="text-xl font-bold mb-2">{post.title}</h2>
-            <p className="text-muted text-sm mb-4 leading-relaxed line-clamp-2">
-              {(post.content || "").replace(/\s+/g, " ").trim().slice(0, 140)}
-            </p>
-            <div className="flex justify-between items-center mt-auto">
-              <div className="text-xs text-muted">
-                {new Date(post.created_at).toLocaleString()}
-              </div>
-              <div className="flex gap-2 text-sm text-secondary">
-                <span>👍 {post.like_count ?? 0}</span>
-                <span>💬 {post.comment_count ?? 0}</span>
-                <span>★ {post.favorite_count ?? 0}</span>
-              </div>
-            </div>
-          </Link>
+          <PostCard key={post.slug} post={post} />
         ))}
       </div>
       {totalPages > 1 && (
-        <div className="pagination flex justify-center gap-4 mt-8 items-center">
+        <div className="pagination flex items-center justify-center gap-4 mt-8">
           <button
             className="btn-ghost"
             type="button"
