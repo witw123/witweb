@@ -51,7 +51,7 @@ def get_user_profile(username: str) -> dict | None:
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        q("SELECT username, nickname, avatar_url FROM users WHERE username = ?"),
+        q("SELECT username, nickname, avatar_url, balance FROM users WHERE username = ?"),
         (username,),
     )
     row = cur.fetchone()
@@ -60,8 +60,9 @@ def get_user_profile(username: str) -> dict | None:
         return None
     return {
         "username": row["username"],
-        "nickname": row["nickname"] or row["username"],
-        "avatar_url": row["avatar_url"] or "",
+        "nickname": row["nickname"],
+        "avatar_url": row["avatar_url"],
+        "balance": row["balance"] if row["balance"] is not None else 0.0,
     }
 
 

@@ -22,6 +22,11 @@ try:
     from .routers import blog as blog_router
     from .routers import studio as studio_router
     from .routers import channel as channel_router
+    from .routers import admin_ai as admin_ai_router
+    from .routers import video as video_router
+    from .routers import admin_users as admin_users_router
+    from .routers import admin_blogs as admin_blogs_router
+    from .routers import admin_stats as admin_stats_router
     from . import db
     from .config import (
         ADMIN_USERNAME, ADMIN_PASSWORD,
@@ -36,6 +41,11 @@ except ImportError:
     from backend.routers import blog as blog_router
     from backend.routers import studio as studio_router
     from backend.routers import channel as channel_router
+    from backend.routers import admin_ai as admin_ai_router
+    from backend.routers import video as video_router
+    from backend.routers import admin_users as admin_users_router
+    from backend.routers import admin_blogs as admin_blogs_router
+    from backend.routers import admin_stats as admin_stats_router
     from backend import db
     from backend.config import (
         ADMIN_USERNAME, ADMIN_PASSWORD,
@@ -70,6 +80,11 @@ app.include_router(auth_router.router)
 app.include_router(blog_router.router)
 app.include_router(studio_router.router)
 app.include_router(channel_router.router)
+app.include_router(admin_ai_router.router)
+app.include_router(video_router.router)
+app.include_router(admin_users_router.router)
+app.include_router(admin_blogs_router.router)
+app.include_router(admin_stats_router.router)
 
 @app.middleware("http")
 async def add_cache_headers(request: Request, call_next):

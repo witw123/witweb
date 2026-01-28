@@ -39,12 +39,15 @@ def init_db(admin_username: str, admin_password: str) -> None:
           username TEXT UNIQUE,
           password TEXT,
           nickname TEXT,
-          avatar_url TEXT
+          avatar_url TEXT,
+          balance REAL DEFAULT 0.0,
+          created_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
         """
     )
     _ensure_column(cur, "users", "nickname", "nickname TEXT")
     _ensure_column(cur, "users", "avatar_url", "avatar_url TEXT")
+    _ensure_column(cur, "users", "created_at", "created_at TEXT")
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS posts (
@@ -169,20 +172,77 @@ def init_db(admin_username: str, admin_password: str) -> None:
         )
     """)
     
-    # Create messages table
-    conn.execute("""
+    # 创建messages表
+    cur.execute(adapt_query("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
             username TEXT NOT NULL,
-            user_avatar TEXT,
             content TEXT NOT NULL,
             created_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (channel_id) REFERENCES channels(id),
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            FOREIGN KEY (username) REFERENCES users(username)
         )
-    """)
+    """))
+
+    # 创建video_tasks表
+    cur.execute(adapt_query("""
+        CREATE TABLE IF NOT EXISTS video_tasks (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            task_type TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            progress INTEGER DEFAULT 0,
+            
+            prompt TEXT,
+            model TEXT,
+            url TEXT,
+            aspect_ratio TEXT,
+            duration INTEGER,
+            remix_target_id TEXT,
+            size TEXT,
+            pid TEXT,
+            timestamps TEXT,
+            
+            result_json TEXT,
+            failure_reason TEXT,
+            error TEXT,
+            
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            
+            FOREIGN KEY (username) REFERENCES users(username)
+        )
+    """))
+
+    # 创建video_results表
+    cur.execute(adapt_query("""
+        CREATE TABLE IF NOT EXISTS video_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            remove_watermark BOOLEAN DEFAULT 0,
+            pid TEXT,
+            character_id TEXT,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            
+            FOREIGN KEY (task_id) REFERENCES video_tasks(id)
+        )
+    """))
+
+    # 创建characters表
+    cur.execute(adapt_query("""
+        CREATE TABLE IF NOT EXISTS characters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            character_id TEXT UNIQUE NOT NULL,
+            name TEXT,
+            source_task_id TEXT,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            
+            FOREIGN KEY (username) REFERENCES users(username)
+        )
+    """))
     
     # Create default channels if they don't exist
     default_channels = [
