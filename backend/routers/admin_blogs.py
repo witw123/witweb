@@ -93,7 +93,13 @@ def get_all_blogs(
     
     # 获取文章列表
     cur.execute(adapt_query(f"""
-        SELECT id, author as username, title, 'published' as status, created_at, created_at as updated_at
+        SELECT
+            id,
+            author as username,
+            title,
+            COALESCE(status, 'published') as status,
+            created_at,
+            COALESCE(updated_at, created_at) as updated_at
         FROM posts
         {where_clause}
         ORDER BY {order_by}
@@ -131,7 +137,14 @@ def get_blog_detail(
     cur = conn.cursor()
     
     cur.execute(adapt_query("""
-        SELECT id, author as username, title, content, 'published' as status, created_at, created_at as updated_at
+        SELECT
+            id,
+            author as username,
+            title,
+            content,
+            COALESCE(status, 'published') as status,
+            created_at,
+            COALESCE(updated_at, created_at) as updated_at
         FROM posts WHERE id = ?
     """), (blog_id,))
     

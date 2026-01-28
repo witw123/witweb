@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 CONFIG_FILE = Path(__file__).parent.parent / "data" / "api_config.json"
+CORE_CONFIG_FILE = Path(__file__).parent.parent / "data" / "config.json"
 
 def get_api_token() -> Optional[str]:
     """获取API Token"""
@@ -85,9 +86,18 @@ def save_api_base_url(base_url: str) -> bool:
         return False
 
 def get_sora2_api_key() -> Optional[str]:
-    """获取Sora2 API Key"""
+    """???Sora2 API Key"""
     config = get_api_config()
-    return config.get('sora2_api_key')
+    if config.get('sora2_api_key'):
+        return config.get('sora2_api_key')
+    if CORE_CONFIG_FILE.exists():
+        try:
+            with open(CORE_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                core_cfg = json.load(f)
+                return core_cfg.get('api_key')
+        except Exception:
+            return None
+    return None
 
 def save_sora2_api_key(api_key: str) -> bool:
     """保存Sora2 API Key"""

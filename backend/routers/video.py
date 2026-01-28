@@ -61,6 +61,7 @@ def generate_video(
         video_service.create_task(
             username=username,
             task_type='generate',
+            task_id=task_id,
             prompt=request.prompt,
             model=request.model,
             url=request.url,
@@ -97,6 +98,7 @@ def upload_character(
         video_service.create_task(
             username=username,
             task_type='upload_character',
+            task_id=task_id,
             url=request.url,
             timestamps=request.timestamps
         )
@@ -127,6 +129,7 @@ def create_character(
         video_service.create_task(
             username=username,
             task_type='create_character',
+            task_id=task_id,
             pid=request.pid,
             timestamps=request.timestamps
         )

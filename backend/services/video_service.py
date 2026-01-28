@@ -20,6 +20,7 @@ class VideoService:
     def create_task(
         username: str,
         task_type: str,
+        task_id: str | None = None,
         **params
     ) -> str:
         """
@@ -33,7 +34,7 @@ class VideoService:
         Returns:
             任务ID
         """
-        task_id = str(uuid.uuid4())
+        task_id = task_id or str(uuid.uuid4())
         conn = get_conn()
         cur = conn.cursor()
         

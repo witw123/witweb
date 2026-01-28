@@ -146,13 +146,11 @@ const Layout = ({ children }) => {
         {children}
       </main>
 
-      {!isStudio && (
-        <footer className="footer">
-          <div className="container">
-            <p>© {new Date().getFullYear()} witweb. 基于 React & FastAPI 构建</p>
-          </div>
-        </footer>
-      )}
+      <footer className="footer">
+        <div className="container">
+          <p>© {new Date().getFullYear()} witweb. 基于 React & FastAPI 构建</p>
+        </div>
+      </footer>
     </div>
   );
 };

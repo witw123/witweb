@@ -139,15 +139,18 @@ def create_post(title: str, slug: str | None, content: str, author: str, tags: s
     conn = get_conn()
     cur = conn.cursor()
     final_slug = _ensure_unique_slug(cur, slug or _slugify(title))
+    now_ts = datetime.now(timezone.utc).isoformat()
     cur.execute(
-        q("INSERT INTO posts (title, slug, content, created_at, author, tags) VALUES (?, ?, ?, ?, ?, ?)"),
+        q("INSERT INTO posts (title, slug, content, created_at, updated_at, author, tags, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"),
         (
             title,
             final_slug,
             content,
-            datetime.now(timezone.utc).isoformat(),
+            now_ts,
+            now_ts,
             author,
             tags,
+            "published",
         ),
     )
     conn.commit()
@@ -169,8 +172,8 @@ def update_post(slug: str, title: str, content: str, tags: str, username: str) -
         conn.close()
         raise HTTPException(status_code=403, detail="Forbidden")
     cur.execute(
-        q("UPDATE posts SET title = ?, content = ?, tags = ? WHERE slug = ?"),
-        (title, content, tags, slug),
+        q("UPDATE posts SET title = ?, content = ?, tags = ?, updated_at = ? WHERE slug = ?"),
+        (title, content, tags, datetime.now(timezone.utc).isoformat(), slug),
     )
     conn.commit()
     conn.close()

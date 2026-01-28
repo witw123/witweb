@@ -56,13 +56,17 @@ def init_db(admin_username: str, admin_password: str) -> None:
           slug TEXT UNIQUE,
           content TEXT,
           created_at TEXT,
+          updated_at TEXT,
           author TEXT,
-          tags TEXT
+          tags TEXT,
+          status TEXT DEFAULT 'published'
         )
         """
     )
+    _ensure_column(cur, "posts", "updated_at", "updated_at TEXT")
     _ensure_column(cur, "posts", "author", "author TEXT")
     _ensure_column(cur, "posts", "tags", "tags TEXT")
+    _ensure_column(cur, "posts", "status", "status TEXT DEFAULT 'published'")
 
     cur.execute(
         """
@@ -177,13 +181,17 @@ def init_db(admin_username: str, admin_password: str) -> None:
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_id INTEGER NOT NULL,
+            user_id INTEGER,
             username TEXT NOT NULL,
+            user_avatar TEXT,
             content TEXT NOT NULL,
             created_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (channel_id) REFERENCES channels(id),
             FOREIGN KEY (username) REFERENCES users(username)
         )
     """))
+    _ensure_column(cur, "messages", "user_id", "user_id INTEGER")
+    _ensure_column(cur, "messages", "user_avatar", "user_avatar TEXT")
 
     # 创建video_tasks表
     cur.execute(adapt_query("""

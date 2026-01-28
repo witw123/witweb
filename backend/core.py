@@ -79,6 +79,11 @@ def set_api_key(key: str):
     cfg["api_key"] = key
     _save_json(CONFIG_FILE, cfg)
     _apply_config(cfg)
+    try:
+        from .services.api_config import save_sora2_api_key
+        save_sora2_api_key(key)
+    except Exception:
+        pass
 
 def set_token(token: str):
     cfg = _load_config()

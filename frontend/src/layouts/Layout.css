@@ -349,9 +349,24 @@
     top: var(--header-height);
   }
 
+
   /* Update overlay visibility when menu is open */
   .layout:has(.nav.mobile-open) .mobile-menu-overlay {
     opacity: 1;
     pointer-events: auto;
   }
+}
+
+/* Footer */
+.footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.footer p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }

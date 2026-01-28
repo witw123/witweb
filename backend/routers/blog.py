@@ -84,6 +84,7 @@ def blog_detail(slug: str, authorization: Optional[str] = Header(None)):
     return blog.get_post(slug, username)
 
 @router.post("/admin/post")
+@router.post("/blog")
 def admin_post(req: PostReq, user=Depends(auth.verify_token)):
     if not req.title.strip() or not req.content.strip():
         raise HTTPException(status_code=400, detail="Title and content required")
@@ -100,6 +101,7 @@ def update_post(slug: str, req: UpdatePostReq, user=Depends(auth.verify_token)):
     return {"ok": True}
 
 @router.delete("/admin/post/{slug}")
+@router.delete("/blog/{slug}")
 def admin_delete_post(slug: str, user=Depends(auth.verify_token)):
     blog.delete_post(slug, user, ADMIN_USERNAME)
     _clear_blog_cache()
@@ -177,6 +179,7 @@ def comment_dislike(comment_id: int, user=Depends(auth.verify_token)):
     return {"ok": True}
 
 @router.post("/upload-image")
+@router.post("/upload")
 def upload_image(file: UploadFile = File(...), user=Depends(auth.verify_token)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing file")

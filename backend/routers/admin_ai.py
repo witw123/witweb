@@ -13,6 +13,7 @@ try:
         get_api_base_url, save_api_base_url,
         get_sora2_api_key, save_sora2_api_key
     )
+    from .. import core as studio_core
 except ImportError:
     from backend.routers.auth import get_current_user
     from backend.services.grsai_client import grsai_client
@@ -21,6 +22,7 @@ except ImportError:
         get_api_base_url, save_api_base_url,
         get_sora2_api_key, save_sora2_api_key
     )
+    from backend import core as studio_core
 
 router = APIRouter(prefix="/api/admin/ai", tags=["AI Admin"])
 
@@ -138,6 +140,11 @@ def save_sora2_key_config(
     success = save_sora2_api_key(config.token.strip())
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save API key")
+    
+    try:
+        studio_core.set_api_key(config.token.strip())
+    except Exception:
+        pass
     
     return {"ok": True, "message": "Sora2 API Key saved successfully"}
 
