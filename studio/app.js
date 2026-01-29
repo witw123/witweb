@@ -1,6 +1,6 @@
-﻿lucide.createIcons();
+lucide.createIcons();
 
-// --- 鐘舵€佹帶鍒?---
+// --- 状态控�?---
 let pollTimer = null;
 let currentTaskId = null;
 let charMode = 'upload';
@@ -59,9 +59,9 @@ function loadFromLocal() {
 }
 
 function updateHostBadge(mode) {
-  const map = { auto: "鑷姩", domestic: "鍥藉唴", overseas: "娴峰" };
+  const map = { auto: "自动", domestic: "国内", overseas: "海外" };
   const el = document.getElementById("hostBadge");
-  if (el) el.textContent = map[mode] || "鑷姩";
+  if (el) el.textContent = map[mode] || "自动";
 }
 
 function formatCredits(val) {
@@ -93,7 +93,7 @@ function escapeHtml(str) {
 let recentCharacterRefs = [];
 
 function parseCharacterRefs(input) {
-  const raw = (input || "").replace(/[,锛宂/g, " ").trim();
+  const raw = (input || "").replace(/[,��]/g, " ").trim();
   if (!raw) return [];
   const tokens = raw.split(/\s+/).filter(Boolean).map(t => t.replace(/^@/, ""));
   return Array.from(new Set(tokens));
@@ -122,7 +122,7 @@ function renderCharacterRefList() {
     return;
   }
   el.innerHTML = recentCharacterRefs.map(ref => (
-    `<span class="ref-chip" onclick="insertCharacterRefAtCursor('${ref}')">@${ref}<span class="ref-del" onclick="removeRecentRef(event, '${ref}')">脳</span></span>`
+    `<span class="ref-chip" onclick="insertCharacterRefAtCursor('${ref}')">@${ref}<span class="ref-del" onclick="removeRecentRef(event, '${ref}')">×</span></span>`
   )).join("");
 }
 
@@ -181,7 +181,7 @@ function updateRecentRefs(newRefs) {
   saveCharacterRefsToServer(merged);
 }
 
-// --- 鍔熻兘鍑芥暟 ---
+// --- 功能函数 ---
 function switchCharMode(mode) {
   charMode = mode;
   document.getElementById('charModeUpload').style.display = mode === 'upload' ? 'block' : 'none';
@@ -193,8 +193,8 @@ function switchCharMode(mode) {
 
 function setCharacterStatus(status) {
   const el = document.getElementById("characterStatus");
-  const map = { succeeded: "鎴愬姛", failed: "澶辫触", running: "澶勭悊涓? };
-  el.textContent = map[status] || "绛夊緟涓?;
+  const map = { succeeded: "成功", failed: "失败", running: "处理�? };
+  el.textContent = map[status] || "等待�?;
 }
 
 function setCharacterProgress(progress) {
@@ -243,34 +243,34 @@ function addCharacterRefFromInput() {
   const refs = parseCharacterRefs(val("characterRef"));
   if (refs === null) return;
   if (!refs.length) {
-    log("鎻愮ず锛氳杈撳叆瑙掕壊 ID");
+    log("提示：请输入角色 ID");
     return;
   }
   updateRecentRefs(refs);
-  log(`宸蹭繚瀛樿鑹?ID锛?{refs.map(r => `@${r}`).join(" ")}`);
+  log(`已保存角�?ID�?{refs.map(r => `@${r}`).join(" ")}`);
 }
 \n
 function renderActiveTasks() {
   const el = document.getElementById("activeTasks");
   if (!activeTasks.length) {
-    el.innerHTML = '<div class="monitor-placeholder" style="font-size:11px">鏆傛棤浠诲姟</div>';
+    el.innerHTML = '<div class="monitor-placeholder" style="font-size:11px">暂无任务</div>';
     return;
   }
   el.innerHTML = activeTasks.map(t => {
-    const statusText = t.status || "鎺掗槦涓?;
+    const statusText = t.status || "排队�?;
     const elapsed = formatDuration(Math.floor((Date.now() - t.startTime) / 1000));
     return `<div class="active-item">
       <div class="active-title">${escapeHtml(t.prompt || "")}</div>
       <div class="active-meta">
-        <span>鐘舵€? ${statusText}</span>
-        <span>杩涘害: ${t.progress || 0}%</span>
-        <span>宸茬敤: ${elapsed}</span>
+        <span>状�? ${statusText}</span>
+        <span>进度: ${t.progress || 0}%</span>
+        <span>已用: ${elapsed}</span>
       </div>
       <div class="active-progress">
         <div class="active-bar"><div style="width:${t.progress || 0}%"></div></div>
         <div class="active-meta" style="margin-top:6px">
-          <span>杩涘害鏉?/span>
-          <button class="btn btn-ghost" style="padding:2px 6px; font-size:10px" onclick="cancelActiveTask('${t.id}')">鍙栨秷</button>
+          <span>进度�?/span>
+          <button class="btn btn-ghost" style="padding:2px 6px; font-size:10px" onclick="cancelActiveTask('${t.id}')">取消</button>
         </div>
       </div>
     </div>`;
@@ -283,7 +283,7 @@ function addActiveTask(taskId, prompt, startTime) {
     id: taskId,
     prompt: prompt || "",
     startTime: startTime || Date.now(),
-    status: "鎺掗槦涓?,
+    status: "排队�?,
     progress: 0,
     finalizing: false
   });
@@ -306,7 +306,7 @@ async function removeActiveTask(taskId) {
 function cancelActiveTask(taskId) {
   if (!taskId) return;
   removeActiveTask(taskId);
-  log("宸蹭粠闃熷垪绉婚櫎浠诲姟锛堜笉褰卞搷鍚庣瀹為檯鎵ц锛?);
+  log("已从队列移除任务（不影响后端实际执行�?);
 }
 
 async function refreshActiveTasks() {
@@ -318,7 +318,7 @@ async function refreshActiveTasks() {
         id: i.id,
         prompt: i.prompt || "",
         startTime: (i.start_time ? i.start_time * 1000 : Date.now()),
-        status: "鎺掗槦涓?,
+        status: "排队�?,
         progress: 0,
         finalizing: false
       }));
@@ -362,7 +362,7 @@ async function pollActiveTasks() {
         getAccountCredits();
         removeActiveTask(t.id);
       } else if (t.status === "failed") {
-        log("澶辫触锛? + (data.error || data.failure_reason || "鏈煡寮傚父"));
+        log("失败�? + (data.error || data.failure_reason || "未知异常"));
         removeActiveTask(t.id);
       }
     } catch (e) {}
@@ -370,10 +370,10 @@ async function pollActiveTasks() {
   renderActiveTasks();
 }
 
-// 鏍稿績鐢熸垚閫昏緫
+// 核心生成逻辑
 async function gen() {
   const prompt = val("prompt");
-  if (!prompt) { log("鎻愮ず锛氭彁绀鸿瘝涓嶈兘涓虹┖"); return; }
+  if (!prompt) { log("提示：提示词不能为空"); return; }
   
   const payload = {
     prompt,
@@ -393,7 +393,7 @@ async function gen() {
     updateRecentRefs(refs);
   }
 
-  log("鎸囦护锛氬紑濮嬫彁浜ゆ覆鏌撲换鍔?..");
+  log("指令：开始提交渲染任�?..");
   
   try {
     const res = await fetch("/generate/start", {
@@ -402,9 +402,9 @@ async function gen() {
     });
     const data = await res.json();
     currentTaskId = data.id;
-    log(`绯荤粺锛氫换鍔″凡鍒涘缓 [ID: ${currentTaskId}]`);
+    log(`系统：任务已创建 [ID: ${currentTaskId}]`);
     addActiveTask(currentTaskId, prompt, Date.now());
-  } catch (e) { log("閿欒锛? + e.message); }
+  } catch (e) { log("错误�? + e.message); }
 }
 
 async function pollResult() {}
@@ -423,7 +423,7 @@ async function startUploadCharacter() {
   } else if (currentCharBase64) {
     payload.url = currentCharBase64;
   } else {
-    log("閿欒锛氳鎻愪緵绱犳潗閾炬帴鎴栭€夋嫨鏈湴瑙嗛");
+    log("错误：请提供素材链接或选择本地视频");
     return;
   }
   const shut = parseShutProgress(val("charShutProgress"));
@@ -441,7 +441,7 @@ async function startUploadCharacter() {
   const data = await res.json();
   characterTaskId = data.id;
   if (!characterTaskId) {
-    log("閿欒锛氳鑹蹭换鍔″垱寤哄け璐?);
+    log("错误：角色任务创建失�?);
     return;
   }
   if (characterTimer) clearInterval(characterTimer);
@@ -451,7 +451,7 @@ async function startUploadCharacter() {
 async function startCreateCharacter() {
   const pid = val("charPid");
   const timestamps = val("charTimestamps") || "0,3";
-  if (!pid) { log("閿欒锛氳杈撳叆 PID"); return; }
+  if (!pid) { log("错误：请输入 PID"); return; }
   saveToLocal();
 
   const payload = {
@@ -474,7 +474,7 @@ async function startCreateCharacter() {
   const data = await res.json();
   characterTaskId = data.id;
   if (!characterTaskId) {
-    log("閿欒锛氳鑹蹭换鍔″垱寤哄け璐?);
+    log("错误：角色任务创建失�?);
     return;
   }
   if (characterTimer) clearInterval(characterTimer);
@@ -498,15 +498,15 @@ async function pollCharacterStatus() {
   setCharacterFailure(failure);
   if (characterId) setCharacterId(characterId);
   if (status !== lastCharacterStatus) {
-    log(`瑙掕壊浠诲姟鐘舵€? ${status} (${progress}%)`);
+    log(`角色任务状�? ${status} (${progress}%)`);
     lastCharacterStatus = status;
   }
   if (status === "succeeded" && !lastCharacterPayloadLogged) {
-    log(`瑙掕壊浠诲姟瀹屾垚鍝嶅簲: ${JSON.stringify(data)}`);
+    log(`角色任务完成响应: ${JSON.stringify(data)}`);
     lastCharacterPayloadLogged = true;
   }
   if (status === "succeeded" && !characterId) {
-    log("璀﹀憡锛氫换鍔℃垚鍔熶絾鏈繑鍥炶鑹?ID");
+    log("警告：任务成功但未返回角�?ID");
   }
 
   if (status === "succeeded" || status === "failed") {
@@ -520,10 +520,10 @@ function copyCharacterId() {
   const id = document.getElementById("characterId").textContent.trim();
   if (!id || id === "-") return;
   navigator.clipboard.writeText(id);
-  log("瑙掕壊 ID 宸插鍒?);
+  log("角色 ID 已复�?);
 }
 
-// 瑙嗛搴撻瑙?
+// 视频库预�?
 async function loadLocalVideos() {
   try {
     const res = await fetch("/videos");
@@ -537,13 +537,13 @@ async function loadLocalVideos() {
           <span>${(v.size / 1024 / 1024).toFixed(1)}MB</span>
           <span>${formatTime(v.generated_time)}</span>
           <span>${formatDuration(v.duration_seconds)}</span>
-          <span>鎮仠棰勮</span>
+          <span>悬停预览</span>
         </div>
         <div class="v-prompt" title="${escapeHtml(v.prompt || "")}">${escapeHtml(v.prompt || "")}</div>
         <div class="btn-row" style="margin-top:8px">
-          <a class="btn btn-ghost" style="padding:2px 6px; font-size:10px; text-decoration:none" href="${v.url}" target="_blank">鎵撳紑</a>
-          <a class="btn btn-ghost" style="padding:2px 6px; font-size:10px; text-decoration:none" href="${v.url}" download>涓嬭浇</a>
-          <button class="btn btn-ghost" style="padding:2px 6px; font-size:10px" onclick="deleteVideo('${v.name}')">鍒犻櫎</button>
+          <a class="btn btn-ghost" style="padding:2px 6px; font-size:10px; text-decoration:none" href="${v.url}" target="_blank">打开</a>
+          <a class="btn btn-ghost" style="padding:2px 6px; font-size:10px; text-decoration:none" href="${v.url}" download>下载</a>
+          <button class="btn btn-ghost" style="padding:2px 6px; font-size:10px" onclick="deleteVideo('${v.name}')">删除</button>
         </div>
       </div>
     `).join('');
@@ -591,7 +591,7 @@ function clearCharVideo() {
 
 async function deleteVideo(name) {
   if (!name) return;
-  const ok = confirm("纭鍒犻櫎璇ヨ棰戝悧锛?);
+  const ok = confirm("确认删除该视频吗�?);
   if (!ok) return;
   await fetch("/videos/delete", {
     method: "POST",
@@ -601,7 +601,7 @@ async function deleteVideo(name) {
   loadLocalVideos();
 }
 
-// 鍥剧墖澶勭悊
+// 图片处理
 document.getElementById("refImageFile").addEventListener("change", e => {
   const file = e.target.files[0];
   if (file) {
@@ -611,7 +611,7 @@ document.getElementById("refImageFile").addEventListener("change", e => {
       const img = document.getElementById("refImagePreview");
       if (img) img.src = reader.result;
       if (wrap) wrap.style.display = "block";
-      log("绯荤粺锛氭湰鍦板弬鑰冨浘宸插姞杞?);
+      log("系统：本地参考图已加�?);
     };
     reader.readAsDataURL(file);
   } else {
@@ -646,29 +646,29 @@ document.getElementById("charFile").addEventListener("change", e => {
       video.load();
     }
     if (wrap) wrap.style.display = "block";
-    log("绯荤粺锛氭湰鍦拌鑹茶棰戝凡鍔犺浇");
+    log("系统：本地角色视频已加载");
   };
   reader.readAsDataURL(file);
 });
 
-// 鍒濆鍖栦笌鍩虹閰嶇疆
+// 初始化与基础配置
 async function setHostMode() {
   const host_mode = val("hostMode");
   saveToLocal();
   await fetch("/config/host-mode", { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host_mode }) });
   updateHostBadge(host_mode);
-  log(`绯荤粺锛氳妭鐐瑰垏鎹㈣嚦 ${host_mode}`);
+  log(`系统：节点切换至 ${host_mode}`);
 }
 
 async function getAccountCredits() {
   const el = document.getElementById("accountCredits");
-  el.textContent = "鏌ヨ涓?..";
+  el.textContent = "查询�?..";
   el.className = "credit-empty";
   try {
     const res = await fetch("/credits");
     const data = await res.json();
     if (data.error) {
-      el.textContent = data.error === "missing token" ? "鏈厤缃? : "閿欒";
+      el.textContent = data.error === "missing token" ? "未配�? : "错误";
       el.className = "credit-empty";
       return;
     }
@@ -678,7 +678,7 @@ async function getAccountCredits() {
     else if (Number(val) <= 0) el.className = "credit-low";
     else el.className = "credit-ok";
   } catch (e) {
-    el.textContent = "閿欒";
+    el.textContent = "错误";
     el.className = "credit-low";
   }
 }
@@ -690,7 +690,7 @@ window.onload = () => {
   loadLocalVideos();
   getAccountCredits();
   refreshActiveTasks();
-  log("绯荤粺锛氭棩蹇楀凡鍚姩");
+  log("系统：日志已启动");
   const addBtn = document.getElementById("addCharacterRefBtn");
   if (addBtn) {
     addBtn.addEventListener("click", () => {
