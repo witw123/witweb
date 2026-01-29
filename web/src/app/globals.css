@@ -1,0 +1,12 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import "tailwindcss";
+@import "../styles/variables.css";
+@import "../styles/global.css";
+@import "../styles/layout.css";
+@import "../styles/components.css";
+@import "../styles/admin.css";
+@import "../styles/admin-layout.css";
+@import "../styles/channels.css";
+@import "../styles/profile.css";
+@import "../styles/mobile.css";

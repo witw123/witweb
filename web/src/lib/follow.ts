@@ -1,0 +1,83 @@
+import { getDb } from "./db";
+
+export function followCounts(username: string) {
+  const db = getDb();
+  const following = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as any;
+  const followers = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE following = ?").get(username) as any;
+  return {
+    following_count: following?.cnt || 0,
+    follower_count: followers?.cnt || 0,
+  };
+}
+
+export function isFollowing(follower: string, following: string) {
+  const db = getDb();
+  const row = db.prepare("SELECT 1 FROM follows WHERE follower = ? AND following = ?")
+    .get(follower, following);
+  return !!row;
+}
+
+export function followUser(follower: string, following: string) {
+  const db = getDb();
+  if (follower === following) return;
+  db.prepare("INSERT OR IGNORE INTO follows (follower, following) VALUES (?, ?)")
+    .run(follower, following);
+}
+
+export function unfollowUser(follower: string, following: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM follows WHERE follower = ? AND following = ?")
+    .run(follower, following);
+}
+
+export function listFollowing(username: string, page = 1, size = 20, query = "") {
+  const db = getDb();
+  page = Math.max(1, page);
+  size = Math.max(1, Math.min(50, size));
+  const offset = (page - 1) * size;
+  const keyword = query.trim();
+
+  let total = 0;
+  if (keyword) {
+    const row = db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM follows f
+      JOIN users u ON u.username = f.following
+      WHERE f.follower = ? AND (u.username LIKE ? OR u.nickname LIKE ?)
+    `).get(username, `%${keyword}%`, `%${keyword}%`) as any;
+    total = row?.cnt || 0;
+  } else {
+    const row = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as any;
+    total = row?.cnt || 0;
+  }
+
+  const rows = keyword
+    ? db.prepare(`
+        SELECT
+          u.username,
+          u.nickname,
+          u.avatar_url,
+          (SELECT COUNT(*) FROM follows f2 WHERE f2.following = u.username) AS follower_count,
+          (SELECT COUNT(*) FROM follows f3 WHERE f3.follower = u.username) AS following_count
+        FROM follows f
+        JOIN users u ON u.username = f.following
+        WHERE f.follower = ? AND (u.username LIKE ? OR u.nickname LIKE ?)
+        ORDER BY f.created_at DESC
+        LIMIT ? OFFSET ?
+      `).all(username, `%${keyword}%`, `%${keyword}%`, size, offset)
+    : db.prepare(`
+        SELECT
+          u.username,
+          u.nickname,
+          u.avatar_url,
+          (SELECT COUNT(*) FROM follows f2 WHERE f2.following = u.username) AS follower_count,
+          (SELECT COUNT(*) FROM follows f3 WHERE f3.follower = u.username) AS following_count
+        FROM follows f
+        JOIN users u ON u.username = f.following
+        WHERE f.follower = ?
+        ORDER BY f.created_at DESC
+        LIMIT ? OFFSET ?
+      `).all(username, size, offset);
+
+  return { items: rows, total, page, size };
+}

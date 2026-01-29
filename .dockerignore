@@ -1,6 +1,0 @@
-.git
-.idea
-__pycache__
-backend/__pycache__
-frontend/node_modules
-*.log
