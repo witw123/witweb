@@ -26,14 +26,20 @@ Open:
 
 ## Data & Config
 
-- SQLite DB: `data/blog.db`
+- Users DB: `data/users.db`
+- Blog DB: `data/blog.db`
+- Channel DB: `data/channel.db`
+- Studio DB: `data/studio.db`
 - API config: `data/api_config.json`
 - Studio data: `data/config.json`, `data/history.json`, `data/active_tasks.json`
 
 Optional custom DB path:
 
 ```
-SORA_DB_PATH=ABSOLUTE_PATH
+SORA_USERS_DB_PATH=ABSOLUTE_PATH
+SORA_BLOG_DB_PATH=ABSOLUTE_PATH
+SORA_CHANNEL_DB_PATH=ABSOLUTE_PATH
+SORA_STUDIO_DB_PATH=ABSOLUTE_PATH
 ```
 
 ## Notes

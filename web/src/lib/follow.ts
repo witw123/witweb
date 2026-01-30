@@ -1,7 +1,7 @@
-import { getDb } from "./db";
+import { getUsersDb } from "./db";
 
 export function followCounts(username: string) {
-  const db = getDb();
+  const db = getUsersDb();
   const following = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as any;
   const followers = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE following = ?").get(username) as any;
   return {
@@ -11,27 +11,27 @@ export function followCounts(username: string) {
 }
 
 export function isFollowing(follower: string, following: string) {
-  const db = getDb();
+  const db = getUsersDb();
   const row = db.prepare("SELECT 1 FROM follows WHERE follower = ? AND following = ?")
     .get(follower, following);
   return !!row;
 }
 
 export function followUser(follower: string, following: string) {
-  const db = getDb();
+  const db = getUsersDb();
   if (follower === following) return;
   db.prepare("INSERT OR IGNORE INTO follows (follower, following) VALUES (?, ?)")
     .run(follower, following);
 }
 
 export function unfollowUser(follower: string, following: string) {
-  const db = getDb();
+  const db = getUsersDb();
   db.prepare("DELETE FROM follows WHERE follower = ? AND following = ?")
     .run(follower, following);
 }
 
 export function listFollowing(username: string, page = 1, size = 20, query = "") {
-  const db = getDb();
+  const db = getUsersDb();
   page = Math.max(1, page);
   size = Math.max(1, Math.min(50, size));
   const offset = (page - 1) * size;

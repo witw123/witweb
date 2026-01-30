@@ -28,6 +28,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const notifyProfileUpdate = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("profile-updated"));
+    }
+  };
+
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedProfile = localStorage.getItem("profile");
@@ -53,16 +59,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("profile", JSON.stringify(profile));
         setToken(newToken);
         setUser(profile);
+        notifyProfileUpdate();
       },
       logout: () => {
         localStorage.removeItem("token");
         localStorage.removeItem("profile");
         setToken(null);
         setUser(null);
+        notifyProfileUpdate();
       },
       updateProfile: (profile) => {
         localStorage.setItem("profile", JSON.stringify(profile));
         setUser(profile);
+        notifyProfileUpdate();
       },
     }),
     [user, token, loading]

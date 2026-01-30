@@ -36,6 +36,9 @@ export default function LoginPage() {
         return;
       }
       const data = await res.json();
+      if (data?.token && data?.profile) {
+        login(data.token, data.profile);
+      }
       router.push("/");
     } finally {
       setLoading(false);

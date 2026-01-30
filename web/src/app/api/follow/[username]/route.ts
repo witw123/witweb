@@ -2,9 +2,9 @@ import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { unfollowUser } from "@/lib/follow";
 
-export async function DELETE(_: Request, { params }: { params: { username: string } }) {
-  const paramsData = await Promise.resolve(params);
-    initDb();
+export async function DELETE(_: Request, { params }: { params: Promise<{ username: string }> }) {
+  const paramsData = await params;
+  initDb();
   const user = await getAuthUser();
   if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
   const target = (paramsData.username || "").trim();

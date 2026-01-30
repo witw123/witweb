@@ -1,8 +1,8 @@
-import { getDb } from "./db";
+import { getUsersDb } from "./db";
 import { followCounts, isFollowing } from "./follow";
 
 export function getUserByUsername(username: string) {
-  const db = getDb();
+  const db = getUsersDb();
   const row = db.prepare("SELECT username, password, nickname, avatar_url, balance, created_at FROM users WHERE username = ?")
     .get(username) as any;
   return row || null;

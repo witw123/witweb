@@ -1,5 +1,6 @@
-import fs from "fs";
 import path from "path";
+import fs from "fs";
+import { getStudioDb } from "./db";
 
 const HOSTS = {
   overseas: "https://grsaiapi.com",
@@ -16,60 +17,60 @@ const OPENAPI_CREDITS = "/client/openapi/getCredits";
 const MODEL_STATUS = "/client/common/getModelStatus";
 
 const baseDir = path.resolve(process.cwd(), "..");
-const dataDir = path.join(baseDir, "data");
 const downloadDir = path.join(baseDir, "downloads");
 
-const configFile = path.join(dataDir, "config.json");
-const historyFile = path.join(dataDir, "history.json");
-const taskTimesFile = path.join(dataDir, "task_times.json");
-const activeTasksFile = path.join(dataDir, "active_tasks.json");
-
 function ensureDirs() {
-  fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(downloadDir, { recursive: true });
 }
 
-function loadJson<T>(file: string, fallback: T): T {
-  try {
-    if (!fs.existsSync(file)) return fallback;
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as T;
-  } catch {
-    return fallback;
-  }
+type StudioConfig = {
+  api_key?: string;
+  token?: string;
+  host_mode?: string;
+  query_defaults?: Record<string, any>;
+};
+
+function getConfigRows() {
+  const db = getStudioDb();
+  return db.prepare("SELECT key, value FROM studio_config").all() as any[];
 }
 
-function saveJson(file: string, data: any) {
-  ensureDirs();
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+export function getConfig(): StudioConfig {
+  const rows = getConfigRows();
+  const cfg: StudioConfig = {};
+  rows.forEach((row) => {
+    try {
+      cfg[row.key as keyof StudioConfig] = JSON.parse(row.value);
+    } catch {
+      cfg[row.key as keyof StudioConfig] = row.value;
+    }
+  });
+  return cfg;
 }
 
-export function getConfig() {
-  return loadJson(configFile, {});
+function setConfigValue(key: string, value: any) {
+  const db = getStudioDb();
+  const payload = JSON.stringify(value);
+  db.prepare("INSERT INTO studio_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(key, payload);
 }
 
 export function setApiKey(api_key: string) {
-  const cfg = getConfig();
-  cfg.api_key = api_key;
-  saveJson(configFile, cfg);
+  setConfigValue("api_key", api_key);
 }
 
 export function setToken(token: string) {
-  const cfg = getConfig();
-  cfg.token = token;
-  saveJson(configFile, cfg);
+  setConfigValue("token", token);
 }
 
 export function setHostMode(host_mode: string) {
-  const cfg = getConfig();
-  cfg.host_mode = host_mode;
-  saveJson(configFile, cfg);
+  setConfigValue("host_mode", host_mode);
 }
 
 export function setQueryDefaults(data: Record<string, any>) {
   const cfg = getConfig();
   const current = typeof cfg.query_defaults === "object" && cfg.query_defaults ? cfg.query_defaults : {};
-  cfg.query_defaults = { ...current, ...data };
-  saveJson(configFile, cfg);
+  setConfigValue("query_defaults", { ...current, ...data });
 }
 
 function getHostMode() {
@@ -86,14 +87,15 @@ function iterHosts() {
 
 async function postJson(pathname: string, payload: any, headers: Record<string, string> = {}) {
   const cfg = getConfig();
-  const authHeader = cfg.api_key ? { Authorization: `Bearer ${cfg.api_key}` } : {};
+  const authHeader = cfg.api_key ? { Authorization: `Bearer ${cfg.api_key}` } : undefined;
   let lastErr: any = null;
   for (const host of iterHosts()) {
     for (let i = 0; i < 3; i += 1) {
       try {
+        const requestHeaders: HeadersInit = { "Content-Type": "application/json", ...(authHeader || {}), ...headers };
         const res = await fetch(host + pathname, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeader, ...headers },
+          headers: requestHeaders,
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -112,14 +114,15 @@ async function postJson(pathname: string, payload: any, headers: Record<string, 
 
 async function getJson(pathname: string, params: Record<string, any>) {
   const cfg = getConfig();
-  const authHeader = cfg.api_key ? { Authorization: `Bearer ${cfg.api_key}` } : {};
+  const authHeader = cfg.api_key ? { Authorization: `Bearer ${cfg.api_key}` } : undefined;
   const qs = new URLSearchParams(params as any).toString();
   let lastErr: any = null;
   for (const host of iterHosts()) {
     for (let i = 0; i < 3; i += 1) {
       try {
+        const requestHeaders: HeadersInit = authHeader ? { ...authHeader } : {};
         const res = await fetch(host + pathname + (qs ? `?${qs}` : ""), {
-          headers: { ...authHeader },
+          headers: requestHeaders,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -140,13 +143,27 @@ function extractData(resp: any) {
   return resp;
 }
 
+function saveTaskTime(taskId: string, ts: number) {
+  const db = getStudioDb();
+  db.prepare("INSERT OR REPLACE INTO studio_task_times (task_id, ts) VALUES (?, ?)").run(taskId, ts);
+}
+
+function getTaskTime(taskId: string) {
+  const db = getStudioDb();
+  const row = db.prepare("SELECT ts FROM studio_task_times WHERE task_id = ?").get(taskId) as any;
+  return row?.ts as number | undefined;
+}
+
+function deleteTaskTime(taskId: string) {
+  const db = getStudioDb();
+  db.prepare("DELETE FROM studio_task_times WHERE task_id = ?").run(taskId);
+}
+
 export async function createVideoTask(payload: any) {
   const data = extractData(await postJson(CREATE_API, payload));
   const taskId = data?.id;
   if (!taskId) throw new Error("Missing task id");
-  const taskTimes = loadJson(taskTimesFile, {} as Record<string, number>);
-  taskTimes[taskId] = Math.floor(Date.now() / 1000);
-  saveJson(taskTimesFile, taskTimes);
+  saveTaskTime(taskId, Math.floor(Date.now() / 1000));
   return taskId;
 }
 
@@ -165,20 +182,19 @@ export async function pollResult(taskId: string) {
 }
 
 export function addActiveTask(taskId: string, prompt: string) {
-  const items = loadJson(activeTasksFile, [] as any[]);
-  if (!items.some((i) => i.id === taskId)) {
-    items.push({ id: taskId, prompt, start_time: Math.floor(Date.now() / 1000) });
-    saveJson(activeTasksFile, items);
-  }
+  const db = getStudioDb();
+  db.prepare("INSERT OR IGNORE INTO studio_active_tasks (id, prompt, start_time) VALUES (?, ?, ?)")
+    .run(taskId, prompt, Math.floor(Date.now() / 1000));
 }
 
 export function removeActiveTask(taskId: string) {
-  const items = loadJson(activeTasksFile, [] as any[]).filter((i: any) => i.id !== taskId);
-  saveJson(activeTasksFile, items);
+  const db = getStudioDb();
+  db.prepare("DELETE FROM studio_active_tasks WHERE id = ?").run(taskId);
 }
 
 export function getActiveTasks() {
-  return loadJson(activeTasksFile, [] as any[]);
+  const db = getStudioDb();
+  return db.prepare("SELECT id, prompt, start_time FROM studio_active_tasks ORDER BY start_time DESC").all();
 }
 
 function download(url: string, target: string) {
@@ -190,25 +206,16 @@ function download(url: string, target: string) {
 }
 
 function saveHistory(file: string, prompt: string, taskId?: string, pid?: string, url?: string, durationSeconds?: number | null) {
-  const history = loadJson(historyFile, [] as any[]);
-  history.push({
-    file,
-    prompt,
-    time: Math.floor(Date.now() / 1000),
-    id: taskId,
-    pid,
-    url,
-    duration_seconds: durationSeconds ?? null,
-  });
-  saveJson(historyFile, history);
+  const db = getStudioDb();
+  db.prepare("INSERT INTO studio_history (file, prompt, time, task_id, pid, url, duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(file, prompt, Math.floor(Date.now() / 1000), taskId || null, pid || null, url || null, durationSeconds ?? null);
 }
 
 export async function finalizeVideo(taskId: string, prompt: string) {
-  const history = loadJson(historyFile, [] as any[]);
-  for (const item of history) {
-    if (item.id === taskId && item.file && fs.existsSync(item.file)) {
-      return { id: taskId, file: item.file, url: item.url, pid: item.pid };
-    }
+  const db = getStudioDb();
+  const history = db.prepare("SELECT file, url, pid FROM studio_history WHERE task_id = ? ORDER BY time DESC").get(taskId) as any;
+  if (history?.file && fs.existsSync(history.file)) {
+    return { id: taskId, file: history.file, url: history.url, pid: history.pid };
   }
   const result = await getResult(taskId);
   if (result.status !== "succeeded") {
@@ -219,11 +226,10 @@ export async function finalizeVideo(taskId: string, prompt: string) {
   const videoUrl = results[0].url;
   const pid = results[0].pid;
   const filename = path.join(downloadDir, `sora_${Date.now()}.mp4`);
+  ensureDirs();
   await download(videoUrl, filename);
-  const taskTimes = loadJson(taskTimesFile, {} as Record<string, number>);
-  const startTs = taskTimes[taskId];
-  delete taskTimes[taskId];
-  saveJson(taskTimesFile, taskTimes);
+  const startTs = getTaskTime(taskId);
+  deleteTaskTime(taskId);
   removeActiveTask(taskId);
   const duration = startTs ? Math.max(0, Math.floor(Date.now() / 1000) - startTs) : null;
   saveHistory(filename, prompt, taskId, pid, videoUrl, duration);
@@ -239,6 +245,7 @@ export async function generateVideo(payload: any) {
   const videoUrl = results[0].url;
   const pid = results[0].pid;
   const filename = path.join(downloadDir, `sora_${Date.now()}.mp4`);
+  ensureDirs();
   await download(videoUrl, filename);
   const duration = Math.max(0, Math.floor(Date.now() / 1000) - start);
   saveHistory(filename, payload.prompt, taskId, pid, videoUrl, duration);
@@ -288,13 +295,15 @@ export async function getModelStatus(model: string) {
 }
 
 export function getHistory() {
-  return loadJson(historyFile, [] as any[]);
+  const db = getStudioDb();
+  return db.prepare("SELECT file, prompt, time, task_id as id, pid, url, duration_seconds FROM studio_history ORDER BY time DESC").all();
 }
 
 export function getLocalVideos() {
+  ensureDirs();
   if (!fs.existsSync(downloadDir)) return [];
   const names = fs.readdirSync(downloadDir).filter((n) => n.toLowerCase().endsWith('.mp4'));
-  const history = loadJson(historyFile, [] as any[]);
+  const history = getHistory() as any[];
   const map = new Map<string, any>();
   history.forEach((h) => {
     if (h.file) map.set(h.file, h);
@@ -323,6 +332,6 @@ export function deleteVideo(name: string) {
   const file = path.join(downloadDir, name);
   if (!fs.existsSync(file)) throw new Error("file not found");
   fs.unlinkSync(file);
-  const history = loadJson(historyFile, [] as any[]).filter((h: any) => path.basename(h.file || "") !== name);
-  saveJson(historyFile, history);
+  const db = getStudioDb();
+  db.prepare("DELETE FROM studio_history WHERE file = ?").run(file);
 }

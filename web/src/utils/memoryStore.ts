@@ -79,3 +79,10 @@ export function clearListCache(key: string) {
 export function clearAllListCache() {
   listCache.clear();
 }
+
+export function clearAllCaches() {
+  postCache.clear();
+  commentsCache.clear();
+  favoritesCache.clear();
+  listCache.clear();
+}

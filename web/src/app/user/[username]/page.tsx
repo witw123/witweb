@@ -10,10 +10,21 @@ export default function UserProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
 
-  useEffect(() => {
+  const loadProfile = () => {
     fetch(`/api/users/${username}/profile`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.json())
       .then(setProfile);
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, [username, token]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => loadProfile();
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
   }, [username, token]);
 
   async function toggleFollow() {

@@ -59,3 +59,20 @@ export async function deleteMessage(messageId: string | number) {
 
   return res.json();
 }
+
+
+export async function createChannel(name: string, description = "", token?: string | null) {
+  const res = await fetch(`${API_BASE}/channels`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ name, description }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to create channel");
+  }
+  return res.json();
+}

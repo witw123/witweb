@@ -14,6 +14,13 @@ export default function BlogManagementPage() {
     loadBlogs();
   }, [page, search, statusFilter]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => loadBlogs();
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [page, search, statusFilter]);
+
   const loadBlogs = async () => {
     try {
       setLoading(true);
@@ -120,8 +127,7 @@ export default function BlogManagementPage() {
           <div style={{ marginLeft: "auto" }}>共 {total} 篇文章</div>
         </div>
 
-        {loading ? (
-          ) : (
+        {loading ? null : (
           <table className="admin-table">
             <thead>
               <tr>

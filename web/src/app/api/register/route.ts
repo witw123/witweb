@@ -1,6 +1,6 @@
 import { initDb } from "@/lib/db-init";
 import { createToken, hashPassword } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getUsersDb } from "@/lib/db";
 
 export async function POST(req: Request) {
   initDb();
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   if (!username || !password) {
     return Response.json({ detail: "Missing credentials" }, { status: 400 });
   }
-  const db = getDb();
+  const db = getUsersDb();
   const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
   if (existing) {
     return Response.json({ detail: "Username already exists" }, { status: 409 });

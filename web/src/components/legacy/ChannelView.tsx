@@ -12,14 +12,33 @@ export default function ChannelView({ channelId }: { channelId: string | number 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const profile = (() => {
+  const [profile, setProfile] = useState<any>(() => {
     try {
       return JSON.parse(localStorage.getItem("profile") || "{}");
     } catch {
       return {};
     }
-  })();
+  });
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent;
+      if (custom?.detail) {
+        setProfile(custom.detail);
+      } else {
+        try {
+          setProfile(JSON.parse(localStorage.getItem("profile") || "{}"));
+        } catch {}
+      }
+      if (channelId) {
+        loadMessages(true);
+      }
+    };
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [channelId]);
   useEffect(() => {
     if (!channelId) return;
 

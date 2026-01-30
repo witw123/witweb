@@ -2,14 +2,14 @@ import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { listComments, addComment } from "@/lib/blog";
 
-export async function GET(_: Request, { params }: { params: { slug: string } }) {
-  const paramsData = await Promise.resolve(params);
+export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const paramsData = await params;
   initDb();
   return Response.json(listComments(paramsData.slug));
 }
 
-export async function POST(req: Request, { params }: { params: { slug: string } }) {
-  const paramsData = await Promise.resolve(params);
+export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const paramsData = await params;
   initDb();
   const body = await req.json().catch(() => ({}));
   const user = await getAuthUser();

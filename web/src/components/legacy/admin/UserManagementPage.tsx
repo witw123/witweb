@@ -13,6 +13,13 @@ export default function UserManagementPage() {
     loadUsers();
   }, [page, search]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => loadUsers();
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [page, search]);
+
   const loadUsers = async () => {
     try {
       setLoading(true);
@@ -86,8 +93,7 @@ export default function UserManagementPage() {
           <div>共 {total} 个用户</div>
         </div>
 
-        {loading ? (
-          ) : (
+        {loading ? null : (
           <table className="admin-table">
             <thead>
               <tr>

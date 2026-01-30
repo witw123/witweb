@@ -1,7 +1,7 @@
 import { getCredits, getConfig } from "@/lib/studio";
 
 export async function GET() {
-  const cfg = getConfig();
+  const cfg = getConfig() as { token?: string };
   const token = cfg.token || "";
   if (!token) return Response.json({ credits: null, error: "missing token" });
   try {

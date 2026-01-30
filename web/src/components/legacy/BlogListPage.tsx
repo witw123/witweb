@@ -11,6 +11,7 @@ import {
   clearCommentsCache,
   clearListCache,
   clearPostCache,
+  clearAllCaches,
   getListCache,
   setListCache as setListCacheMemory,
 } from "@/utils/memoryStore";
@@ -48,6 +49,7 @@ export default function BlogListPage() {
   const listCacheKeyRef = useRef("");
   const listFallbackCacheKeyRef = useRef("");
   const totalCountRef = useRef(0);
+  const profileUpdateRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -68,6 +70,34 @@ export default function BlogListPage() {
     totalCountRef.current = totalCount;
   }, [totalCount]);
 
+
+  function applyProfileUpdate(nextProfile: any) {
+    if (nextProfile) {
+      setProfileData(nextProfile);
+      if (nextProfile?.username) {
+        setCachedJson(`cache:profile:${nextProfile.username}`, nextProfile);
+      }
+      if (nextProfile?.username) {
+        const nextName = nextProfile.nickname || nextProfile.username;
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.author === nextProfile.username
+              ? { ...post, author_avatar: nextProfile.avatar_url || "", author_name: nextName }
+              : post
+          )
+        );
+      }
+    }
+    clearAllCaches();
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("cache:blog:") || key.startsWith("cache:post:") || key.startsWith("cache:comments:") || key.startsWith("cache:favorites:") || key.startsWith("cache:profile:")) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch {}
+    loadPosts({ showLoading: false, force: true });
+  }
   function normalizeListPayload(data: any) {
     if (Array.isArray(data)) {
       return { items: data, total: data.length };
@@ -223,7 +253,41 @@ export default function BlogListPage() {
   }, [currentPage, submittedQuery, authorFilter, tagFilter]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent;
+      if (custom?.detail) {
+        applyProfileUpdate(custom.detail);
+      } else {
+        try {
+          const storedProfile = localStorage.getItem("profile");
+          const parsedProfile = storedProfile ? JSON.parse(storedProfile) : null;
+          setProfileData(parsedProfile);
+        } catch {}
+      }
+      applyProfileUpdate(null);
+    };
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [currentPage, submittedQuery, authorFilter, tagFilter, tokenValue, profileData]);
+
+  useEffect(() => {
     loadPosts({ showLoading: false });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ts = localStorage.getItem("profile_updated_at");
+    if (ts && profileUpdateRef.current !== ts) {
+      profileUpdateRef.current = ts;
+      try {
+        const storedProfile = localStorage.getItem("profile");
+        const parsedProfile = storedProfile ? JSON.parse(storedProfile) : null;
+        applyProfileUpdate(parsedProfile);
+      } catch {
+        applyProfileUpdate(null);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -601,10 +665,13 @@ export default function BlogListPage() {
               const firstImageMatch = (post.content || "").match(/!\[.*?\]\((.*?)\)|<img.*?src=["'](.*?)["']/);
               const firstImageUrl = firstImageMatch ? (firstImageMatch[1] || firstImageMatch[2]) : null;
               const thumbnailUrl = getThumbnailUrl(firstImageUrl, 400);
-              const avatarUrl = getThumbnailUrl(post.author_avatar, 64);
+              const effectiveAvatar = post.author === profileData?.username && profileData?.avatar_url
+                ? profileData.avatar_url
+                : post.author_avatar;
+              const avatarUrl = getThumbnailUrl(effectiveAvatar || "", 64);
 
               return (
-                <div key={post.slug} className="card block no-underline text-inherit hover:border-accent transition-colors">
+                <div key={post.slug} className="card block no-underline text-inherit">
                   <Link href={`/post/${post.slug}`} className="block no-underline text-inherit">
                   <div className="card-head flex justify-between items-start mb-3">
                     <div className="author flex items-center gap-2">

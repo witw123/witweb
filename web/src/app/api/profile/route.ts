@@ -1,5 +1,5 @@
 import { initDb } from "@/lib/db-init";
-import { getDb } from "@/lib/db";
+import { getUsersDb } from "@/lib/db";
 import { getAuthUser } from "@/lib/http";
 import { publicProfile } from "@/lib/user";
 
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const nickname = body?.nickname || user;
   const avatarUrl = body?.avatar_url || "";
-  const db = getDb();
+  const db = getUsersDb();
   db.prepare("UPDATE users SET nickname = ?, avatar_url = ? WHERE username = ?")
     .run(nickname, avatarUrl, user);
   const profile = publicProfile(user, user);

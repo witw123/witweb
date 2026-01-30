@@ -1,9 +1,9 @@
-import { getDb } from "./db";
+import { getStudioDb } from "./db";
 import { getResult } from "./studio";
 import crypto from "crypto";
 
 export function createTask(username: string, taskType: string, params: any, taskId?: string) {
-  const db = getDb();
+  const db = getStudioDb();
   const id = taskId || crypto.randomUUID();
   db.prepare(`
     INSERT INTO video_tasks (
@@ -31,7 +31,7 @@ export function createTask(username: string, taskType: string, params: any, task
 }
 
 export function updateTaskStatus(taskId: string, status: string, progress?: number, resultJson?: string, failureReason?: string, error?: string) {
-  const db = getDb();
+  const db = getStudioDb();
   const fields = ["status = ?", "updated_at = datetime('now', 'localtime')"];
   const params: any[] = [status];
   if (progress !== undefined) { fields.push("progress = ?"); params.push(progress); }
@@ -43,7 +43,7 @@ export function updateTaskStatus(taskId: string, status: string, progress?: numb
 }
 
 export function saveResults(taskId: string, results: any[]) {
-  const db = getDb();
+  const db = getStudioDb();
   const stmt = db.prepare(`
     INSERT INTO video_results (task_id, url, remove_watermark, pid, character_id)
     VALUES (?, ?, ?, ?, ?)
@@ -54,7 +54,7 @@ export function saveResults(taskId: string, results: any[]) {
 }
 
 export function getTask(taskId: string, username?: string) {
-  const db = getDb();
+  const db = getStudioDb();
   const row = username
     ? db.prepare("SELECT * FROM video_tasks WHERE id = ? AND username = ?").get(taskId, username)
     : db.prepare("SELECT * FROM video_tasks WHERE id = ?").get(taskId);
@@ -64,7 +64,7 @@ export function getTask(taskId: string, username?: string) {
 }
 
 export function listTasks(username: string, page = 1, limit = 20, taskType?: string) {
-  const db = getDb();
+  const db = getStudioDb();
   const offset = (page - 1) * limit;
   let where = "WHERE username = ?";
   const params: any[] = [username];
@@ -87,12 +87,12 @@ export async function pollAndUpdate(taskId: string) {
 }
 
 export function listCharacters(username: string) {
-  const db = getDb();
+  const db = getStudioDb();
   return db.prepare("SELECT * FROM characters WHERE username = ? ORDER BY created_at DESC").all(username);
 }
 
 export function saveCharacter(username: string, characterId: string, name?: string, sourceTaskId?: string) {
-  const db = getDb();
+  const db = getStudioDb();
   db.prepare("INSERT INTO characters (username, character_id, name, source_task_id) VALUES (?, ?, ?, ?)")
     .run(username, characterId, name || null, sourceTaskId || null);
 }

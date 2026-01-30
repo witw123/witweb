@@ -575,7 +575,6 @@ a.card:hover {
 .card:hover * {
   color: inherit;
 }
-
 .card-head {
   display: flex;
   align-items: center;
@@ -852,4 +851,30 @@ button {
     padding-bottom: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
   }
+}
+
+.blog-list-page .card a:hover {
+  color: inherit !important;
+}
+
+.blog-list-page .card img {
+  filter: none !important;
+}
+
+
+.blog-list-page .card:hover {
+  border-color: var(--accent-primary) !important;
+}
+
+.blog-list-page .card * {
+  color: inherit !important;
+}
+
+.blog-list-page .card a,
+.blog-list-page .card a:hover {
+  color: inherit !important;
+}
+
+.blog-list-page .card img {
+  filter: none !important;
 }

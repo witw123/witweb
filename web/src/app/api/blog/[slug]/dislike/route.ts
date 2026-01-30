@@ -2,9 +2,9 @@ import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { toggleLike, getPost } from "@/lib/blog";
 
-export async function POST(_: Request, { params }: { params: { slug: string } }) {
-  const paramsData = await Promise.resolve(params);
-    initDb();
+export async function POST(_: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const paramsData = await params;
+  initDb();
   const user = await getAuthUser();
   if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
   const res = toggleLike(paramsData.slug, user, -1);

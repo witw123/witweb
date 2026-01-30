@@ -1,7 +1,7 @@
-import { getDb } from "./db";
+import { getUsersDb, getBlogDb, getChannelDb } from "./db";
 
 export function listUsers(page = 1, limit = 20, search = "", sort = "created_at_desc") {
-  const db = getDb();
+  const db = getUsersDb();
   const offset = (page - 1) * limit;
   let where = "WHERE 1=1";
   const params: any[] = [];
@@ -20,21 +20,41 @@ export function listUsers(page = 1, limit = 20, search = "", sort = "created_at_
 }
 
 export function getUserDetail(username: string) {
-  const db = getDb();
-  const row = db.prepare("SELECT username, created_at FROM users WHERE username = ?").get(username);
+  const usersDb = getUsersDb();
+  const blogDb = getBlogDb();
+  const row = usersDb.prepare("SELECT username, created_at FROM users WHERE username = ?").get(username) as any;
   if (!row) return null;
-  const blogCount = (db.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE author = ?").get(username) as any)?.cnt || 0;
+  const blogCount = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE author = ?").get(username) as any)?.cnt || 0;
   return { ...row, status: "active", last_login: null, blog_count: blogCount };
 }
 
 export function deleteUser(username: string) {
-  const db = getDb();
-  db.prepare("DELETE FROM posts WHERE author = ?").run(username);
-  db.prepare("DELETE FROM users WHERE username = ?").run(username);
+  const usersDb = getUsersDb();
+  const blogDb = getBlogDb();
+  const channelDb = getChannelDb();
+
+  const user = usersDb.prepare("SELECT id FROM users WHERE username = ?").get(username) as any;
+
+  // Remove user content from blog db
+  blogDb.prepare("DELETE FROM posts WHERE author = ?").run(username);
+  blogDb.prepare("DELETE FROM comments WHERE author = ?").run(username);
+  blogDb.prepare("DELETE FROM likes WHERE username = ?").run(username);
+  blogDb.prepare("DELETE FROM dislikes WHERE username = ?").run(username);
+  blogDb.prepare("DELETE FROM favorites WHERE username = ?").run(username);
+  blogDb.prepare("DELETE FROM comment_votes WHERE username = ?").run(username);
+
+  // Remove user messages from channel db
+  if (user?.id) {
+    channelDb.prepare("DELETE FROM messages WHERE user_id = ?").run(user.id);
+  }
+
+  // Remove follow relations
+  usersDb.prepare("DELETE FROM follows WHERE follower = ? OR following = ?").run(username, username);
+  usersDb.prepare("DELETE FROM users WHERE username = ?").run(username);
 }
 
 export function listBlogs(page = 1, limit = 20, search = "", status = "", usernameFilter = "", sort = "created_at_desc") {
-  const db = getDb();
+  const db = getBlogDb();
   const offset = (page - 1) * limit;
   let where = "WHERE 1=1";
   const params: any[] = [];
@@ -69,7 +89,7 @@ export function listBlogs(page = 1, limit = 20, search = "", status = "", userna
 }
 
 export function getBlogDetail(id: number) {
-  const db = getDb();
+  const db = getBlogDb();
   const row = db.prepare(`
     SELECT id, author as username, title, content,
       COALESCE(status, 'published') as status,
@@ -80,7 +100,7 @@ export function getBlogDetail(id: number) {
 }
 
 export function updateBlog(id: number, data: any) {
-  const db = getDb();
+  const db = getBlogDb();
   const fields: string[] = [];
   const params: any[] = [];
   if (data.status) { fields.push("status = ?"); params.push(data.status); }
@@ -93,21 +113,25 @@ export function updateBlog(id: number, data: any) {
 }
 
 export function deleteBlog(id: number) {
-  const db = getDb();
+  const db = getBlogDb();
   db.prepare("DELETE FROM posts WHERE id = ?").run(id);
 }
 
 export function statsOverview() {
-  const db = getDb();
-  const totalUsers = (db.prepare("SELECT COUNT(*) AS cnt FROM users").get() as any)?.cnt || 0;
-  const totalBlogs = (db.prepare("SELECT COUNT(*) AS cnt FROM posts").get() as any)?.cnt || 0;
-  const totalChannels = (db.prepare("SELECT COUNT(*) AS cnt FROM channels").get() as any)?.cnt || 0;
-  const totalMessages = (db.prepare("SELECT COUNT(*) AS cnt FROM messages").get() as any)?.cnt || 0;
+  const usersDb = getUsersDb();
+  const blogDb = getBlogDb();
+  const channelDb = getChannelDb();
+  const totalUsers = (usersDb.prepare("SELECT COUNT(*) AS cnt FROM users").get() as any)?.cnt || 0;
+  const totalBlogs = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts").get() as any)?.cnt || 0;
+  const totalPublished = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE status = 'published'").get() as any)?.cnt || 0;
+  const totalDraft = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE status = 'draft'").get() as any)?.cnt || 0;
+  const totalChannels = (channelDb.prepare("SELECT COUNT(*) AS cnt FROM channels").get() as any)?.cnt || 0;
+  const totalMessages = (channelDb.prepare("SELECT COUNT(*) AS cnt FROM messages").get() as any)?.cnt || 0;
   return {
     total_users: totalUsers,
     total_blogs: totalBlogs,
-    total_published_blogs: totalBlogs,
-    total_draft_blogs: 0,
+    total_published_blogs: totalPublished,
+    total_draft_blogs: totalDraft,
     total_channels: totalChannels,
     total_messages: totalMessages,
   };

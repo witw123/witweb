@@ -9,12 +9,23 @@ export default function FollowingPage() {
   const { token } = useAuth();
   const [items, setItems] = useState<any[]>([]);
 
-  useEffect(() => {
+  const loadItems = () => {
     fetch(`/api/following?page=1&size=20`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((res) => res.json())
       .then((data) => setItems(data.items || []));
+  };
+
+  useEffect(() => {
+    loadItems();
+  }, [token]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => loadItems();
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
   }, [token]);
 
   return (

@@ -15,6 +15,7 @@ import {
   getPostCache,
   setCommentsCache,
   setPostCache,
+  clearAllCaches,
 } from "@/utils/memoryStore";
 import { resizeImageFile } from "@/utils/image";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
@@ -138,6 +139,33 @@ export default function BlogPostPage() {
       });
   }
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => {
+      clearAllCaches();
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("cache:blog:") || key.startsWith("cache:post:") || key.startsWith("cache:comments:") || key.startsWith("cache:favorites:") || key.startsWith("cache:profile:")) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
+      loadPost({ force: true });
+      loadComments({ force: true });
+    };
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [slug, cacheKeySignature]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ts = localStorage.getItem("profile_updated_at");
+    if (ts) {
+      loadPost({ force: true });
+      loadComments({ force: true });
+    }
+  }, []);
   useEffect(() => {
     if (!slug) return;
     let cachedPost: any = null;
@@ -392,7 +420,7 @@ export default function BlogPostPage() {
     setSelectedImage(newSrc);
   }
 
-  const tagList = (post?.tags || "")
+  const tagList: string[] = (post?.tags || "")
     .split(/[,，]/)
     .map((tag: string) => tag.trim())
     .filter(Boolean);
@@ -415,7 +443,7 @@ export default function BlogPostPage() {
     const items: Array<{ id: string; text: string; level: number }> = [];
     const slugCounts = new Map<string, number>();
     const renderer = new marked.Renderer();
-    renderer.heading = (text, level, raw) => {
+    renderer.heading = (text: string, level: number, raw: string) => {
       const base = slugify(raw || text);
       const count = slugCounts.get(base) || 0;
       const nextCount = count + 1;
@@ -424,7 +452,7 @@ export default function BlogPostPage() {
       items.push({ id, text, level });
       return `<h${level} id="${id}">${text}</h${level}>`;
     };
-    renderer.image = (href, title, text) => {
+    renderer.image = (href: string | null, title: string | null, text: string) => {
       const safeTitle = title ? ` title="${title}"` : "";
       const alt = text || "";
       return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
@@ -435,7 +463,7 @@ export default function BlogPostPage() {
 
   const editPreviewHtml = useMemo(() => {
     const renderer = new marked.Renderer();
-    renderer.image = (href, title, text) => {
+    renderer.image = (href: string | null, title: string | null, text: string) => {
       const safeTitle = title ? ` title="${title}"` : "";
       const alt = text || "";
       return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;

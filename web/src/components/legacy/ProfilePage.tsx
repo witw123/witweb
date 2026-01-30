@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/providers";
 import { resizeImageToDataUrl } from "@/utils/image";
 import { getThumbnailUrl } from "@/utils/url";
+import { clearAllCaches } from "@/utils/memoryStore";
 
 export default function ProfilePage() {
   const { user, updateProfile } = useAuth();
@@ -12,6 +13,11 @@ export default function ProfilePage() {
   const [previewAvatar, setPreviewAvatar] = useState("");
   const [status, setStatus] = useState<"" | "saving" | "success" | "error">("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const avatarBase = previewAvatar || user?.avatar_url || "";
+  const avatarSrc = avatarBase
+    ? (avatarBase.startsWith("data:") ? avatarBase : getThumbnailUrl(avatarBase, 256))
+    : "";
 
   useEffect(() => {
     if (user) {
@@ -58,6 +64,19 @@ export default function ProfilePage() {
       if (data.profile) {
         updateProfile(data.profile);
       }
+      clearAllCaches();
+      try {
+        const ts = Date.now().toString();
+        localStorage.setItem("profile_updated_at", ts);
+        window.dispatchEvent(new CustomEvent("profile-updated", { detail: { ...data.profile, updated_at: ts } }));
+      } catch {}
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("cache:blog:") || key.startsWith("cache:post:") || key.startsWith("cache:comments:") || key.startsWith("cache:favorites:") || key.startsWith("cache:profile:")) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
       setStatus("success");
       setTimeout(() => setStatus(""), 2000);
     } catch {
@@ -74,7 +93,7 @@ export default function ProfilePage() {
               <div className="profile-avatar">
                 {(previewAvatar || user?.avatar_url) ? (
                   <img
-                    src={previewAvatar || (user?.avatar_url?.startsWith("data:") ? user.avatar_url : getThumbnailUrl(user?.avatar_url, 256))}
+                    src={avatarSrc}
                     alt="Avatar"
                     className="profile-avatar-img"
                   />
@@ -136,7 +155,7 @@ export default function ProfilePage() {
                   <div className="profile-preview-avatar">
                     {(previewAvatar || user?.avatar_url) ? (
                       <img
-                        src={previewAvatar || (user?.avatar_url?.startsWith("data:") ? user.avatar_url : getThumbnailUrl(user?.avatar_url, 256))}
+                        src={avatarSrc}
                         alt="Avatar"
                       />
                     ) : (

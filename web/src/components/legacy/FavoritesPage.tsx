@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PostCard from "@/components/legacy/PostCard";
-import { getFavoritesCache, setFavoritesCache } from "@/utils/memoryStore";
+import { clearAllCaches, getFavoritesCache, setFavoritesCache } from "@/utils/memoryStore";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import * as blogService from "@/services/blogService";
 
@@ -27,7 +27,7 @@ export default function FavoritesPage() {
   const cacheKeySignature = cacheUserKeys.join("|");
   const localCacheKeys = cacheUserKeys.map((key) => `cache:favorites:${key}:${page}`);
 
-  useEffect(() => {
+  const loadFavorites = () => {
     const authToken = localStorage.getItem("token");
     if (!authToken) {
       router.push("/login");
@@ -69,7 +69,28 @@ export default function FavoritesPage() {
         setStatus("ready");
       })
       .catch(() => setStatus("error"));
+  };
+
+  useEffect(() => {
+    loadFavorites();
   }, [page, router, cacheKeySignature]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => {
+      clearAllCaches();
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("cache:blog:") || key.startsWith("cache:post:") || key.startsWith("cache:comments:") || key.startsWith("cache:favorites:") || key.startsWith("cache:profile:")) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
+      loadFavorites();
+    };
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [page, cacheKeySignature]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 

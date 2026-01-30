@@ -2,9 +2,9 @@ import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { getPost, updatePost, deletePost } from "@/lib/blog";
 
-export async function GET(_: Request, { params }: { params: { slug: string } }) {
-  const paramsData = await Promise.resolve(params);
-    initDb();
+export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const paramsData = await params;
+  initDb();
   const slug = paramsData.slug;
   const user = await getAuthUser();
   const post = getPost(slug, user || "");
@@ -12,8 +12,9 @@ export async function GET(_: Request, { params }: { params: { slug: string } }) 
   return Response.json(post);
 }
 
-export async function PUT(req: Request, { params }: { params: { slug: string } }) {
-    initDb();
+export async function PUT(req: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const paramsData = await params;
+  initDb();
   const user = await getAuthUser();
   if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
@@ -28,8 +29,9 @@ export async function PUT(req: Request, { params }: { params: { slug: string } }
   return Response.json({ ok: true });
 }
 
-export async function DELETE(_: Request, { params }: { params: { slug: string } }) {
-    initDb();
+export async function DELETE(_: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const paramsData = await params;
+  initDb();
   const user = await getAuthUser();
   if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
   const admin = process.env.ADMIN_USERNAME || "witw";
