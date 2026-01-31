@@ -9,6 +9,9 @@ export default function BlogManagementPage() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [editingBlog, setEditingBlog] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     loadBlogs();
@@ -47,6 +50,64 @@ export default function BlogManagementPage() {
       console.error("Failed to load blogs:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEdit = async (blogId: number) => {
+    try {
+      setEditLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/blogs/${blogId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setEditingBlog(data);
+        setIsEditModalOpen(true);
+      } else {
+        alert("获取文章详情失败");
+      }
+    } catch (error) {
+      console.error("Failed to fetch blog detail:", error);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingBlog) return;
+
+    try {
+      setEditLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/blogs/${editingBlog.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: editingBlog.title,
+          content: editingBlog.content,
+          tags: editingBlog.tags,
+        }),
+      });
+
+      if (response.ok) {
+        alert("更新成功");
+        setIsEditModalOpen(false);
+        loadBlogs();
+      } else {
+        alert("更新失败");
+      }
+    } catch (error) {
+      console.error("Failed to update blog:", error);
+      alert("更新失败");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -151,10 +212,17 @@ export default function BlogManagementPage() {
                   <td>{new Date(blog.created_at).toLocaleString("zh-CN")}</td>
                   <td>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => handleEdit(blog.id)}
+                        className="btn-admin btn-admin-primary"
+                        style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                      >
+                        编辑
+                      </button>
                       {blog.status === "draft" && (
                         <button
                           onClick={() => handleStatusChange(blog.id, "published")}
-                          className="btn-admin btn-admin-primary"
+                          className="btn-admin btn-admin-secondary"
                           style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
                         >
                           发布
@@ -204,6 +272,63 @@ export default function BlogManagementPage() {
           </div>
         )}
       </div>
+
+      {isEditModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "800px" }}>
+            <div className="modal-header">
+              <h3>编辑文章</h3>
+              <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>&times;</button>
+            </div>
+            <div className="create-key-form">
+              <div className="form-group">
+                <label>标题</label>
+                <input
+                  type="text"
+                  value={editingBlog.title || ""}
+                  onChange={(e) => setEditingBlog({ ...editingBlog, title: e.target.value })}
+                  className="admin-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>标签 (逗号分隔)</label>
+                <input
+                  type="text"
+                  value={editingBlog.tags || ""}
+                  onChange={(e) => setEditingBlog({ ...editingBlog, tags: e.target.value })}
+                  className="admin-input"
+                  placeholder="AI, 工程, 创作"
+                />
+              </div>
+              <div className="form-group">
+                <label>内容</label>
+                <textarea
+                  value={editingBlog.content || ""}
+                  onChange={(e) => setEditingBlog({ ...editingBlog, content: e.target.value })}
+                  className="admin-input"
+                  style={{ minHeight: "300px", fontFamily: "inherit" }}
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="btn-admin btn-admin-secondary"
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={editLoading}
+                >
+                  取消
+                </button>
+                <button
+                  className="btn-admin btn-admin-primary"
+                  onClick={handleSaveEdit}
+                  disabled={editLoading}
+                >
+                  {editLoading ? "保存中..." : "保存修改"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

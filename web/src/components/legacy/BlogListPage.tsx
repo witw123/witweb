@@ -422,18 +422,29 @@ export default function BlogListPage() {
         }}
       >
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-20 pointer-events-none"></div>
-        <div className="inline-flex items-center justify-center px-3 py-1 rounded-full border border-blue-500/20 bg-blue-500/10 text-xs font-medium text-blue-400 mb-8 backdrop-blur-md relative z-10">
+        <div
+          className="inline-flex items-center justify-center px-4 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 text-xs font-semibold tracking-wider text-blue-400 mb-6 backdrop-blur-md relative z-10 uppercase"
+          style={{ fontFamily: 'var(--font-heading)' }}
+        >
           AI · 工程 · 创作
         </div>
-        <h1 className="relative z-10 text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 text-white drop-shadow-sm leading-tight max-w-5xl">
+        <h1
+          className="relative z-10 text-4xl md:text-5xl lg:text-5xl font-extrabold tracking-tightest mb-6 text-white leading-[1.2] max-w-5xl mx-auto"
+          style={{
+            fontFamily: 'var(--font-heading)',
+            background: 'linear-gradient(to bottom, #fff 40%, #a1a1a1 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}
+        >
           witw的技术与创作交流平台
         </h1>
-        <p className="relative z-10 text-lg md:text-xl text-zinc-400 max-w-2xl mb-12 leading-relaxed">
+        <p className="relative z-10 text-base md:text-lg text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed font-medium">
           记录 AI 工程实践、系统构建与个人工具的演进
         </p>
         <div className="relative z-10 flex gap-4">
           <button
-            className="bg-[#0070f3] text-white rounded-full px-8 py-3 text-base font-medium hover:bg-[#0060d9] transition-all hover:shadow-[0_0_20px_rgba(0,112,243,0.3)] hover:-translate-y-0.5"
+            className="btn-hero btn-hero-primary"
             onClick={() => {
               document.getElementById("posts-anchor")?.scrollIntoView({ behavior: "smooth" });
             }}
@@ -442,7 +453,7 @@ export default function BlogListPage() {
           </button>
           <Link
             href="/profile"
-            className="inline-flex items-center justify-center rounded-full px-8 py-3 text-base font-medium border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white transition-all backdrop-blur-sm hover:-translate-y-0.5"
+            className="btn-hero btn-hero-secondary"
           >
             关于我
           </Link>

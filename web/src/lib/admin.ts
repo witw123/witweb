@@ -91,7 +91,7 @@ export function listBlogs(page = 1, limit = 20, search = "", status = "", userna
 export function getBlogDetail(id: number) {
   const db = getBlogDb();
   const row = db.prepare(`
-    SELECT id, author as username, title, content,
+    SELECT id, author as username, title, content, tags,
       COALESCE(status, 'published') as status,
       created_at, COALESCE(updated_at, created_at) as updated_at
     FROM posts WHERE id = ?
@@ -103,9 +103,10 @@ export function updateBlog(id: number, data: any) {
   const db = getBlogDb();
   const fields: string[] = [];
   const params: any[] = [];
-  if (data.status) { fields.push("status = ?"); params.push(data.status); }
-  if (data.title) { fields.push("title = ?"); params.push(data.title); }
-  if (data.content) { fields.push("content = ?"); params.push(data.content); }
+  if (data.status !== undefined) { fields.push("status = ?"); params.push(data.status); }
+  if (data.title !== undefined) { fields.push("title = ?"); params.push(data.title); }
+  if (data.content !== undefined) { fields.push("content = ?"); params.push(data.content); }
+  if (data.tags !== undefined) { fields.push("tags = ?"); params.push(data.tags); }
   if (!fields.length) return;
   fields.push("updated_at = datetime('now', 'localtime')");
   params.push(id);

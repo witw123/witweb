@@ -32,15 +32,15 @@
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1.25rem;
-  letter-spacing: -0.5px;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.04em;
   display: flex;
   align-items: center;
   gap: 0px;
   position: relative;
   z-index: 60;
-  /* Ensure brand is above mobile menu */
 }
 
 .brand span {
@@ -55,8 +55,9 @@
 
 .nav-link {
   position: relative;
+  font-family: var(--font-heading);
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   transition: color 0.25s ease;
   padding: 0.5rem 0.5rem;
