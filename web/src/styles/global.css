@@ -747,7 +747,9 @@ a:not(.card):hover {
 a.card:hover,
 a.card:hover *,
 a.post-card:hover,
-a.post-card:hover * {
+a.post-card:hover *,
+.card a:hover,
+.card a:hover * {
   color: inherit !important;
 }
 

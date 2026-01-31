@@ -13,6 +13,195 @@ function getUserMap(usernames: string[]) {
   return map;
 }
 
+export function getUnreadNotificationCount(username: string): number {
+  const blogDb = getBlogDb();
+  const usersDb = getUsersDb();
+
+  const user = usersDb.prepare("SELECT last_read_notifications_at FROM users WHERE username = ?").get(username) as { last_read_notifications_at: string };
+  if (!user) return 0;
+
+  const lastRead = user.last_read_notifications_at || "1970-01-01T00:00:00.000Z";
+
+  // Count new comments on user's posts
+  const newComments = blogDb.prepare(`
+    SELECT COUNT(*) as cnt 
+    FROM comments c
+    INNER JOIN posts p ON c.post_id = p.id
+    WHERE p.author = ? AND c.author != ? AND c.created_at > ?
+  `).get(username, username, lastRead) as { cnt: number };
+
+  // Count new likes on user's posts
+  const newLikes = blogDb.prepare(`
+    SELECT COUNT(*) as cnt 
+    FROM likes l
+    INNER JOIN posts p ON l.post_id = p.id
+    WHERE p.author = ? AND l.username != ? AND l.created_at > ?
+  `).get(username, username, lastRead) as { cnt: number };
+
+  return (newComments?.cnt || 0) + (newLikes?.cnt || 0);
+}
+
+export function markNotificationsAsRead(username: string) {
+  const usersDb = getUsersDb();
+  const now = new Date().toISOString();
+  usersDb.prepare("UPDATE users SET last_read_notifications_at = ? WHERE username = ?").run(now, username);
+}
+
+// ... imports
+
+export interface ActivityItem {
+  type: 'post' | 'like' | 'comment';
+  title: string;
+  slug: string;
+  created_at: string;
+  content?: string; // for comments
+  target_user?: string; // for likes/comments (post author)
+}
+
+export function getActivities(username: string, page = 1, size = 10): { items: ActivityItem[], total: number } {
+  const db = getBlogDb();
+  const offset = (page - 1) * size;
+
+  // Count total
+  const countSql = `
+    SELECT SUM(cnt) as total FROM (
+      SELECT COUNT(*) as cnt FROM posts WHERE author = ?
+      UNION ALL
+      SELECT COUNT(*) as cnt FROM likes WHERE username = ?
+      UNION ALL
+      SELECT COUNT(*) as cnt FROM comments WHERE author = ?
+    )
+  `;
+  const total = db.prepare(countSql).get(username, username, username) as { total: number };
+
+  const sql = `
+    SELECT 'post' as type, title, slug, created_at, NULL as content, NULL as target_user 
+    FROM posts 
+    WHERE author = ?
+    
+    UNION ALL
+    
+    SELECT 'like' as type, p.title, p.slug, l.created_at, NULL as content, p.author as target_user 
+    FROM likes l 
+    INNER JOIN posts p ON l.post_id = p.id 
+    WHERE l.username = ?
+    
+    UNION ALL
+    
+    SELECT 'comment' as type, p.title, p.slug, c.created_at, c.content, p.author as target_user 
+    FROM comments c 
+    INNER JOIN posts p ON c.post_id = p.id 
+    WHERE c.author = ?
+    
+    ORDER BY created_at DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const items = db.prepare(sql).all(username, username, username, size, offset) as ActivityItem[];
+
+  return {
+    items,
+    total: total?.total || 0
+  };
+}
+
+export function getUserLikesReceived(username: string): number {
+  const db = getBlogDb();
+  const row = db.prepare(`
+    SELECT COUNT(*) as total 
+    FROM likes l 
+    INNER JOIN posts p ON l.post_id = p.id 
+    WHERE p.author = ?
+  `).get(username) as { total: number };
+  return row?.total || 0;
+}
+
+export function getRepliesToUser(username: string, page = 1, size = 10) {
+  const db = getBlogDb();
+  const offset = (page - 1) * size;
+  const rows = db.prepare(`
+    SELECT 
+      c.id, c.author as sender, c.content, c.created_at, 
+      p.title as post_title, p.slug as post_slug
+    FROM comments c
+    INNER JOIN posts p ON c.post_id = p.id
+    WHERE p.author = ? AND c.author != ?
+    ORDER BY c.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(username, username, size, offset) as any[];
+
+  const userMap = getUserMap(rows.map(r => r.sender));
+  rows.forEach(r => {
+    const u = userMap.get(r.sender);
+    r.sender_nickname = u?.nickname || r.sender;
+    r.sender_avatar = u?.avatar_url || "";
+  });
+  return rows;
+}
+
+export function getLikesToUser(username: string, page = 1, size = 10) {
+  const db = getBlogDb();
+  const offset = (page - 1) * size;
+  const rows = db.prepare(`
+    SELECT 
+      l.username as sender, l.created_at, 
+      p.title as post_title, p.slug as post_slug
+    FROM likes l
+    INNER JOIN posts p ON l.post_id = p.id
+    WHERE p.author = ? AND l.username != ?
+    ORDER BY l.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(username, username, size, offset) as any[];
+
+  const userMap = getUserMap(rows.map(r => r.sender));
+  rows.forEach(r => {
+    const u = userMap.get(r.sender);
+    r.sender_nickname = u?.nickname || r.sender;
+    r.sender_avatar = u?.avatar_url || "";
+  });
+  return rows;
+}
+
+export function getMentionsToUser(username: string, page = 1, size = 10) {
+  const db = getBlogDb();
+  const offset = (page - 1) * size;
+  // Look for "@username" in comments
+  const rows = db.prepare(`
+    SELECT 
+      c.id, c.author as sender, c.content, c.created_at, 
+      p.title as post_title, p.slug as post_slug
+    FROM comments c
+    INNER JOIN posts p ON c.post_id = p.id
+    WHERE c.content LIKE ? AND c.author != ?
+    ORDER BY c.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(`%@${username}%`, username, size, offset) as any[];
+
+  const userMap = getUserMap(rows.map(r => r.sender));
+  rows.forEach(r => {
+    const u = userMap.get(r.sender);
+    r.sender_nickname = u?.nickname || r.sender;
+    r.sender_avatar = u?.avatar_url || "";
+  });
+  return rows;
+}
+
+export function getSystemNotifications(username: string) {
+  // Mock system notification for new users or general announcements
+  const now = new Date().toISOString();
+  return [
+    {
+      sender: "system",
+      sender_nickname: "系统通知",
+      sender_avatar: "",
+      content: `欢迎来到 witweb，${username}！在这里你可以分享你的故事。`,
+      created_at: now,
+      post_title: "站点公告",
+      post_slug: "#"
+    }
+  ];
+}
+
 export function listPosts(page = 1, size = 10, query = "", author = "", tag = "", username = "") {
   const db = getBlogDb();
   page = Math.max(1, page);
@@ -24,8 +213,14 @@ export function listPosts(page = 1, size = 10, query = "", author = "", tag = ""
     params.push(`%${query}%`);
   }
   if (author) {
-    filters.push("p.author = ?");
-    params.push(author);
+    const userRow = getUsersDb().prepare("SELECT id FROM users WHERE username = ?").get(author) as any;
+    if (userRow?.id) {
+      filters.push("(p.author = ? OR p.author = ?)");
+      params.push(author, String(userRow.id));
+    } else {
+      filters.push("p.author = ?");
+      params.push(author);
+    }
   }
   if (tag) {
     filters.push("p.tags LIKE ?");
@@ -57,7 +252,7 @@ export function listPosts(page = 1, size = 10, query = "", author = "", tag = ""
     ${whereSql}
     ORDER BY p.id DESC
     LIMIT ? OFFSET ?
-  `).all(...params, username || "", username || "", size, offset) as any[];
+  `).all(username || "", username || "", ...params, size, offset) as any[];
 
   const userMap = getUserMap(rows.map((r) => r.author));
   rows.forEach((row) => {
@@ -271,7 +466,7 @@ function slugify(text: string) {
   return String(text || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9一-龥]+/g, "-")
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
 

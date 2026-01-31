@@ -10,9 +10,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const nickname = body?.nickname || user;
   const avatarUrl = body?.avatar_url || "";
+  const coverUrl = body?.cover_url || "";
+  const bio = body?.bio || "";
   const db = getUsersDb();
-  db.prepare("UPDATE users SET nickname = ?, avatar_url = ? WHERE username = ?")
-    .run(nickname, avatarUrl, user);
+  db.prepare("UPDATE users SET nickname = ?, avatar_url = ?, cover_url = ?, bio = ? WHERE username = ?")
+    .run(nickname, avatarUrl, coverUrl, bio, user);
   const profile = publicProfile(user, user);
   return Response.json({ ok: true, profile });
 }

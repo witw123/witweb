@@ -1,14 +1,16 @@
+import "server-only";
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-type DbKind = "users" | "blog" | "channel" | "studio";
+type DbKind = "users" | "blog" | "channel" | "studio" | "messages";
 
 const DB_FILES: Record<DbKind, string> = {
   users: "users.db",
   blog: "blog.db",
   channel: "channel.db",
   studio: "studio.db",
+  messages: "messages.db",
 };
 
 const DB_ENVS: Record<DbKind, string> = {
@@ -16,6 +18,7 @@ const DB_ENVS: Record<DbKind, string> = {
   blog: "SORA_BLOG_DB_PATH",
   channel: "SORA_CHANNEL_DB_PATH",
   studio: "SORA_STUDIO_DB_PATH",
+  messages: "SORA_MESSAGES_DB_PATH",
 };
 
 const instances = new Map<DbKind, any>();
@@ -55,6 +58,10 @@ export function getChannelDb() {
 
 export function getStudioDb() {
   return getDb("studio");
+}
+
+export function getMessagesDb() {
+  return getDb("messages");
 }
 
 // Backward-compatible alias (defaults to blog db)

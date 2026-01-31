@@ -1,7 +1,8 @@
+import "server-only";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
-import { getUsersDb, getBlogDb, getChannelDb, getStudioDb } from "./db";
+import { getUsersDb, getBlogDb, getChannelDb, getStudioDb, getMessagesDb } from "./db";
 import { hashPassword } from "./auth";
 
 const DATA_DIR = path.resolve(process.cwd(), "..", "data");
@@ -22,8 +23,8 @@ function ensureAdminUser() {
   const adminPassword = process.env.ADMIN_PASSWORD || "witw";
   const exists = db.prepare("SELECT id FROM users WHERE username = ?").get(adminUsername);
   if (!exists) {
-    db.prepare("INSERT INTO users (username, password, nickname, avatar_url) VALUES (?, ?, ?, ?)")
-      .run(adminUsername, hashPassword(adminPassword), adminUsername, "");
+    db.prepare("INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(adminUsername, hashPassword(adminPassword), adminUsername, "", "", "");
   }
 }
 
@@ -36,14 +37,19 @@ function initUsersDb() {
       password TEXT,
       nickname TEXT,
       avatar_url TEXT,
+      cover_url TEXT,
+      bio TEXT,
       balance REAL DEFAULT 0.0,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
   `);
   ensureColumn(db, "users", "nickname", "nickname TEXT");
   ensureColumn(db, "users", "avatar_url", "avatar_url TEXT");
+  ensureColumn(db, "users", "cover_url", "cover_url TEXT");
+  ensureColumn(db, "users", "bio", "bio TEXT");
   ensureColumn(db, "users", "balance", "balance REAL DEFAULT 0.0");
   ensureColumn(db, "users", "created_at", "created_at TEXT");
+  ensureColumn(db, "users", "last_read_notifications_at", "last_read_notifications_at TEXT DEFAULT '1970-01-01 00:00:00'");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS follows (
@@ -226,6 +232,37 @@ function initStudioDb() {
   `);
 }
 
+function initMessagesDb() {
+  const db = getMessagesDb();
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user1 TEXT NOT NULL,
+      user2 TEXT NOT NULL,
+      last_message TEXT,
+      last_time DATETIME,
+      unread_count_user1 INTEGER DEFAULT 0,
+      unread_count_user2 INTEGER DEFAULT 0,
+      UNIQUE(user1, user2)
+    );
+    CREATE INDEX IF NOT EXISTS idx_conv_user1 ON conversations(user1);
+    CREATE INDEX IF NOT EXISTS idx_conv_user2 ON conversations(user2);
+
+    CREATE TABLE IF NOT EXISTS private_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender TEXT NOT NULL,
+      receiver TEXT NOT NULL,
+      content TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_msg_conv ON private_messages(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_msg_sender ON private_messages(sender);
+    CREATE INDEX IF NOT EXISTS idx_msg_receiver ON private_messages(receiver);
+  `);
+}
+
 function tableExists(db: any, table: string) {
   const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
   return !!row;
@@ -301,5 +338,6 @@ export function initDb() {
   initBlogDb();
   initChannelDb();
   initStudioDb();
+  initMessagesDb();
   migrateLegacyDbIfNeeded();
 }

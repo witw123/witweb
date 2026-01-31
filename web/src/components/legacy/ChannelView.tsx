@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getThumbnailUrl } from "@/utils/url";
 import * as channelService from "@/services/channelService";
+import UserHoverCard from "@/components/legacy/UserHoverCard";
 
 export default function ChannelView({ channelId }: { channelId: string | number | null }) {
   const [messages, setMessages] = useState<any[]>([]);
@@ -30,7 +31,7 @@ export default function ChannelView({ channelId }: { channelId: string | number 
       } else {
         try {
           setProfile(JSON.parse(localStorage.getItem("profile") || "{}"));
-        } catch {}
+        } catch { }
       }
       if (channelId) {
         loadMessages(true);
@@ -112,23 +113,25 @@ export default function ChannelView({ channelId }: { channelId: string | number 
           messages.map((message) => (
             <div key={message.id} className="message-item">
               <div className="message-header">
-                <div className="flex items-center gap-2">
-                  {message.user_avatar ? (
-                    <img
-                      src={getThumbnailUrl(message.user_avatar, 64)}
-                      alt={message.username}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  ) : (
-                    <div className="avatar-fallback w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-xs">
-                      {message.username?.[0] || "U"}
-                    </div>
-                  )}
-                  <span className="font-medium text-sm">{message.username}</span>
-                  <span className="text-xs text-muted">
-                    {new Date(message.created_at).toLocaleString()}
-                  </span>
-                </div>
+                <UserHoverCard username={message.username}>
+                  <div className="flex items-center gap-2">
+                    {message.user_avatar ? (
+                      <img
+                        src={getThumbnailUrl(message.user_avatar, 64)}
+                        alt={message.username}
+                        className="w-8 h-8 rounded-full"
+                      />
+                    ) : (
+                      <div className="avatar-fallback w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-xs">
+                        {message.username?.[0] || "U"}
+                      </div>
+                    )}
+                    <span className="font-medium text-sm">{message.username}</span>
+                  </div>
+                </UserHoverCard>
+                <span className="text-xs text-muted">
+                  {new Date(message.created_at).toLocaleString()}
+                </span>
                 {profile.username === "witw" && (
                   <button
                     onClick={() => handleDelete(message.id)}

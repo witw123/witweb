@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getThumbnailUrl } from "@/utils/url";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
+import UserHoverCard from "@/components/legacy/UserHoverCard";
 import { marked } from "marked";
 import { useAuth } from "@/app/providers";
 import {
@@ -150,7 +151,7 @@ export default function BlogPostPage() {
             localStorage.removeItem(key);
           }
         });
-      } catch {}
+      } catch { }
       loadPost({ force: true });
       loadComments({ force: true });
     };
@@ -324,7 +325,7 @@ export default function BlogPostPage() {
           localStorage.removeItem(key);
         }
       });
-    } catch {}
+    } catch { }
     loadPost({ force: true });
   }
 
@@ -524,20 +525,24 @@ export default function BlogPostPage() {
         className={`comment-item p-4 border-b border-subtle ${isReply ? "ml-8 pl-4 border-l-2 border-l-subtle" : ""}`}
       >
         <div className="flex gap-4">
-          {node.author_avatar ? (
-            <img
-              src={getThumbnailUrl(node.author_avatar, 64)}
-              alt={node.author_name}
-              loading="lazy"
-              decoding="async"
-              className="w-8 h-8 rounded-full"
-            />
-          ) : (
-            <div className="avatar-fallback w-8 h-8 text-xs">{node.author_name?.[0] || "U"}</div>
-          )}
+          <UserHoverCard username={node.author}>
+            {node.author_avatar ? (
+              <img
+                src={getThumbnailUrl(node.author_avatar, 64)}
+                alt={node.author_name}
+                loading="lazy"
+                decoding="async"
+                className="w-8 h-8 rounded-full"
+              />
+            ) : (
+              <div className="avatar-fallback w-8 h-8 text-xs">{node.author_name?.[0] || "U"}</div>
+            )}
+          </UserHoverCard>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <strong className="text-sm">{node.author_name || node.author}</strong>
+              <UserHoverCard username={node.author} disableHover={true}>
+                <strong className="text-sm cursor-pointer hover:text-blue-400">{node.author_name || node.author}</strong>
+              </UserHoverCard>
               <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent">Lv1</span>
               <span className="text-xs text-muted ml-auto">{new Date(node.created_at).toLocaleString()}</span>
             </div>
@@ -562,7 +567,7 @@ export default function BlogPostPage() {
                     headers: { Authorization: `Bearer ${authToken}` },
                   })
                     .then(() => scheduleCommentsRefresh())
-                    .catch(() => {});
+                    .catch(() => { });
                 }}
               >
                 <ThumbsUpIcon className="inline" /> {node.like_count ?? 0}
@@ -581,7 +586,7 @@ export default function BlogPostPage() {
                     headers: { Authorization: `Bearer ${authToken}` },
                   })
                     .then(() => scheduleCommentsRefresh())
-                    .catch(() => {});
+                    .catch(() => { });
                 }}
               >
                 <ThumbsDownIcon className="inline" /> {node.dislike_count ?? 0}
@@ -646,21 +651,25 @@ export default function BlogPostPage() {
         <div className="flex flex-col gap-4 mb-8 pb-8 border-b border-subtle">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {post.author_avatar ? (
-                <img
-                  src={getThumbnailUrl(post.author_avatar, 96)}
-                  alt={post.author_name}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-10 h-10 rounded-full"
-                />
-              ) : (
-                <div className="avatar-fallback w-10 h-10 rounded-full flex items-center justify-center text-sm">
-                  {post.author_name?.[0] || "U"}
-                </div>
-              )}
+              <UserHoverCard username={post.author}>
+                {post.author_avatar ? (
+                  <img
+                    src={getThumbnailUrl(post.author_avatar, 96)}
+                    alt={post.author_name}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-10 h-10 rounded-full"
+                  />
+                ) : (
+                  <div className="avatar-fallback w-10 h-10 rounded-full flex items-center justify-center text-sm">
+                    {post.author_name?.[0] || "U"}
+                  </div>
+                )}
+              </UserHoverCard>
               <div className="flex flex-col">
-                <span className="font-bold text-lg">{post.author_name || post.author}</span>
+                <UserHoverCard username={post.author} disableHover={true}>
+                  <span className="font-bold text-lg cursor-pointer hover:text-blue-400">{post.author_name || post.author}</span>
+                </UserHoverCard>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                   <span>{new Date(post.created_at).toLocaleString()}</span>
                   <span>阅读 {readingStats.minutes} 分钟</span>
@@ -688,7 +697,7 @@ export default function BlogPostPage() {
                   })
                     .then((res) => res.json())
                     .then(() => loadPost({ force: true }))
-                    .catch(() => {});
+                    .catch(() => { });
                 }}
               >
                 <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
@@ -708,7 +717,7 @@ export default function BlogPostPage() {
                   })
                     .then((res) => res.json())
                     .then(() => loadPost({ force: true }))
-                    .catch(() => {});
+                    .catch(() => { });
                 }}
               >
                 <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}

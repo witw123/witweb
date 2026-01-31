@@ -1,0 +1,116 @@
+CREATE TABLE users (
+      id INTEGER PRIMARY KEY,
+      username TEXT UNIQUE,
+      password TEXT,
+      nickname TEXT,
+      avatar_url TEXT,
+      balance REAL DEFAULT 0.0,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+CREATE TABLE posts (
+      id INTEGER PRIMARY KEY,
+      title TEXT,
+      slug TEXT UNIQUE,
+      content TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      author TEXT,
+      tags TEXT,
+      status TEXT DEFAULT 'published'
+    )
+CREATE TABLE likes (
+      id INTEGER PRIMARY KEY,
+      post_id INTEGER,
+      username TEXT,
+      created_at TEXT
+    )
+CREATE TABLE dislikes (
+      id INTEGER PRIMARY KEY,
+      post_id INTEGER,
+      username TEXT,
+      created_at TEXT
+    )
+CREATE TABLE comments (
+      id INTEGER PRIMARY KEY,
+      post_id INTEGER,
+      author TEXT,
+      content TEXT,
+      created_at TEXT,
+      parent_id INTEGER,
+      ip_address TEXT
+    )
+CREATE TABLE comment_votes (
+      id INTEGER PRIMARY KEY,
+      comment_id INTEGER,
+      username TEXT,
+      value INTEGER,
+      created_at TEXT
+    )
+CREATE TABLE favorites (
+      id INTEGER PRIMARY KEY,
+      post_id INTEGER,
+      username TEXT,
+      created_at TEXT
+    )
+CREATE TABLE channels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      message_count INTEGER DEFAULT 0
+    )
+CREATE TABLE sqlite_sequence(name,seq)
+CREATE TABLE messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      channel_id INTEGER NOT NULL,
+      user_id INTEGER,
+      username TEXT NOT NULL,
+      user_avatar TEXT,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    )
+CREATE TABLE video_tasks (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      progress INTEGER DEFAULT 0,
+      prompt TEXT,
+      model TEXT,
+      url TEXT,
+      aspect_ratio TEXT,
+      duration INTEGER,
+      remix_target_id TEXT,
+      size TEXT,
+      pid TEXT,
+      timestamps TEXT,
+      result_json TEXT,
+      failure_reason TEXT,
+      error TEXT,
+      created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+      updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    )
+CREATE TABLE video_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      remove_watermark BOOLEAN DEFAULT 0,
+      pid TEXT,
+      character_id TEXT,
+      created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    )
+CREATE TABLE characters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      character_id TEXT UNIQUE NOT NULL,
+      name TEXT,
+      source_task_id TEXT,
+      created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    )
+CREATE TABLE follows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      follower TEXT NOT NULL,
+      following TEXT NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+      UNIQUE(follower, following)
+    )

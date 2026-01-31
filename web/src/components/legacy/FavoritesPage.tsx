@@ -72,6 +72,7 @@ export default function FavoritesPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFavorites();
   }, [page, router, cacheKeySignature]);
 
@@ -85,7 +86,7 @@ export default function FavoritesPage() {
             localStorage.removeItem(key);
           }
         });
-      } catch {}
+      } catch { }
       loadFavorites();
     };
     window.addEventListener("profile-updated", handler as EventListener);

@@ -14,7 +14,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
     }
   }, [loading, isAuthenticated, router]);
 
-  if (loading) return <div className="container py-10">???...</div>;
+  if (loading) return <div className="container py-10">{"\u52a0\u8f7d\u4e2d..."}</div>;
   if (!isAuthenticated) return null;
   return <>{children}</>;
 }

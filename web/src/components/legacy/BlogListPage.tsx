@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getThumbnailUrl } from "@/utils/url";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
+import UserHoverCard from "@/components/legacy/UserHoverCard";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import {
   clearCommentsCache,
@@ -54,6 +55,7 @@ export default function BlogListPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTokenValue(localStorage.getItem("token"));
       const storedProfile = localStorage.getItem("profile");
       const parsedProfile = storedProfile ? JSON.parse(storedProfile) : null;
@@ -95,7 +97,7 @@ export default function BlogListPage() {
           localStorage.removeItem(key);
         }
       });
-    } catch {}
+    } catch { }
     loadPosts({ showLoading: false, force: true });
   }
   function normalizeListPayload(data: any) {
@@ -136,6 +138,7 @@ export default function BlogListPage() {
 
   useEffect(() => {
     if (!profileData?.username) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserPostCount(0);
       return;
     }
@@ -263,7 +266,7 @@ export default function BlogListPage() {
           const storedProfile = localStorage.getItem("profile");
           const parsedProfile = storedProfile ? JSON.parse(storedProfile) : null;
           setProfileData(parsedProfile);
-        } catch {}
+        } catch { }
       }
       applyProfileUpdate(null);
     };
@@ -283,6 +286,7 @@ export default function BlogListPage() {
       try {
         const storedProfile = localStorage.getItem("profile");
         const parsedProfile = storedProfile ? JSON.parse(storedProfile) : null;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         applyProfileUpdate(parsedProfile);
       } catch {
         applyProfileUpdate(null);
@@ -291,6 +295,7 @@ export default function BlogListPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [submittedQuery, authorFilter, tagFilter]);
 
@@ -407,154 +412,66 @@ export default function BlogListPage() {
     ? titleSuggestions.filter((titleText) => titleText.toLowerCase().includes(normalizedInput))
     : [];
   return (
-    <div className="blog-list-page" style={{ minHeight: "calc(100vh - 60px)", paddingTop: "2rem", paddingBottom: "64px" }}>
-      <div className="split-layout">
-        <aside className="side-panel">
-          <div className="card">
-            <h3 className="text-lg font-bold mb-4">发布新文章</h3>
-            {!tokenValue ? (
-              <>
-                <p className="text-muted mb-4 text-sm">登录后可在此发布文章。</p>
-                <Link className="btn-primary w-full" href="/login">
-                  去登录
-                </Link>
-              </>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">标题</label>
-                  <input
-                    className="input"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="文章标题"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">标签</label>
-                  <input
-                    className="input"
-                    value={tags}
-                    onChange={(event) => setTags(event.target.value)}
-                    placeholder="例如：动画, 角色, 经验"
-                  />
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-sm font-medium block">内容</label>
-                    <label className="btn-ghost btn-sm cursor-pointer">
-                      上传图片
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        style={{ display: "none" }}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          handleImageSelect(file);
-                          event.target.value = "";
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <textarea
-                    className="input"
-                    rows={12}
-                    value={content}
-                    onChange={(event) => setContent(event.target.value)}
-                    ref={contentRef}
-                    placeholder="使用 Markdown 写作..."
-                  />
-                </div>
+    <div className="blog-list-page">
+      {/* Hero Section */}
+      <section
+        className="hero-section flex flex-col items-center justify-center text-center px-4 relative overflow-hidden"
+        style={{
+          minHeight: "calc(100vh - 64px)",
+          background: "radial-gradient(ellipse at top, rgba(59, 130, 246, 0.15), transparent 60%)"
+        }}
+      >
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-20 pointer-events-none"></div>
+        <div className="inline-flex items-center justify-center px-3 py-1 rounded-full border border-blue-500/20 bg-blue-500/10 text-xs font-medium text-blue-400 mb-8 backdrop-blur-md relative z-10">
+          AI · 工程 · 创作
+        </div>
+        <h1 className="relative z-10 text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 text-white drop-shadow-sm leading-tight max-w-5xl">
+          witw的技术与创作交流平台
+        </h1>
+        <p className="relative z-10 text-lg md:text-xl text-zinc-400 max-w-2xl mb-12 leading-relaxed">
+          记录 AI 工程实践、系统构建与个人工具的演进
+        </p>
+        <div className="relative z-10 flex gap-4">
+          <button
+            className="bg-[#0070f3] text-white rounded-full px-8 py-3 text-base font-medium hover:bg-[#0060d9] transition-all hover:shadow-[0_0_20px_rgba(0,112,243,0.3)] hover:-translate-y-0.5"
+            onClick={() => {
+              document.getElementById("posts-anchor")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            开始阅读
+          </button>
+          <Link
+            href="/profile"
+            className="inline-flex items-center justify-center rounded-full px-8 py-3 text-base font-medium border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white transition-all backdrop-blur-sm hover:-translate-y-0.5"
+          >
+            关于我
+          </Link>
+        </div>
+      </section>
 
-                {showSizeModal && pendingImageFile && (
-                  <div
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-                    style={{ background: "rgba(0,0,0,0.8)", position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
-                  >
-                    <div className="card" style={{ width: "400px", maxWidth: "90%" }}>
-                      <h3 className="text-lg font-bold mb-4">调整图片大小</h3>
-                      <div className="mb-4 bg-black/20 p-2 rounded flex justify-center">
-                        <img
-                          src={pendingPreviewUrl}
-                          alt="preview"
-                          style={{
-                            maxWidth: "100%",
-                            maxHeight: "300px",
-                            width: imageWidth.trim() ? imageWidth.trim() : `${imageSizePercent}%`,
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <input
-                          type="range"
-                          min="10"
-                          max="100"
-                          className="flex-1"
-                          value={imageSizePercent}
-                          onChange={(event) => setImageSizePercent(Number(event.target.value))}
-                        />
-                        <span className="text-sm w-12 text-right">{imageSizePercent}%</span>
-                      </div>
-                      <input
-                        className="input mb-4"
-                        value={imageWidth}
-                        onChange={(event) => setImageWidth(event.target.value)}
-                        placeholder="或输入宽度，例如 360px / 60%"
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          className="btn-ghost"
-                          type="button"
-                          onClick={() => {
-                            if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
-                            setPendingPreviewUrl("");
-                            setPendingImageFile(null);
-                            setShowSizeModal(false);
-                          }}
-                        >
-                          取消
-                        </button>
-                        <button
-                          className="btn-primary"
-                          type="button"
-                          onClick={async () => {
-                            const widthValue = imageWidth.trim() ? imageWidth.trim() : `${imageSizePercent}%`;
-                            if (!pendingImageFile) return;
-                            const url = await uploadImage(pendingImageFile);
-                            if (url) {
-                              insertImageMarkup(url, widthValue);
-                            }
-                            if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
-                            setPendingPreviewUrl("");
-                            setPendingImageFile(null);
-                            setShowSizeModal(false);
-                          }}
-                        >
-                          插入图片
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {publishStatus && <p className="text-accent text-sm">{publishStatus}</p>}
-                <button className="btn-primary w-full" type="button" onClick={publish}>
-                  发布
-                </button>
+      {/* Main Content Anchor */}
+      <div id="posts-anchor" className="scroll-mt-20"></div>
+
+      <div className="container mx-auto max-w-4xl px-4 pt-16" style={{ minHeight: "calc(100vh - 60px)", paddingBottom: "64px" }}>
+
+        {/* Main Feed */}
+        <div>
+
+          {status === "error" && <p className="text-red-400 mb-4">加载失败，请稍后再试。</p>}
+          {status === "ready" && posts.length === 0 && <p className="text-zinc-500 mb-4">暂无文章，去发布第一篇吧。</p>}
+
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+            <h3 className="text-3xl font-bold text-white tracking-tight">最新文章</h3>
+            <div className="relative w-full md:w-auto md:min-w-[420px] max-w-lg">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none flex items-center justify-center z-10">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
               </div>
-            )}
-          </div>
-        </aside>
-
-        <section>
-          {status === "error" && <p>加载失败，请稍后再试。</p>}
-          {status === "ready" && posts.length === 0 && <p>暂无文章，去左侧发布第一篇吧。</p>}
-
-          <div className="section-header flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold">最新文章</h3>
-            <div className="search flex gap-2 items-center relative" style={{ width: "60%" }}>
               <input
-                className="input"
+                className="w-full bg-zinc-800 text-zinc-100 text-base rounded-full border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder:text-zinc-500"
+                style={{ paddingLeft: "3.5rem", paddingRight: "3rem", paddingTop: "0.75rem", paddingBottom: "0.75rem" }}
                 ref={searchRef}
                 value={searchInput}
                 onChange={(event) => {
@@ -565,41 +482,58 @@ export default function BlogListPage() {
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     setSubmittedQuery(searchInput);
-                    setTagFilter(searchInput);
+                    setTagFilter(""); // Clear tag filter when searching by text
                     setShowSuggestions(false);
                   }
                 }}
                 placeholder="搜索标题或标签..."
               />
+
+              {/* Clear button if there is input */}
+              {searchInput && (
+                <button
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors"
+                  onClick={() => {
+                    setSubmittedQuery("");
+                    setTagFilter("");
+                    setSearchInput("");
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+
               {showSuggestions && (filteredTags.length > 0 || filteredTitles.length > 0) && (
-                <div className="search-suggestions" onMouseDown={(event) => event.preventDefault()}>
+                <div className="absolute top-full mt-2 left-0 right-0 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl z-50 overflow-hidden py-2" onMouseDown={(event) => event.preventDefault()}>
                   {filteredTags.length > 0 && (
                     <>
-                      <div className="suggestion-group">标签</div>
+                      <div className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wider">标签</div>
                       {filteredTags.map((tag) => (
                         <button
                           key={`tag-${tag}`}
-                          className="suggestion-item"
+                          className="w-full text-left px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors flex items-center gap-2"
                           type="button"
                           onClick={() => {
                             setTagFilter(tag);
-                            setSubmittedQuery("");
+                            setSubmittedQuery(""); // Clear text query when selecting tag
                             setSearchInput(tag);
                             setShowSuggestions(false);
                           }}
                         >
-                          #{tag}
+                          <span className="text-blue-500">#</span> {tag}
                         </button>
                       ))}
                     </>
                   )}
                   {filteredTitles.length > 0 && (
                     <>
-                      <div className="suggestion-group">文章</div>
+                      <div className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wider mt-2">文章</div>
                       {filteredTitles.map((titleText) => (
                         <button
                           key={`title-${titleText}`}
-                          className="suggestion-item"
+                          className="w-full text-left px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors truncate"
                           type="button"
                           onClick={() => {
                             setSubmittedQuery(titleText);
@@ -615,39 +549,9 @@ export default function BlogListPage() {
                   )}
                 </div>
               )}
-              {submittedQuery && (
-                <button
-                  className="button ghost"
-                  type="button"
-                  onClick={() => {
-                    setSubmittedQuery("");
-                    setSearchInput("");
-                  }}
-                >
-                  清空
-                </button>
-              )}
-              {authorFilter && (
-                <button className="button ghost" type="button" onClick={() => setAuthorFilter("")}
-                >
-                  仅看我的文章
-                </button>
-              )}
-              {tagFilter && (
-                <button
-                  className="button ghost"
-                  type="button"
-                  onClick={() => {
-                    setTagFilter("");
-                    setSearchInput("");
-                  }}
-                >
-                  清除标签
-                </button>
-              )}
             </div>
           </div>
-          <div className="list grid">
+          <div className="list grid mt-8 gap-6">
             {posts.map((post) => {
               const titleText = post.title || "";
               const rawPreview = (post.content || "").replace(/\s+/g, " ").trim();
@@ -672,42 +576,44 @@ export default function BlogListPage() {
 
               return (
                 <div key={post.slug} className="card block no-underline text-inherit">
-                  <Link href={`/post/${post.slug}`} className="block no-underline text-inherit">
                   <div className="card-head flex justify-between items-start mb-3">
-                    <div className="author flex items-center gap-2">
-                      {post.author_avatar ? (
-                        <img
-                          src={avatarUrl}
-                          alt={post.author_name}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-6 h-6 rounded-full"
-                        />
-                      ) : (
-                        <div className="avatar-fallback w-6 h-6 text-xs">{post.author_name?.[0] || "U"}</div>
-                      )}
-                      <span className="text-sm font-medium">{post.author_name || post.author || "匿名"}</span>
-                    </div>
+                    <UserHoverCard username={post.author}>
+                      <div className="author flex items-center gap-2">
+                        {post.author_avatar ? (
+                          <img
+                            src={avatarUrl}
+                            alt={post.author_name}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-6 h-6 rounded-full"
+                          />
+                        ) : (
+                          <div className="avatar-fallback w-6 h-6 text-xs">{post.author_name?.[0] || "U"}</div>
+                        )}
+                        <span className="text-sm font-medium">{post.author_name || post.author || "匿名"}</span>
+                      </div>
+                    </UserHoverCard>
                     <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
                   </div>
+                  <Link href={`/post/${post.slug}`} className="block no-underline text-inherit">
 
-                  <h2 className="text-xl font-bold mb-3 leading-tight">
-                    {matchIndex >= 0 ? (
-                      <>
-                        {titleText.slice(0, matchIndex)}
-                        <span className="highlight">
-                          {titleText.slice(matchIndex, matchIndex + normalizedQuery.length)}
-                        </span>
-                        {titleText.slice(matchIndex + normalizedQuery.length)}
-                      </>
-                    ) : (
-                      titleText
-                    )}
-                  </h2>
+                    <h2 className="text-xl font-bold mb-3 leading-tight">
+                      {matchIndex >= 0 ? (
+                        <>
+                          {titleText.slice(0, matchIndex)}
+                          <span className="highlight">
+                            {titleText.slice(matchIndex, matchIndex + normalizedQuery.length)}
+                          </span>
+                          {titleText.slice(matchIndex + normalizedQuery.length)}
+                        </>
+                      ) : (
+                        titleText
+                      )}
+                    </h2>
 
-                  <p className="excerpt text-muted text-sm mb-6 line-clamp-2 leading-relaxed">
-                    {preview}
-                  </p>
+                    <p className="excerpt text-muted text-sm mb-6 line-clamp-2 leading-relaxed">
+                      {preview}
+                    </p>
 
                   </Link>
 
@@ -751,7 +657,7 @@ export default function BlogListPage() {
                                 ),
                               );
                             })
-                            .catch(() => {});
+                            .catch(() => { });
                         }}
                       >
                         <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
@@ -788,7 +694,7 @@ export default function BlogListPage() {
                                 ),
                               );
                             })
-                            .catch(() => {});
+                            .catch(() => { });
                         }}
                       >
                         <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
@@ -826,7 +732,7 @@ export default function BlogListPage() {
                                 ),
                               );
                             })
-                            .catch(() => {});
+                            .catch(() => { });
                         }}
                       >
                         <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
@@ -871,7 +777,7 @@ export default function BlogListPage() {
               </button>
             </div>
           )}
-        </section>
+        </div>
       </div>
     </div>
   );

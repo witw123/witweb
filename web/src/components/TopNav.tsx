@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/app/providers";
 
@@ -8,29 +9,45 @@ export default function TopNav() {
   const { user, logout, isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
 
+  const pathname = usePathname();
+
+  const isActive = (path: string) => {
+    if (path === "/") {
+      return pathname === "/";
+    }
+    return pathname?.startsWith(path);
+  };
+
   return (
-    <header className="border-b border-zinc-800 bg-zinc-950/70 backdrop-blur">
+    <header className="border-b border-zinc-800 bg-zinc-950/70 backdrop-blur sticky top-0 z-50">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="text-lg font-semibold">witweb</Link>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link className="link" href="/">首页</Link>
-          <Link className="link" href="/forum">论坛</Link>
-          <Link className="link" href="/studio">工作台</Link>
-          {isAuthenticated && <Link className="link" href="/admin">管理后台</Link>}
+        <Link href="/" className="text-xl font-bold tracking-tight mr-8 text-white">witweb</Link>
+        <nav className="flex items-center gap-2 mr-auto">
+          <Link className={`nav-link ${isActive("/") ? "active" : ""}`} href="/">首页</Link>
+          <Link className={`nav-link ${isActive("/forum") ? "active" : ""}`} href="/forum">论坛</Link>
+          <Link className={`nav-link ${isActive("/studio") ? "active" : ""}`} href="/studio">工作台</Link>
+          {isAuthenticated && (
+            <>
+              <Link className={`nav-link ${isActive("/publish") ? "active" : ""}`} href="/publish">发布文章</Link>
+              <Link className={`nav-link ${isActive("/admin") ? "active" : ""}`} href="/admin">管理后台</Link>
+            </>
+          )}
         </nav>
         {isAuthenticated ? (
-          <div className="relative">
-            <button className="btn-ghost" onClick={() => setOpen(!open)}>
-              {user?.nickname || user?.username}
-            </button>
-            {open && (
-              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-zinc-800 bg-zinc-900 p-2">
-                <Link className="block rounded px-3 py-2 text-sm hover:bg-zinc-800" href="/profile" onClick={() => setOpen(false)}>个人中心</Link>
-                <Link className="block rounded px-3 py-2 text-sm hover:bg-zinc-800" href="/favorites" onClick={() => setOpen(false)}>我的收藏</Link>
-                <Link className="block rounded px-3 py-2 text-sm hover:bg-zinc-800" href="/following" onClick={() => setOpen(false)}>我的关注</Link>
-                <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-zinc-800" onClick={() => { logout(); setOpen(false); }}>退出登录</button>
-              </div>
-            )}
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <button className="btn-ghost" onClick={() => setOpen(!open)}>
+                {user?.nickname || user?.username}
+              </button>
+              {open && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-zinc-800 bg-zinc-900 p-2">
+                  <Link className="block rounded px-3 py-2 text-sm hover:bg-zinc-800" href="/profile" onClick={() => setOpen(false)}>个人中心</Link>
+                  <Link className="block rounded px-3 py-2 text-sm hover:bg-zinc-800" href="/favorites" onClick={() => setOpen(false)}>我的收藏</Link>
+                  <Link className="block rounded px-3 py-2 text-sm hover:bg-zinc-800" href="/following" onClick={() => setOpen(false)}>我的关注</Link>
+                  <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-zinc-800" onClick={() => { logout(); setOpen(false); }}>退出登录</button>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex gap-3">

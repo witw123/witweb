@@ -6,8 +6,12 @@ export type UserProfile = {
   username: string;
   nickname?: string;
   avatar_url?: string;
+  cover_url?: string;
+  bio?: string;
+  created_at?: string;
   following_count?: number;
   follower_count?: number;
+  post_count?: number;
   balance?: number;
 };
 
@@ -38,11 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedToken = localStorage.getItem("token");
     const storedProfile = localStorage.getItem("profile");
     if (storedToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setToken(storedToken);
       if (storedProfile) {
         try {
           setUser(JSON.parse(storedProfile));
-        } catch {}
+        } catch { }
       }
     }
     setLoading(false);
