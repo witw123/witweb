@@ -1,6 +1,7 @@
 import { initDb } from "@/lib/db-init";
 import { listMessages, postMessage } from "@/lib/channel";
 import { getAuthUser } from "@/lib/http";
+import { processBotCommand } from "@/lib/bot";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const paramsData = await params;
@@ -20,6 +21,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const content = (body?.content || "").trim();
   if (!content) return Response.json({ detail: "Missing content" }, { status: 400 });
   const message = postMessage(Number(paramsData.id), user, content);
+
+  if (message) {
+    // Fire and forget bot processing
+    processBotCommand(Number(paramsData.id), content, user).catch(err => console.error(err));
+  }
+
   if (!message) return Response.json({ detail: "User not found" }, { status: 404 });
   return Response.json(message);
 }

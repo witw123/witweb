@@ -85,7 +85,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
 
           <nav className={`nav ${isMobileMenuOpen ? "mobile-open" : ""}`}>
             <Link href="/" className={navClass("/")} onClick={closeMobileMenu}>首页</Link>
-            <Link href="/forum" className={navClass("/forum")} onClick={closeMobileMenu}>论坛</Link>
+            <Link href="/forum" className={navClass("/forum")} onClick={closeMobileMenu}>聊天室</Link>
             {isAuthenticated && user?.username === adminUsername && (
               <Link href="/admin" className="nav-link" onClick={closeMobileMenu}>管理后台</Link>
             )}

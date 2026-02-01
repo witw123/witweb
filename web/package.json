@@ -9,9 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@livekit/components-react": "^2.9.19",
+    "@livekit/components-styles": "^1.2.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.6.0",
     "jose": "^5.9.3",
+    "livekit-client": "^2.17.0",
+    "livekit-server-sdk": "^2.15.0",
     "marked": "^4.3.0",
     "next": "16.1.6",
     "react": "19.2.3",

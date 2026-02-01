@@ -4,7 +4,7 @@ import { getUserLikesReceived, getPostCount } from "./blog";
 
 export function getUserByUsername(username: string) {
   const db = getUsersDb();
-  const row = db.prepare("SELECT username, password, nickname, avatar_url, cover_url, bio, balance, created_at FROM users WHERE username = ?")
+  const row = db.prepare("SELECT id, username, password, nickname, avatar_url, cover_url, bio, balance, created_at FROM users WHERE username = ?")
     .get(username) as any;
   return row || null;
 }

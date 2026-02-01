@@ -1,8 +1,15 @@
 ﻿const API_BASE = "/api";
 
-export async function getChannels() {
-  const res = await fetch(`${API_BASE}/channels`);
-  if (!res.ok) throw new Error("Failed to fetch channels");
+export async function getChannels(serverId?: number | null) {
+  const url = (serverId !== null && serverId !== undefined)
+    ? `${API_BASE}/channels?server_id=${serverId}`
+    : `${API_BASE}/channels`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    console.error("Fetch channels failed:", errorData);
+    throw new Error(errorData.detail || "Failed to fetch channels");
+  }
   return res.json();
 }
 
@@ -61,14 +68,14 @@ export async function deleteMessage(messageId: string | number) {
 }
 
 
-export async function createChannel(name: string, description = "", token?: string | null) {
+export async function createChannel(name: string, description = "", serverId?: number | null, categoryId?: number | null, token?: string | null) {
   const res = await fetch(`${API_BASE}/channels`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, server_id: serverId, category_id: categoryId }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

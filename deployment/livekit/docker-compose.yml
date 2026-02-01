@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+
+  # Redis is optional for single-node setup but good to have
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   network_mode: host
