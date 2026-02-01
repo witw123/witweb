@@ -36,6 +36,7 @@ function getDb(kind: DbKind) {
   const existing = instances.get(kind);
   if (existing) return existing;
   const dbPath = resolveDbPath(kind);
+  console.log(`[DB DEBUG] Initializing ${kind} database at: ${dbPath}`);
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");

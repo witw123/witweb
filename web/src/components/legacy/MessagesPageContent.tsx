@@ -197,9 +197,13 @@ export default function MessagesPageContent() {
     const isNearBottom = scrollEl ? (scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 100) : true;
 
     if (isFirstLoad) {
-      chatEndRef.current?.scrollIntoView({ behavior: "auto" });
+      if (scrollEl) {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      }
     } else if (isNewMessage && (lastMsgIsMine || isNearBottom)) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (scrollEl) {
+        scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+      }
     }
 
     lastMessagesCount.current = messages.length;
