@@ -9,7 +9,7 @@ import { getThumbnailUrl } from "@/utils/url";
 const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
 export default function LegacyLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, updateProfile, isAuthenticated, token } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -17,6 +17,22 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const isStudio = pathname.startsWith("/studio");
+
+  const toggleUserMenu = async () => {
+    const nextState = !showUserMenu;
+    setShowUserMenu(nextState);
+    if (nextState && isAuthenticated && token) {
+      try {
+        const res = await fetch("/api/profile", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.profile) {
+          updateProfile(data.profile);
+        }
+      } catch (err) { }
+    }
+  };
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
@@ -95,7 +111,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                   </Link>
                 </div>
                 <div className="user-menu-container" ref={userMenuRef}>
-                  <button className="user-button" onClick={() => setShowUserMenu(!showUserMenu)}>
+                  <button className="user-button" onClick={toggleUserMenu}>
                     {user?.avatar_url ? (
                       <img
                         src={getThumbnailUrl(user.avatar_url, 64)}

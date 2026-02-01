@@ -116,6 +116,12 @@ export function getUserLikesReceived(username: string): number {
   return row?.total || 0;
 }
 
+export function getPostCount(username: string): number {
+  const db = getBlogDb();
+  const row = db.prepare("SELECT COUNT(*) as total FROM posts WHERE author = ?").get(username) as { total: number };
+  return row?.total || 0;
+}
+
 export function getRepliesToUser(username: string, page = 1, size = 10) {
   const db = getBlogDb();
   const offset = (page - 1) * size;

@@ -1,5 +1,3 @@
-"use client";
-
 import { Suspense } from "react";
 import ProfilePage from "@/components/legacy/ProfilePage";
 

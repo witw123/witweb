@@ -3,6 +3,14 @@ import { getUsersDb } from "@/lib/db";
 import { getAuthUser } from "@/lib/http";
 import { publicProfile } from "@/lib/user";
 
+export async function GET() {
+  initDb();
+  const user = await getAuthUser();
+  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
+  const profile = publicProfile(user, user);
+  return Response.json({ ok: true, profile });
+}
+
 export async function POST(req: Request) {
   initDb();
   const user = await getAuthUser();
