@@ -14,13 +14,14 @@ export default function FollowingPageContent() {
   const [loading, setLoading] = useState(true);
 
   const loadItems = async () => {
+    if (!token) return;
     setLoading(true);
     try {
       const url = username
         ? `/api/following?username=${encodeURIComponent(username)}&page=1&size=50`
         : `/api/following?page=1&size=50`;
       const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setItems(data.items || []);

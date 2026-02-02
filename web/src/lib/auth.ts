@@ -28,8 +28,9 @@ export function verifyPassword(password: string, hash: string) {
 import { NextRequest } from "next/server";
 
 export async function verifyAuth(req: NextRequest) {
-  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-  if (!token) return null;
+  const auth = req.headers.get("Authorization");
+  if (!auth || !auth.toLowerCase().startsWith("bearer ")) return null;
+  const token = auth.slice(7);
   try {
     const username = await verifyToken(token);
     return username ? { username } : null;
