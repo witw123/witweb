@@ -39,8 +39,6 @@ export default function DashboardPage() {
     { label: "总文章数", value: stats?.total_blogs || 0 },
     { label: "已发布", value: stats?.total_published_blogs || 0 },
     { label: "草稿", value: stats?.total_draft_blogs || 0 },
-    { label: "频道数", value: stats?.total_channels || 0 },
-    { label: "消息数", value: stats?.total_messages || 0 },
   ];
 
   return (

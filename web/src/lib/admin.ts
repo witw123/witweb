@@ -1,4 +1,4 @@
-import { getUsersDb, getBlogDb, getChannelDb } from "./db";
+import { getUsersDb, getBlogDb } from "./db";
 
 export function listUsers(page = 1, limit = 20, search = "", sort = "created_at_desc") {
   const db = getUsersDb();
@@ -31,7 +31,6 @@ export function getUserDetail(username: string) {
 export function deleteUser(username: string) {
   const usersDb = getUsersDb();
   const blogDb = getBlogDb();
-  const channelDb = getChannelDb();
 
   const user = usersDb.prepare("SELECT id FROM users WHERE username = ?").get(username) as any;
 
@@ -42,11 +41,6 @@ export function deleteUser(username: string) {
   blogDb.prepare("DELETE FROM dislikes WHERE username = ?").run(username);
   blogDb.prepare("DELETE FROM favorites WHERE username = ?").run(username);
   blogDb.prepare("DELETE FROM comment_votes WHERE username = ?").run(username);
-
-  // Remove user messages from channel db
-  if (user?.id) {
-    channelDb.prepare("DELETE FROM messages WHERE user_id = ?").run(user.id);
-  }
 
   // Remove follow relations
   usersDb.prepare("DELETE FROM follows WHERE follower = ? OR following = ?").run(username, username);
@@ -121,19 +115,19 @@ export function deleteBlog(id: number) {
 export function statsOverview() {
   const usersDb = getUsersDb();
   const blogDb = getBlogDb();
-  const channelDb = getChannelDb();
+
   const totalUsers = (usersDb.prepare("SELECT COUNT(*) AS cnt FROM users").get() as any)?.cnt || 0;
   const totalBlogs = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts").get() as any)?.cnt || 0;
   const totalPublished = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE status = 'published'").get() as any)?.cnt || 0;
   const totalDraft = (blogDb.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE status = 'draft'").get() as any)?.cnt || 0;
-  const totalChannels = (channelDb.prepare("SELECT COUNT(*) AS cnt FROM channels").get() as any)?.cnt || 0;
-  const totalMessages = (channelDb.prepare("SELECT COUNT(*) AS cnt FROM messages").get() as any)?.cnt || 0;
+
+
   return {
     total_users: totalUsers,
     total_blogs: totalBlogs,
     total_published_blogs: totalPublished,
     total_draft_blogs: totalDraft,
-    total_channels: totalChannels,
-    total_messages: totalMessages,
+
+
   };
 }

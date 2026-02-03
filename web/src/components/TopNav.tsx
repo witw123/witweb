@@ -24,7 +24,7 @@ export default function TopNav() {
         <Link href="/" className="text-xl font-bold tracking-tight mr-8 text-white">witweb</Link>
         <nav className="flex items-center gap-2 mr-auto">
           <Link className={`nav-link ${isActive("/") ? "active" : ""}`} href="/">首页</Link>
-          <Link className={`nav-link ${isActive("/forum") ? "active" : ""}`} href="/forum">频道</Link>
+
           <Link className={`nav-link ${isActive("/studio") ? "active" : ""}`} href="/studio">工作台</Link>
           {isAuthenticated && (
             <>

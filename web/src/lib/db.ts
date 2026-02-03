@@ -3,12 +3,12 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-type DbKind = "users" | "blog" | "channel" | "studio" | "messages";
+type DbKind = "users" | "blog" | "studio" | "messages";
 
 const DB_FILES: Record<DbKind, string> = {
   users: "users.db",
   blog: "blog.db",
-  channel: "channel.db",
+
   studio: "studio.db",
   messages: "messages.db",
 };
@@ -16,7 +16,7 @@ const DB_FILES: Record<DbKind, string> = {
 const DB_ENVS: Record<DbKind, string> = {
   users: "SORA_USERS_DB_PATH",
   blog: "SORA_BLOG_DB_PATH",
-  channel: "SORA_CHANNEL_DB_PATH",
+
   studio: "SORA_STUDIO_DB_PATH",
   messages: "SORA_MESSAGES_DB_PATH",
 };
@@ -53,9 +53,7 @@ export function getBlogDb() {
   return getDb("blog");
 }
 
-export function getChannelDb() {
-  return getDb("channel");
-}
+
 
 export function getStudioDb() {
   return getDb("studio");

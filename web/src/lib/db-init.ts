@@ -2,7 +2,7 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
-import { getUsersDb, getBlogDb, getChannelDb, getStudioDb, getMessagesDb } from "./db";
+import { getUsersDb, getBlogDb, getStudioDb, getMessagesDb } from "./db";
 import { hashPassword } from "./auth";
 
 const DATA_DIR = path.resolve(process.cwd(), "..", "data");
@@ -152,110 +152,7 @@ function initBlogDb() {
   `);
 }
 
-function initChannelDb() {
-  const db = getChannelDb();
 
-  // 1. Core Tables
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS servers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      icon_url TEXT,
-      owner_id INTEGER,
-      created_at DATETIME DEFAULT (datetime('now', 'localtime'))
-    );
-
-    CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      server_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      position INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS channels (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      server_id INTEGER,
-      category_id INTEGER,
-      name TEXT NOT NULL,
-      description TEXT,
-      type TEXT DEFAULT 'text',
-      position INTEGER DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      message_count INTEGER DEFAULT 0,
-      FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      channel_id INTEGER NOT NULL,
-      user_id INTEGER,
-      username TEXT NOT NULL,
-      user_avatar TEXT,
-      content TEXT NOT NULL,
-      parent_id INTEGER,
-      created_at DATETIME DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS server_members (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      server_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      nickname TEXT,
-      joined_at DATETIME DEFAULT (datetime('now', 'localtime')),
-      UNIQUE(server_id, user_id),
-      FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      server_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      color TEXT,
-      permissions INTEGER DEFAULT 0,
-      position INTEGER DEFAULT 0,
-      FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
-    );
-  `);
-
-  // 2. Migration: Add missing columns to existing tables
-  ensureColumn(db, "channels", "server_id", "server_id INTEGER");
-  ensureColumn(db, "channels", "category_id", "category_id INTEGER");
-  ensureColumn(db, "channels", "type", "type TEXT DEFAULT 'text'");
-  ensureColumn(db, "channels", "position", "position INTEGER DEFAULT 0");
-  ensureColumn(db, "messages", "parent_id", "parent_id INTEGER");
-  ensureColumn(db, "messages", "user_id", "user_id INTEGER");
-  ensureColumn(db, "messages", "user_avatar", "user_avatar TEXT");
-
-  // 3. Seeding: Ensure a default server exists
-  const adminUsername = process.env.ADMIN_USERNAME || "witw";
-  const userDb = getUsersDb();
-  const adminUser = userDb.prepare("SELECT id FROM users WHERE username = ?").get(adminUsername) as any;
-  const adminId = adminUser?.id || 1;
-
-  const serverCount = db.prepare("SELECT COUNT(*) as count FROM servers").get() as any;
-  if (serverCount.count === 0) {
-    const res = db.prepare("INSERT INTO servers (name, owner_id) VALUES (?, ?)").run("系统服务器", adminId);
-    const serverId = res.lastInsertRowid;
-
-    // Create default categories
-    const catText = db.prepare("INSERT INTO categories (server_id, name, position) VALUES (?, ?, ?)").run(serverId, "文字频道", 1);
-    const catVoice = db.prepare("INSERT INTO categories (server_id, name, position) VALUES (?, ?, ?)").run(serverId, "语音频道", 2);
-
-    // Create a default channel
-    db.prepare("INSERT INTO channels (name, server_id, category_id, type) VALUES (?, ?, ?, ?)").run("综合", serverId, catText.lastInsertRowid, "text");
-
-    // Update existing channels to belong to this default server and category
-    db.prepare("UPDATE channels SET server_id = ?, category_id = ? WHERE server_id IS NULL").run(serverId, catText.lastInsertRowid);
-
-    // Auto-join admin to the server
-    db.prepare("INSERT OR IGNORE INTO server_members (server_id, user_id, nickname) VALUES (?, ?, ?)")
-      .run(serverId, adminId, "Administrator");
-  }
-}
 
 function initStudioDb() {
   const db = getStudioDb();
@@ -385,17 +282,14 @@ function migrateLegacyDbIfNeeded() {
   if (fs.existsSync(MIGRATION_MARKER)) return;
 
   const usersDb = getUsersDb();
-  const channelDb = getChannelDb();
   const studioDb = getStudioDb();
 
   // Only migrate if target tables are empty
   const shouldMigrateUsers = tableCount(usersDb, "users") === 0;
   const shouldMigrateFollows = tableCount(usersDb, "follows") === 0;
-  const shouldMigrateChannels = tableCount(channelDb, "channels") === 0;
-  const shouldMigrateMessages = tableCount(channelDb, "messages") === 0;
   const shouldMigrateStudio = tableCount(studioDb, "video_tasks") === 0 && tableCount(studioDb, "video_results") === 0;
 
-  if (!shouldMigrateUsers && !shouldMigrateChannels && !shouldMigrateStudio) {
+  if (!shouldMigrateUsers && !shouldMigrateStudio) {
     fs.writeFileSync(MIGRATION_MARKER, new Date().toISOString());
     return;
   }
@@ -407,13 +301,6 @@ function migrateLegacyDbIfNeeded() {
   }
   if (shouldMigrateFollows) {
     copyTable(legacy, usersDb, "follows");
-  }
-
-  if (shouldMigrateChannels) {
-    copyTable(legacy, channelDb, "channels");
-  }
-  if (shouldMigrateMessages) {
-    copyTable(legacy, channelDb, "messages");
   }
 
   if (shouldMigrateStudio) {
@@ -429,7 +316,7 @@ function migrateLegacyDbIfNeeded() {
 export function initDb() {
   initUsersDb();
   initBlogDb();
-  initChannelDb();
+
   initStudioDb();
   initMessagesDb();
   migrateLegacyDbIfNeeded();

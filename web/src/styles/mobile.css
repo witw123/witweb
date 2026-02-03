@@ -70,33 +70,7 @@
     padding-left: 12px;
   }
 
-  /* Forum Channel List */
-  .channel-list {
-    max-height: 200px;
-    overflow-y: auto;
-  }
 
-  /* Forum Messages */
-  .channel-view {
-    height: auto;
-    min-height: 300px;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .messages-container {
-    max-height: 50vh;
-    overflow-y: auto;
-  }
-
-  .message-input-form {
-    padding: 12px;
-    position: sticky;
-    bottom: 0;
-    background: var(--bg-primary);
-    border-top: 1px solid var(--border-subtle);
-    z-index: 10;
-  }
 
   /* Tables in Admin */
   .admin-table {
