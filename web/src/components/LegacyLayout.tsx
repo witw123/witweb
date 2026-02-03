@@ -192,6 +192,11 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
       <footer className="footer">
         <div className="container">
           <p>© {new Date().getFullYear()} witweb. 基于 Next.js 构建</p>
+          <p className="mt-2 text-sm text-zinc-500">
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-400 transition-colors">
+              皖ICP备2026003097号
+            </a>
+          </p>
         </div>
       </footer>
     </div>
