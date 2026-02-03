@@ -1,0 +1,512 @@
+/* Studio Module Styles */
+/* Uses CSS variables from variables.css for consistency with main site */
+
+/* ============== Studio Layout ============== */
+.studio-container {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+}
+
+.studio-main {
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.6) 0%, rgba(5, 5, 5, 0.4) 100%);
+  backdrop-filter: blur(20px);
+}
+
+.studio-header {
+  height: 64px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(5, 5, 5, 0.5);
+  backdrop-filter: blur(12px);
+}
+
+/* ============== Studio Sidebar ============== */
+.studio-sidebar {
+  background: linear-gradient(180deg, var(--bg-primary) 0%, rgba(5, 5, 5, 0.95) 100%);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.studio-sidebar-brand {
+  font-family: 'Manrope', var(--font-sans);
+  letter-spacing: 0.25em;
+}
+
+.studio-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  transition: all 0.3s ease;
+}
+
+.studio-nav-item:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.studio-nav-item.active {
+  color: var(--text-primary);
+  background: rgba(0, 112, 243, 0.1);
+}
+
+.studio-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--accent-primary);
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 12px var(--accent-primary);
+}
+
+.studio-nav-item.active .studio-nav-icon {
+  color: var(--accent-primary);
+}
+
+/* ============== Studio Panels ============== */
+.studio-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.studio-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.studio-panel-glass {
+  background: rgba(17, 17, 17, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============== Studio Cards ============== */
+.studio-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 24px;
+  transition: all 0.3s ease;
+}
+
+.studio-card:hover {
+  border-color: var(--border-highlight);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.studio-card-featured {
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.9), rgba(10, 10, 10, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.studio-card-featured:hover {
+  border-color: rgba(0, 112, 243, 0.3);
+  box-shadow: 0 0 40px rgba(0, 112, 243, 0.1);
+}
+
+/* ============== Studio Tabs ============== */
+.studio-tab {
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.studio-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.studio-tab.active {
+  color: white;
+  background: var(--accent-primary);
+  box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3);
+}
+
+/* ============== Studio Forms ============== */
+.studio-input {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.studio-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.15);
+}
+
+.studio-input::placeholder {
+  color: #555;
+}
+
+.studio-textarea {
+  min-height: 180px;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.studio-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+
+/* ============== Studio Buttons ============== */
+.studio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: none;
+}
+
+.studio-btn-primary {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.studio-btn-primary:hover {
+  background: #0080ff;
+  box-shadow: 0 8px 24px rgba(0, 112, 243, 0.35);
+  transform: translateY(-1px);
+}
+
+.studio-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.studio-btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.studio-btn-secondary:hover {
+  color: var(--text-primary);
+  border-color: var(--border-highlight);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.studio-btn-secondary.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+/* ============== Studio Toggle Group ============== */
+.studio-toggle-group {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+}
+
+.studio-toggle-item {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.studio-toggle-item:hover {
+  color: var(--text-primary);
+}
+
+.studio-toggle-item.active {
+  background: var(--accent-primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 112, 243, 0.3);
+}
+
+/* ============== Studio Status ============== */
+.studio-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.studio-status-success {
+  background: rgba(0, 112, 243, 0.1);
+  border: 1px solid rgba(0, 112, 243, 0.2);
+  color: var(--accent-secondary);
+}
+
+.studio-status-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.studio-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.studio-status-success .studio-status-dot {
+  background: var(--accent-secondary);
+  box-shadow: 0 0 10px var(--accent-secondary);
+}
+
+.studio-status-error .studio-status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ============== Studio Progress ============== */
+.studio-progress {
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.studio-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+/* ============== Studio Badge ============== */
+.studio-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.studio-badge-info {
+  background: rgba(0, 112, 243, 0.15);
+  color: #93c5fd;
+}
+
+.studio-badge-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+.studio-badge-warning {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde047;
+}
+
+.studio-badge-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+/* ============== Studio Empty State ============== */
+.studio-empty {
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 20px;
+}
+
+/* ============== Studio Video Grid ============== */
+.studio-video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.studio-video-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.studio-video-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 30px rgba(0, 112, 243, 0.15);
+  transform: translateY(-4px);
+}
+
+.studio-video-thumb {
+  aspect-ratio: 16 / 9;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+.studio-video-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.studio-video-info {
+  padding: 20px;
+}
+
+/* ============== Custom Scrollbar ============== */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--border-highlight);
+}
+
+/* ============== Decorative Elements ============== */
+.studio-bg-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.studio-bg-glow-blue {
+  background: rgba(0, 112, 243, 0.08);
+}
+
+.studio-bg-glow-cyan {
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.studio-bg-glow-purple {
+  background: rgba(139, 92, 246, 0.05);
+}
+
+/* ============== Typography Hierarchy ============== */
+.studio-title-1 {
+  font-size: 1.875rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.studio-title-2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.studio-title-3 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+/* ============== Responsive Design ============== */
+@media (max-width: 768px) {
+  .studio-panel {
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .studio-card {
+    padding: 16px;
+  }
+
+  .studio-video-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .studio-header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .studio-nav-item {
+    padding: 12px 14px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .studio-video-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

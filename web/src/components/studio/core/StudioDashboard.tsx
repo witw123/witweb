@@ -9,7 +9,6 @@ interface DashboardProps {
 export function StudioDashboard({ setActiveTab }: DashboardProps) {
   const tools = [
     {
-      category: "核心功能",
       items: [
         {
           id: "video-create",
@@ -33,23 +32,10 @@ export function StudioDashboard({ setActiveTab }: DashboardProps) {
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
 
-      <div className="space-y-4">
-        <h1 className="text-4xl font-black text-white tracking-tight font-heading flex items-center gap-3">
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">创作工作台</span>
-          <span className="px-3 py-1 bg-white/10 text-[10px] text-white/80 rounded-full font-mono font-medium tracking-normal border border-white/5">v2.0</span>
-        </h1>
-        <p className="text-zinc-400 text-sm font-light max-w-2xl leading-relaxed">
-          欢迎来到您的 AIGC 指挥中心。选择下方的功能模块开始您的创作，或管理现有的数字资产。
-        </p>
-      </div>
 
       <div className="space-y-12">
-        {tools.map((section) => (
-          <div key={section.category} className="space-y-6">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-[0.2em] font-heading flex items-center gap-4">
-              <span>{section.category}</span>
-              <div className="h-[1px] flex-1 bg-zinc-800" />
-            </h3>
+        {tools.map((section, idx) => (
+          <div key={idx} className="space-y-6">
 
             <div className="grid grid-cols-1 gap-6">
               {section.items.map((tool) => (

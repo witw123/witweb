@@ -74,14 +74,11 @@ export function SettingsPanel() {
     <div className="max-w-xl mx-auto space-y-12">
       <div className="space-y-10">
         <div className="space-y-4">
-          <label className="text-[10px] font-black text-[#a1a1a1] uppercase tracking-[0.2em] px-1 flex items-center gap-2 font-heading">
-            <div className="w-1.5 h-1.5 bg-[#0070f3] rounded-full" />
-            Access Credentials
-          </label>
-          <div className="flex gap-4 p-2 bg-[#111111]/30 rounded-3xl border border-[#333333]">
+          <label className="studio-label text-center">访问凭证</label>
+          <div className="flex gap-4">
             <input
               type="password"
-              className="flex-1 bg-transparent border-none rounded-xl p-4 text-[#ededed] placeholder:text-[#444444] focus:outline-none focus:ring-0 font-mono text-xs tracking-wider"
+              className="studio-input flex-1"
               placeholder="SK-..."
               value={config.api_key}
               onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
@@ -89,34 +86,29 @@ export function SettingsPanel() {
             <button
               disabled={saving}
               onClick={() => handleSave("api_key", config.api_key)}
-              className="bg-[#0070f3] hover:bg-[#0080ff] text-white px-8 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed font-heading"
+              className="studio-btn studio-btn-primary px-8"
             >
-              Update
+              更新
             </button>
           </div>
-          <p className="text-[9px] text-[#444444] px-3 font-mono">Authentication credentials for backend compute nodes.</p>
+          <p className="text-xs text-[#666] text-center">后端计算节点的身份验证凭证</p>
         </div>
 
-        <div className="space-y-4">
-          <label className="text-[10px] font-black text-[#a1a1a1] uppercase tracking-[0.2em] px-1 flex items-center gap-2 font-heading">
-            <div className="w-1.5 h-1.5 bg-[#00e5ff] rounded-full" />
-            Network Route
-          </label>
+        <div className="space-y-4 pt-8 border-t border-[#222]">
+          <label className="studio-label text-center">网络路由</label>
           <div className="grid grid-cols-3 gap-3">
             {["auto", "domestic", "overseas"].map((mode) => (
               <button
                 key={mode}
                 onClick={() => handleSave("host_mode", mode)}
-                className={`py-4 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-[0.2em] font-heading ${config.host_mode === mode
-                  ? "bg-[#0070f3] border-[#0070f3] text-white shadow-[0_0_20px_rgba(0,112,243,0.3)]"
-                  : "bg-[#050505] border-[#333333] text-[#a1a1a1] hover:text-white hover:border-[#666666]"
+                className={`studio-toggle-btn ${config.host_mode === mode ? "active" : ""
                   }`}
               >
-                {mode === "auto" ? "AUTO" : mode === "domestic" ? "CN_CORE" : "INT_NET"}
+                {mode === "auto" ? "自动" : mode === "domestic" ? "国内" : "国际"}
               </button>
             ))}
           </div>
-          <p className="text-[9px] text-[#444444] px-3 font-mono">Select optimal routing path for API requests based on geographic location.</p>
+          <p className="text-xs text-[#666] text-center">根据地理位置为 API 请求选择最佳路由路径</p>
         </div>
       </div>
 
