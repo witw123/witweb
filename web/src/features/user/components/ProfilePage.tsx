@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { resizeImageFile, resizeImageToDataUrl } from "@/utils/image";
+import { compressImageFile, resizeImageToDataUrl } from "@/utils/image";
 import { getThumbnailUrl } from "@/utils/url";
 import { clearAllCaches } from "@/utils/memoryStore";
 import PostCard from "@/components/PostCard";
@@ -151,7 +151,13 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
 
   async function uploadCover(file: File) {
     if (!token) throw new Error("missing_token");
-    const resized = await resizeImageFile(file, 1600);
+    const resized = await compressImageFile(file, {
+      maxSize: 1280,
+      maxBytes: 900 * 1024,
+      initialQuality: 0.82,
+      minQuality: 0.42,
+      qualityStep: 0.08,
+    });
     const form = new FormData();
     form.append("file", resized, resized.name || "cover.jpg");
     const res = await fetch("/api/upload-image", {

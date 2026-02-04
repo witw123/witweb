@@ -91,3 +91,64 @@ export async function resizeImageToDataUrl(file: File, maxSize: number = 256, qu
   const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
   return canvas.toDataURL(outputType, outputType === "image/jpeg" ? quality : undefined);
 }
+
+async function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise<Blob>((resolve) => {
+    canvas.toBlob((result) => resolve(result || new Blob()), type, quality);
+  });
+}
+
+export async function compressImageFile(
+  file: File,
+  options?: {
+    maxSize?: number;
+    maxBytes?: number;
+    initialQuality?: number;
+    minQuality?: number;
+    qualityStep?: number;
+  },
+): Promise<File> {
+  if (!file || !file.type.startsWith("image/")) return file;
+  const maxSize = options?.maxSize ?? 1200;
+  const maxBytes = options?.maxBytes ?? 900 * 1024;
+  const initialQuality = options?.initialQuality ?? 0.82;
+  const minQuality = options?.minQuality ?? 0.45;
+  const qualityStep = options?.qualityStep ?? 0.08;
+
+  const image = await loadImageFromFile(file);
+  let { width, height } = getTargetSize(image, maxSize);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return file;
+
+  const render = (w: number, h: number) => {
+    canvas.width = w;
+    canvas.height = h;
+    context.clearRect(0, 0, w, h);
+    context.drawImage(image, 0, 0, w, h);
+  };
+
+  render(width, height);
+  let quality = initialQuality;
+  let blob = await canvasToBlob(canvas, "image/jpeg", quality);
+
+  while (blob.size > maxBytes && quality > minQuality) {
+    quality = Math.max(minQuality, quality - qualityStep);
+    blob = await canvasToBlob(canvas, "image/jpeg", quality);
+  }
+
+  while (blob.size > maxBytes && Math.max(width, height) > 640) {
+    width = Math.round(width * 0.85);
+    height = Math.round(height * 0.85);
+    render(width, height);
+    blob = await canvasToBlob(canvas, "image/jpeg", quality);
+    while (blob.size > maxBytes && quality > minQuality) {
+      quality = Math.max(minQuality, quality - qualityStep);
+      blob = await canvasToBlob(canvas, "image/jpeg", quality);
+    }
+  }
+
+  if (!blob.size) return file;
+  const outputName = `${file.name.replace(/\.[^/.]+$/, "") || "image"}.jpg`;
+  return new File([blob], outputName, { type: "image/jpeg" });
+}
