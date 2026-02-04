@@ -2,15 +2,19 @@ import { NextResponse } from "next/server";
 import { getBlogDb } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { headers } from "next/headers";
+import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
+import { initDb } from "@/lib/db-init";
 
-const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
+const adminUsername = process.env.ADMIN_USERNAME || process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
 // PUT - Update friend link (admin only)
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+    initDb();
     const headersList = await headers();
     const authHeader = headersList.get("authorization");
 
@@ -27,6 +31,10 @@ export async function PUT(
 
     const { name, url, description, avatar_url, sort_order, is_active } = await request.json();
     const db = getBlogDb();
+    let finalAvatarUrl = avatar_url || null;
+    if (!finalAvatarUrl && url) {
+      finalAvatarUrl = await detectFriendLinkIcon(url);
+    }
 
     db.prepare(`
       UPDATE friend_links
@@ -37,10 +45,10 @@ export async function PUT(
       name,
       url,
       description || null,
-      avatar_url || null,
+      finalAvatarUrl,
       sort_order ?? 0,
       is_active ?? 1,
-      params.id
+      id
     );
 
     return NextResponse.json({ message: "Friend link updated successfully" });
@@ -53,9 +61,11 @@ export async function PUT(
 // DELETE - Delete friend link (admin only)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+    initDb();
     const headersList = await headers();
     const authHeader = headersList.get("authorization");
 
@@ -71,7 +81,7 @@ export async function DELETE(
     }
 
     const db = getBlogDb();
-    db.prepare("DELETE FROM friend_links WHERE id = ?").run(params.id);
+    db.prepare("DELETE FROM friend_links WHERE id = ?").run(id);
 
     return NextResponse.json({ message: "Friend link deleted successfully" });
   } catch (error) {

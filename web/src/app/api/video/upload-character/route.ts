@@ -8,11 +8,14 @@ export async function POST(req: Request) {
   const user = await requireAuthUser();
   if (user instanceof Response) return user;
   const body = await req.json().catch(() => ({}));
+  if (!body?.url || String(body.url).trim() === "") {
+    return Response.json({ detail: "url is required" }, { status: 400 });
+  }
   const taskId = await uploadCharacterTask({
-    url: body.url,
+    url: String(body.url).trim(),
     timestamps: body.timestamps || "0,3",
-    webHook: "-1",
-    shutProgress: false,
+    webHook: typeof body.webHook === "string" ? body.webHook : "-1",
+    shutProgress: Boolean(body.shutProgress ?? false),
   });
   createTask(user, "upload_character", { url: body.url, timestamps: body.timestamps }, taskId);
   updateTaskStatus(taskId, "running", 0);

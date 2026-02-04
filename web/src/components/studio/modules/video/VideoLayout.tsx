@@ -12,10 +12,10 @@ interface VideoLayoutProps {
 }
 
 const tabs = [
-  { id: "create", label: "开始创作" },
+  { id: "create", label: "视频生成" },
   { id: "character", label: "角色管理" },
   { id: "active", label: "任务列表" },
-  { id: "history", label: "作品图库" },
+  { id: "history", label: "作品库" },
   { id: "settings", label: "设置" },
 ] as const;
 
@@ -25,8 +25,12 @@ export function VideoLayout({ initialTab = "create" }: VideoLayoutProps) {
   return (
     <section className="h-full">
       <div className="mx-auto w-full max-w-6xl">
-        {/* Tab Navigation */}
-        <div className="mb-10 flex flex-wrap justify-center gap-3 pb-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white">视频生成中心</h2>
+          <p className="mt-1 text-sm text-[#95a1b8]">生成、角色、任务、作品与设置，统一在这里管理。</p>
+        </div>
+
+        <div className="studio-toolbar mb-6 justify-center rounded-2xl p-2">
           {tabs.map((tab) => {
             const isActive = activeSubTab === tab.id;
             return (
@@ -34,7 +38,7 @@ export function VideoLayout({ initialTab = "create" }: VideoLayoutProps) {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveSubTab(tab.id)}
-                className={`studio-tab ${isActive ? 'active' : ''}`}
+                className={`studio-tab ${isActive ? "active" : ""}`}
               >
                 {tab.label}
               </button>
@@ -42,9 +46,8 @@ export function VideoLayout({ initialTab = "create" }: VideoLayoutProps) {
           })}
         </div>
 
-        {/* Content Panel */}
         <div className="studio-panel studio-panel-glass">
-          {activeSubTab === "create" && <CreateForm />}
+          {activeSubTab === "create" && <CreateForm onTaskCreated={() => setActiveSubTab("active")} />}
           {activeSubTab === "character" && <CharacterLab />}
           {activeSubTab === "active" && <TaskList />}
           {activeSubTab === "history" && <Gallery />}
@@ -54,4 +57,3 @@ export function VideoLayout({ initialTab = "create" }: VideoLayoutProps) {
     </section>
   );
 }
-

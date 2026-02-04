@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getThumbnailUrl } from "@/utils/url";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
 import UserHoverCard from "@/features/blog/components/UserHoverCard";
@@ -45,6 +45,9 @@ export default function BlogListPage() {
   const [status, setStatus] = useState("loading");
   const isAdmin = profileData?.username === "witw";
   const [authorFilter, setAuthorFilter] = useState("");
+  const searchParams = useSearchParams();
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get("category") || "");
+  const [categories, setCategories] = useState<any[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const etagRef = useRef("");
   const listCacheKeyRef = useRef("");
@@ -137,6 +140,22 @@ export default function BlogListPage() {
   }
 
   useEffect(() => {
+    const nextCategory = searchParams.get("category") || "";
+    setCategoryFilter(nextCategory);
+  }, [searchParams]);
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(Array.isArray(data?.items) ? data.items : []);
+      })
+      .catch(() => {
+        setCategories([]);
+      });
+  }, []);
+
+  useEffect(() => {
     if (!profileData?.username) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserPostCount(0);
@@ -196,6 +215,9 @@ export default function BlogListPage() {
     if (tagFilter.trim()) {
       params.set("tag", tagFilter.trim());
     }
+    if (categoryFilter.trim()) {
+      params.set("category", categoryFilter.trim());
+    }
     const username = profileData?.username || "anon";
     const cacheKey = buildListCacheKey(params, username);
     const fallbackKey = buildListCacheKey(params, "anon");
@@ -253,7 +275,7 @@ export default function BlogListPage() {
 
   useEffect(() => {
     loadPosts({ showLoading: true });
-  }, [currentPage, submittedQuery, authorFilter, tagFilter]);
+  }, [currentPage, submittedQuery, authorFilter, tagFilter, categoryFilter]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -272,7 +294,7 @@ export default function BlogListPage() {
     };
     window.addEventListener("profile-updated", handler as EventListener);
     return () => window.removeEventListener("profile-updated", handler as EventListener);
-  }, [currentPage, submittedQuery, authorFilter, tagFilter, tokenValue, profileData]);
+  }, [currentPage, submittedQuery, authorFilter, tagFilter, categoryFilter, tokenValue, profileData]);
 
   useEffect(() => {
     loadPosts({ showLoading: false });
@@ -297,7 +319,7 @@ export default function BlogListPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
-  }, [submittedQuery, authorFilter, tagFilter]);
+  }, [submittedQuery, authorFilter, tagFilter, categoryFilter]);
 
   async function publish() {
     setPublishStatus("");
@@ -561,6 +583,21 @@ export default function BlogListPage() {
                 </div>
               )}
             </div>
+            <div className="w-full md:w-[220px]">
+              <select
+                className="w-full bg-zinc-800 text-zinc-100 text-sm rounded-full border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                style={{ padding: "0.7rem 1rem" }}
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                <option value="">全部分类</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="list grid mt-8 gap-6">
             {posts.map((post) => {
@@ -574,6 +611,7 @@ export default function BlogListPage() {
                 .split(/[,，]/)
                 .map((tag: string) => tag.trim())
                 .filter(Boolean);
+              const categoryName = post.category_name || "";
               const matchIndex = normalizedQuery
                 ? titleText.toLowerCase().indexOf(normalizedQuery)
                 : -1;
@@ -629,10 +667,19 @@ export default function BlogListPage() {
                   </Link>
 
                   <div className="post-card-footer flex justify-between items-center mt-auto">
-                    <div className="tag-list">
-                      {tagList.map((tag: string) => (
-                        <span key={tag} className="tag-pill">#{tag}</span>
-                      ))}
+                    <div className="post-meta-stack">
+                      {categoryName && (
+                        <div className="category-row">
+                          <span className="category-chip">{categoryName}</span>
+                        </div>
+                      )}
+                      {tagList.length > 0 && (
+                        <div className="tag-list">
+                          {tagList.map((tag: string) => (
+                            <span key={tag} className="tag-pill">#{tag}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="post-card-actions flex gap-1">

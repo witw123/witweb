@@ -2,18 +2,29 @@ import { NextResponse } from "next/server";
 import { getBlogDb } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { headers } from "next/headers";
+import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
+import { initDb } from "@/lib/db-init";
 
-const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
+const adminUsername = process.env.ADMIN_USERNAME || process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
 // GET - Get all active friend links
 export async function GET() {
   try {
+    initDb();
     const db = getBlogDb();
+    const headersList = await headers();
+    const authHeader = headersList.get("authorization");
+    let isAdmin = false;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "");
+      const username = await verifyToken(token).catch(() => null);
+      isAdmin = !!username && username === adminUsername;
+    }
 
     const links = db.prepare(`
-      SELECT id, name, url, description, avatar_url, sort_order
+      SELECT id, name, url, description, avatar_url, sort_order, is_active
       FROM friend_links
-      WHERE is_active = 1
+      ${isAdmin ? "" : "WHERE is_active = 1"}
       ORDER BY sort_order ASC, created_at DESC
     `).all();
 
@@ -27,6 +38,7 @@ export async function GET() {
 // POST - Add new friend link (admin only)
 export async function POST(request: Request) {
   try {
+    initDb();
     const headersList = await headers();
     const authHeader = headersList.get("authorization");
 
@@ -48,11 +60,15 @@ export async function POST(request: Request) {
     }
 
     const db = getBlogDb();
+    let finalAvatarUrl = avatar_url || null;
+    if (!finalAvatarUrl) {
+      finalAvatarUrl = await detectFriendLinkIcon(url);
+    }
 
     const result = db.prepare(`
       INSERT INTO friend_links (name, url, description, avatar_url, sort_order)
       VALUES (?, ?, ?, ?, ?)
-    `).run(name, url, description || null, avatar_url || null, sort_order || 0);
+    `).run(name, url, description || null, finalAvatarUrl, sort_order || 0);
 
     return NextResponse.json({
       id: result.lastInsertRowid,

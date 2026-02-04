@@ -17,13 +17,6 @@ const VideoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const SettingsIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
 export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
   const items = [
     { id: "home", label: "工作台", icon: HomeIcon },
@@ -31,33 +24,26 @@ export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
   ];
 
   return (
-    <aside className="studio-sidebar w-20 md:w-56 flex flex-col shrink-0">
-      {/* Brand */}
-      <div
-        className="p-6 hidden md:flex flex-col cursor-pointer group"
-        onClick={() => setActiveTab("home")}
-      >
+    <aside className="studio-sidebar w-20 shrink-0 flex-col md:w-56">
+      <div className="group hidden cursor-pointer flex-col p-6 md:flex" onClick={() => setActiveTab("home")}>
         <div className="studio-sidebar-brand">
-          <h1 className="text-lg font-extrabold text-white tracking-[0.2em] group-hover:opacity-80 transition-opacity">
+          <h1 className="text-lg font-extrabold tracking-[0.2em] text-white transition-opacity group-hover:opacity-80">
             STUDIO
           </h1>
-          <span className="text-[9px] text-[#0070f3] mt-1 tracking-[0.3em] block font-medium">
-            GENERATIVE AI
-          </span>
+          <span className="mt-1 block text-[9px] font-medium tracking-[0.3em] text-[#0070f3]">视频创作</span>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-2 mt-4">
+      <nav className="mt-4 flex-1 space-y-2 px-3">
         {items.map((item) => {
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`studio-nav-item w-full ${isActive ? 'active' : ''}`}
+              className={`studio-nav-item w-full ${isActive ? "active" : ""}`}
             >
-              <item.icon className={`studio-nav-icon transition-all duration-300 ${isActive ? 'text-[#0070f3] scale-110' : ''}`} />
+              <item.icon className={`studio-nav-icon transition-all duration-300 ${isActive ? "scale-110 text-[#0070f3]" : ""}`} />
               <span className="hidden md:block">{item.label}</span>
             </button>
           );
@@ -66,4 +52,3 @@ export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
     </aside>
   );
 }
-

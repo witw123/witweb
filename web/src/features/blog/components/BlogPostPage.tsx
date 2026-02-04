@@ -44,7 +44,9 @@ export default function BlogPostPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editTags, setEditTags] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
   const [imageWidth, setImageWidth] = useState("");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState("");
@@ -185,6 +187,22 @@ export default function BlogPostPage() {
       loadComments({ force: true });
     }
   }, []);
+
+  useEffect(() => {
+    if (!slug || typeof window === "undefined") return;
+    const viewedKey = `post:viewed:${slug}`;
+    if (sessionStorage.getItem(viewedKey)) return;
+    fetch(`/api/blog/${slug}/view`, { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => {
+        sessionStorage.setItem(viewedKey, "1");
+        if (typeof data?.view_count === "number") {
+          setPost((prev: any) => (prev ? { ...prev, view_count: data.view_count } : prev));
+        }
+      })
+      .catch(() => { });
+  }, [slug]);
+
   useEffect(() => {
     if (!slug) return;
     let cachedPost: any = null;
@@ -228,10 +246,22 @@ export default function BlogPostPage() {
   }, [slug, cacheKeySignature]);
 
   useEffect(() => {
+    fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(Array.isArray(data?.items) ? data.items : []);
+      })
+      .catch(() => {
+        setCategories([]);
+      });
+  }, []);
+
+  useEffect(() => {
     if (post) {
       setEditTitle(post.title || "");
       setEditContent(post.content || "");
       setEditTags(post.tags || "");
+      setEditCategoryId(post.category_id ? String(post.category_id) : "");
     }
   }, [post]);
 
@@ -376,6 +406,7 @@ export default function BlogPostPage() {
         title: editTitle,
         content: editContent,
         tags: editTags,
+        category_id: editCategoryId ? Number(editCategoryId) : null,
       }),
     });
     if (!res.ok) {
@@ -789,6 +820,7 @@ export default function BlogPostPage() {
                 </UserHoverCard>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                   <span>{new Date(post.created_at).toLocaleString()}</span>
+                  <span>浏览 {post.view_count ?? 0}</span>
                   <span>阅读 {readingStats.minutes} 分钟</span>
                   <span>{readingStats.length} 字</span>
                 </div>
@@ -846,13 +878,22 @@ export default function BlogPostPage() {
           </div>
         </div>
       )}
-      {tagList.length > 0 && (
-        <div className="tag-list mb-6">
-          {tagList.map((tag) => (
-            <span key={tag} className="tag-pill">
-              #{tag}
-            </span>
-          ))}
+      {(tagList.length > 0 || post?.category_name) && (
+        <div className="post-meta-stack mb-6">
+          {post?.category_name && (
+            <div className="category-row">
+              <span className="category-chip">{post.category_name}</span>
+            </div>
+          )}
+          {tagList.length > 0 && (
+            <div className="tag-list">
+              {tagList.map((tag) => (
+                <span key={tag} className="tag-pill">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -867,6 +908,21 @@ export default function BlogPostPage() {
               onChange={(event) => setEditTitle(event.target.value)}
               placeholder="标题"
             />
+          </label>
+          <label className="block mb-4">
+            <span className="block text-sm font-medium mb-1">分类</span>
+            <select
+              className="input"
+              value={editCategoryId}
+              onChange={(event) => setEditCategoryId(event.target.value)}
+            >
+              <option value="">未分类</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="block mb-4">
             <span className="block text-sm font-medium mb-1">标签</span>

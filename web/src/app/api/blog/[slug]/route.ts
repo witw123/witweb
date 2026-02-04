@@ -21,7 +21,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
   if (!body?.title || !body?.content) {
     return Response.json({ detail: "Title and content required" }, { status: 400 });
   }
-  const res = updatePost(paramsData.slug, body.title, body.content, body.tags || "", user);
+  const categoryId = body?.category_id !== undefined && body?.category_id !== null && body?.category_id !== ""
+    ? Number(body.category_id)
+    : null;
+  const res = updatePost(
+    paramsData.slug,
+    body.title,
+    body.content,
+    body.tags || "",
+    user,
+    Number.isFinite(categoryId as number) ? categoryId : null,
+  );
   if (!res.ok && res.error === "not_found") {
     return Response.json({ detail: "Post not found" }, { status: 404 });
   }

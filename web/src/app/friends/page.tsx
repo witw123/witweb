@@ -29,6 +29,14 @@ export default function FriendsPage() {
       });
   }, []);
 
+  const getFallbackIcon = (siteUrl: string) => {
+    try {
+      return `${new URL(siteUrl).origin}/favicon.ico`;
+    } catch {
+      return "";
+    }
+  };
+
   if (loading) {
     return (
       <div className="container py-8">
@@ -59,11 +67,19 @@ export default function FriendsPage() {
               className="card hover:border-blue-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/10"
             >
               <div className="flex items-start gap-4">
-                {link.avatar_url ? (
+                {link.avatar_url || getFallbackIcon(link.url) ? (
                   <img
-                    src={link.avatar_url}
+                    src={link.avatar_url || getFallbackIcon(link.url)}
                     alt={link.name}
                     className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                    onError={(e) => {
+                      const fallback = getFallbackIcon(link.url);
+                      if (fallback && (e.currentTarget as HTMLImageElement).src !== fallback) {
+                        (e.currentTarget as HTMLImageElement).src = fallback;
+                        return;
+                      }
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
                   />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">

@@ -8,11 +8,14 @@ export async function POST(req: Request) {
   const user = await requireAuthUser();
   if (user instanceof Response) return user;
   const body = await req.json().catch(() => ({}));
+  if (!body?.pid || String(body.pid).trim() === "") {
+    return Response.json({ detail: "pid is required" }, { status: 400 });
+  }
   const taskId = await createCharacterTask({
-    pid: body.pid,
+    pid: String(body.pid).trim(),
     timestamps: body.timestamps || "0,3",
-    webHook: "-1",
-    shutProgress: false,
+    webHook: typeof body.webHook === "string" ? body.webHook : "-1",
+    shutProgress: Boolean(body.shutProgress ?? false),
   });
   createTask(user, "create_character", { pid: body.pid, timestamps: body.timestamps }, taskId);
   updateTaskStatus(taskId, "running", 0);

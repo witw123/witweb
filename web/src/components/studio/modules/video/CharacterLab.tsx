@@ -16,12 +16,11 @@ export function CharacterLab() {
     e.preventDefault();
     if (!token) return;
 
-    setLoading(true);
-    setStatus(null);
-
     const endpoint = mode === "upload" ? "/api/video/upload-character" : "/api/video/create-character";
     const payload = mode === "upload" ? uploadData : createData;
 
+    setLoading(true);
+    setStatus(null);
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -31,95 +30,91 @@ export function CharacterLab() {
         },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
-      if (res.ok) {
-        setStatus({ type: "success", msg: `角色任务已提交，任务ID: ${data.task_id || data.id}` });
-      } else {
-        throw new Error(data.detail || "提交失败");
-      }
+      if (!res.ok) throw new Error(data.detail || "提交失败");
+      setStatus({ type: "success", msg: `角色任务已提交，任务 ID：${data.task_id || data.id}` });
     } catch (err: any) {
-      setStatus({ type: "error", msg: err.message });
+      setStatus({ type: "error", msg: err.message || "提交失败" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section className="mx-auto w-full max-w-3xl space-y-8">
-      {/* Mode Toggle */}
-      <div className="studio-toggle-group">
-        <button
-          type="button"
-          onClick={() => setMode("upload")}
-          className={`studio-toggle-item ${mode === "upload" ? 'active' : ''}`}
-        >
-          上传角色素材
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("create")}
-          className={`studio-toggle-item ${mode === "create" ? 'active' : ''}`}
-        >
-          使用已有 PID
-        </button>
+    <section className="studio-subpage">
+      <div className="studio-section-head">
+        <div>
+          <h3 className="studio-section-title">角色管理</h3>
+          <p className="studio-section-desc">上传角色素材，或基于已有视频 PID 创建角色。</p>
+        </div>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="studio-card space-y-7">
-        <div>
-          <label className="studio-label">
-            {mode === "upload" ? "素材链接" : "角色 PID"}
-          </label>
-          <input
-            type="text"
-            required
-            className="studio-input"
-            placeholder={mode === "upload" ? "输入 URL 或 Base64..." : "输入 PID..."}
-            value={mode === "upload" ? uploadData.url : createData.pid}
-            onChange={(e) =>
-              mode === "upload"
-                ? setUploadData({ ...uploadData, url: e.target.value })
-                : setCreateData({ ...createData, pid: e.target.value })
-            }
-          />
+      <div className="studio-form-section">
+        <div className="studio-toggle-group mb-5">
+          <button
+            type="button"
+            onClick={() => setMode("upload")}
+            className={`studio-toggle-item ${mode === "upload" ? "active" : ""}`}
+          >
+            上传角色素材
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("create")}
+            className={`studio-toggle-item ${mode === "create" ? "active" : ""}`}
+          >
+            使用视频 PID
+          </button>
         </div>
 
-        <div>
-          <label className="studio-label">抽取时间戳</label>
-          <input
-            type="text"
-            required
-            className="studio-input"
-            placeholder="0,3"
-            value={mode === "upload" ? uploadData.timestamps : createData.timestamps}
-            onChange={(e) =>
-              mode === "upload"
-                ? setUploadData({ ...uploadData, timestamps: e.target.value })
-                : setCreateData({ ...createData, timestamps: e.target.value })
-            }
-          />
-          <p className="mt-3 text-xs text-[#666] leading-relaxed">
-            格式：开始时间,结束时间（秒）
-          </p>
-        </div>
-
-        {status && (
-          <div className={`studio-status ${status.type === "success" ? "studio-status-success" : "studio-status-error"}`}>
-            <div className="studio-status-dot" />
-            {status.msg}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="studio-label">{mode === "upload" ? "素材链接" : "视频 PID"}</label>
+            <input
+              type="text"
+              required
+              className="studio-input"
+              placeholder={mode === "upload" ? "请输入视频 URL 或 Base64..." : "请输入视频 PID..."}
+              value={mode === "upload" ? uploadData.url : createData.pid}
+              onChange={(e) =>
+                mode === "upload"
+                  ? setUploadData({ ...uploadData, url: e.target.value })
+                  : setCreateData({ ...createData, pid: e.target.value })
+              }
+            />
           </div>
-        )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="studio-btn studio-btn-primary w-full py-4"
-        >
-          {loading ? "提交中..." : "提交角色任务"}
-        </button>
-      </form>
+          <div>
+            <label className="studio-label">截取时间段</label>
+            <input
+              type="text"
+              required
+              className="studio-input"
+              placeholder="0,3"
+              value={mode === "upload" ? uploadData.timestamps : createData.timestamps}
+              onChange={(e) =>
+                mode === "upload"
+                  ? setUploadData({ ...uploadData, timestamps: e.target.value })
+                  : setCreateData({ ...createData, timestamps: e.target.value })
+              }
+            />
+            <p className="mt-2 text-xs text-[#666]">格式：开始秒数,结束秒数（最多 3 秒）</p>
+          </div>
+
+          {status && (
+            <div className={`studio-status ${status.type === "success" ? "studio-status-success" : "studio-status-error"}`}>
+              <div className="studio-status-dot" />
+              {status.msg}
+            </div>
+          )}
+
+          <div className="studio-action-row">
+            <button type="submit" disabled={loading} className="studio-btn studio-btn-primary min-w-[180px] py-3">
+              {loading ? "提交中..." : "提交角色任务"}
+            </button>
+          </div>
+        </form>
+      </div>
     </section>
   );
 }
-

@@ -25,9 +25,20 @@ export default function FriendLinksManagement() {
     is_active: 1,
   });
 
+  const getFallbackIcon = (siteUrl: string) => {
+    try {
+      return `${new URL(siteUrl).origin}/favicon.ico`;
+    } catch {
+      return "";
+    }
+  };
+
   const fetchLinks = async () => {
     try {
-      const res = await fetch("/api/friend-links");
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/friend-links", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await res.json();
       setLinks(data.links || []);
       setLoading(false);
@@ -175,13 +186,13 @@ export default function FriendLinksManagement() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">头像URL</label>
+            <label className="block text-sm font-medium mb-1">站点图标 URL（可选）</label>
             <input
               type="url"
               className="input w-full"
               value={formData.avatar_url}
               onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-              placeholder="https://example.com/avatar.jpg"
+              placeholder="留空将自动检测网站图标"
             />
           </div>
 
@@ -234,11 +245,19 @@ export default function FriendLinksManagement() {
                 className="flex items-center justify-between p-4 border border-subtle rounded-lg hover:border-blue-500/50 transition-colors"
               >
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                  {link.avatar_url ? (
+                  {link.avatar_url || getFallbackIcon(link.url) ? (
                     <img
-                      src={link.avatar_url}
+                      src={link.avatar_url || getFallbackIcon(link.url)}
                       alt={link.name}
                       className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                      onError={(e) => {
+                        const fallback = getFallbackIcon(link.url);
+                        if (fallback && (e.currentTarget as HTMLImageElement).src !== fallback) {
+                          (e.currentTarget as HTMLImageElement).src = fallback;
+                          return;
+                        }
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
                     />
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold flex-shrink-0">

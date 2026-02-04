@@ -223,7 +223,15 @@ export function getSystemNotifications(username: string) {
   ];
 }
 
-export function listPosts(page = 1, size = 10, query = "", author = "", tag = "", username = "") {
+export function listPosts(
+  page = 1,
+  size = 10,
+  query = "",
+  author = "",
+  tag = "",
+  username = "",
+  category = "",
+) {
   const db = getBlogDb();
   page = Math.max(1, page);
   size = Math.max(1, Math.min(50, size));
@@ -247,8 +255,13 @@ export function listPosts(page = 1, size = 10, query = "", author = "", tag = ""
     filters.push("p.tags LIKE ?");
     params.push(`%${tag}%`);
   }
+  if (category) {
+    filters.push("c.slug = ?");
+    params.push(category);
+  }
+  const fromSql = "FROM posts p LEFT JOIN categories c ON c.id = p.category_id";
   const whereSql = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-  const totalRow = db.prepare(`SELECT COUNT(*) AS cnt FROM posts p ${whereSql}`).get(...params) as any;
+  const totalRow = db.prepare(`SELECT COUNT(*) AS cnt ${fromSql} ${whereSql}`).get(...params) as any;
   const total = totalRow?.cnt || 0;
   const offset = (page - 1) * size;
   const rows = db.prepare(`
@@ -259,6 +272,10 @@ export function listPosts(page = 1, size = 10, query = "", author = "", tag = ""
       p.created_at,
       p.author,
       p.tags,
+      p.category_id,
+      COALESCE(p.view_count, 0) AS view_count,
+      c.name AS category_name,
+      c.slug AS category_slug,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
       (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -269,7 +286,7 @@ export function listPosts(page = 1, size = 10, query = "", author = "", tag = ""
           SELECT 1 FROM favorites f2 WHERE f2.post_id = p.id AND f2.username = ?
         )
       END AS favorited_by_me
-    FROM posts p
+    ${fromSql}
     ${whereSql}
     ORDER BY p.id DESC
     LIMIT ? OFFSET ?
@@ -296,11 +313,16 @@ export function getPost(slug: string, username = "") {
       p.created_at,
       p.author,
       p.tags,
+      p.category_id,
+      COALESCE(p.view_count, 0) AS view_count,
+      c.name AS category_name,
+      c.slug AS category_slug,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
       (SELECT COUNT(*) FROM dislikes d WHERE d.post_id = p.id) AS dislike_count,
       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
       (SELECT COUNT(*) FROM favorites f WHERE f.post_id = p.id) AS favorite_count
     FROM posts p
+    LEFT JOIN categories c ON c.id = p.category_id
     WHERE p.slug = ?
   `).get(slug) as any;
   if (!row) return null;
@@ -319,23 +341,44 @@ export function getPost(slug: string, username = "") {
   return row;
 }
 
-export function createPost(title: string, slug: string | null, content: string, author: string, tags = "") {
+export function createPost(
+  title: string,
+  slug: string | null,
+  content: string,
+  author: string,
+  tags = "",
+  categoryId: number | null = null,
+) {
   const db = getBlogDb();
   const finalSlug = slug && slug.trim() ? slugify(slug) : slugify(title);
   const unique = ensureUniqueSlug(db, finalSlug);
   const now = new Date().toISOString();
-  db.prepare("INSERT INTO posts (title, slug, content, created_at, updated_at, author, tags, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(title, unique, content, now, now, author, tags, "published");
+  db.prepare("INSERT INTO posts (title, slug, content, created_at, updated_at, author, tags, status, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(title, unique, content, now, now, author, tags, "published", categoryId);
   return unique;
 }
 
-export function updatePost(slug: string, title: string, content: string, tags: string, username: string) {
+export function incrementPostView(slug: string) {
+  const db = getBlogDb();
+  db.prepare("UPDATE posts SET view_count = COALESCE(view_count, 0) + 1 WHERE slug = ?").run(slug);
+  const row = db.prepare("SELECT COALESCE(view_count, 0) AS view_count FROM posts WHERE slug = ?").get(slug) as any;
+  return row?.view_count ?? 0;
+}
+
+export function updatePost(
+  slug: string,
+  title: string,
+  content: string,
+  tags: string,
+  username: string,
+  categoryId: number | null = null,
+) {
   const db = getBlogDb();
   const row = db.prepare("SELECT author FROM posts WHERE slug = ?").get(slug) as any;
   if (!row) return { ok: false, error: "not_found" };
   if (row.author !== username) return { ok: false, error: "forbidden" };
-  db.prepare("UPDATE posts SET title = ?, content = ?, tags = ?, updated_at = ? WHERE slug = ?")
-    .run(title, content, tags, new Date().toISOString(), slug);
+  db.prepare("UPDATE posts SET title = ?, content = ?, tags = ?, category_id = ?, updated_at = ? WHERE slug = ?")
+    .run(title, content, tags, categoryId, new Date().toISOString(), slug);
   return { ok: true };
 }
 
@@ -499,6 +542,28 @@ function ensureUniqueSlug(db: any, base: string) {
     i += 1;
   }
   return slug;
+}
+
+export function listCategories(includeInactive = false) {
+  const db = getBlogDb();
+  const rows = db.prepare(`
+    SELECT
+      c.id,
+      c.name,
+      c.slug,
+      c.description,
+      c.sort_order,
+      c.is_active,
+      (
+        SELECT COUNT(*)
+        FROM posts p
+        WHERE p.category_id = c.id
+      ) AS post_count
+    FROM categories c
+    ${includeInactive ? "" : "WHERE c.is_active = 1"}
+    ORDER BY c.sort_order ASC, c.id ASC
+  `).all() as any[];
+  return rows;
 }
 
 export function updateComment(commentId: number, content: string, username: string, adminUsername: string) {

@@ -12,7 +12,6 @@ export function SettingsPanel() {
   const [config, setConfig] = useState({
     api_key: "",
     host_mode: "auto",
-    token: "",
   });
 
   useEffect(() => {
@@ -21,10 +20,10 @@ export function SettingsPanel() {
       setLoading(true);
       try {
         const res = await fetch("/api/video/config", {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        setConfig(prev => ({
+        setConfig((prev) => ({
           ...prev,
           host_mode: data.host_mode || "auto",
         }));
@@ -37,15 +36,13 @@ export function SettingsPanel() {
     fetchConfig();
   }, [token]);
 
-  const handleSave = async (key: string, value: any) => {
+  const handleSave = async (key: "api_key" | "host_mode", value: string) => {
     if (!token) return;
     setSaving(true);
     setStatus(null);
     try {
-      const endpoint = key === "api_key" ? "/api/video/config/api-key" :
-        key === "host_mode" ? "/api/video/config/host-mode" : "/api/video/config";
-      const body = key === "api_key" ? { api_key: value } :
-        key === "host_mode" ? { host_mode: value } : { [key]: value };
+      const endpoint = key === "api_key" ? "/api/video/config/api-key" : "/api/video/config/host-mode";
+      const body = key === "api_key" ? { api_key: value } : { host_mode: value };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -55,70 +52,76 @@ export function SettingsPanel() {
         },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        setStatus({ type: "success", msg: "设置已保存" });
-        setConfig(prev => ({ ...prev, [key]: value }));
-      } else {
-        throw new Error("保存失败");
-      }
+      if (!res.ok) throw new Error("保存失败");
+      setStatus({ type: "success", msg: "设置已保存" });
+      setConfig((prev) => ({ ...prev, [key]: value }));
     } catch (err: any) {
-      setStatus({ type: "error", msg: err.message });
+      setStatus({ type: "error", msg: err.message || "保存失败" });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div className="p-10 text-center text-zinc-500">加载中...</div>;
+  if (loading) return <div className="py-16 text-center text-sm text-[#888]">正在加载设置...</div>;
 
   return (
-    <div className="max-w-xl mx-auto space-y-12">
-      <div className="space-y-10">
+    <section className="studio-subpage">
+      <div className="studio-section-head">
+        <div>
+          <h3 className="studio-section-title">中心设置</h3>
+          <p className="studio-section-desc">配置接口密钥与线路模式，影响所有视频任务请求。</p>
+        </div>
+      </div>
+
+      <div className="studio-form-section">
         <div className="space-y-4">
-          <label className="studio-label text-center">访问凭证</label>
-          <div className="flex gap-4">
+          <label className="studio-label">API 密钥</label>
+          <div className="flex flex-col gap-3 sm:flex-row">
             <input
               type="password"
               className="studio-input flex-1"
-              placeholder="SK-..."
+              placeholder="请输入 API Key（sk-...）"
               value={config.api_key}
               onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
             />
             <button
-              disabled={saving}
+              disabled={saving || !config.api_key.trim()}
               onClick={() => handleSave("api_key", config.api_key)}
-              className="studio-btn studio-btn-primary px-8"
+              className="studio-btn studio-btn-primary min-w-[120px]"
             >
-              更新
+              保存
             </button>
           </div>
-          <p className="text-xs text-[#666] text-center">后端计算节点的身份验证凭证</p>
+          <p className="text-xs text-[#666]">用于服务端调用视频接口的鉴权凭证。</p>
         </div>
 
-        <div className="space-y-4 pt-8 border-t border-[#222]">
-          <label className="studio-label text-center">网络路由</label>
-          <div className="grid grid-cols-3 gap-3">
-            {["auto", "domestic", "overseas"].map((mode) => (
+        <div className="mt-6 space-y-4 border-t border-[#222] pt-6">
+          <label className="studio-label">线路模式</label>
+          <div className="studio-toggle-group">
+            {[
+              { value: "auto", label: "自动" },
+              { value: "domestic", label: "国内" },
+              { value: "overseas", label: "海外" },
+            ].map((mode) => (
               <button
-                key={mode}
-                onClick={() => handleSave("host_mode", mode)}
-                className={`studio-toggle-btn ${config.host_mode === mode ? "active" : ""
-                  }`}
+                key={mode.value}
+                onClick={() => handleSave("host_mode", mode.value)}
+                className={`studio-toggle-item ${config.host_mode === mode.value ? "active" : ""}`}
               >
-                {mode === "auto" ? "自动" : mode === "domestic" ? "国内" : "国际"}
+                {mode.label}
               </button>
             ))}
           </div>
-          <p className="text-xs text-[#666] text-center">根据地理位置为 API 请求选择最佳路由路径</p>
+          <p className="text-xs text-[#666]">自动模式会在可用线路间自动回退重试。</p>
         </div>
       </div>
 
       {status && (
-        <div className={`p-5 rounded-2xl text-[10px] font-black tracking-widest uppercase animate-in fade-in slide-in-from-bottom-2 duration-300 flex items-center gap-3 ${status.type === "success" ? "bg-[#0070f3]/10 text-[#00e5ff] border border-[#0070f3]/20" : "bg-red-500/10 text-red-500 border border-red-500/20"
-          }`}>
-          <div className={`w-2 h-2 rounded-full ${status.type === "success" ? "bg-[#00e5ff] shadow-[0_0_10px_#00e5ff]" : "bg-red-500 shadow-[0_0_10px_#ef4444]"}`} />
+        <div className={`studio-status ${status.type === "success" ? "studio-status-success" : "studio-status-error"}`}>
+          <div className="studio-status-dot" />
           {status.msg}
         </div>
       )}
-    </div>
+    </section>
   );
 }

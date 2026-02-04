@@ -12,6 +12,7 @@ export default function BlogManagementPage() {
   const [editingBlog, setEditingBlog] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
     loadBlogs();
@@ -23,6 +24,10 @@ export default function BlogManagementPage() {
     window.addEventListener("profile-updated", handler as EventListener);
     return () => window.removeEventListener("profile-updated", handler as EventListener);
   }, [page, search, statusFilter]);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   const loadBlogs = async () => {
     try {
@@ -50,6 +55,23 @@ export default function BlogManagementPage() {
       console.error("Failed to load blogs:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/admin/categories?limit=200", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data.categories || []);
+      }
+    } catch (error) {
+      setCategories([]);
     }
   };
 
@@ -93,6 +115,7 @@ export default function BlogManagementPage() {
           title: editingBlog.title,
           content: editingBlog.content,
           tags: editingBlog.tags,
+          category_id: editingBlog.category_id || null,
         }),
       });
 
@@ -194,6 +217,7 @@ export default function BlogManagementPage() {
               <tr>
                 <th>标题</th>
                 <th>作者</th>
+                <th>分类</th>
                 <th>状态</th>
                 <th>创建时间</th>
                 <th>操作</th>
@@ -204,6 +228,7 @@ export default function BlogManagementPage() {
                 <tr key={blog.id}>
                   <td><strong>{blog.title}</strong></td>
                   <td>{blog.username}</td>
+                  <td>{blog.category_name || "未分类"}</td>
                   <td>
                     <span className={`badge badge-${blog.status === "published" ? "success" : "warning"}`}>
                       {blog.status === "published" ? "已发布" : "草稿"}
@@ -289,6 +314,21 @@ export default function BlogManagementPage() {
                   onChange={(e) => setEditingBlog({ ...editingBlog, title: e.target.value })}
                   className="admin-input"
                 />
+              </div>
+              <div className="form-group">
+                <label>分类</label>
+                <select
+                  value={editingBlog.category_id || ""}
+                  onChange={(e) => setEditingBlog({ ...editingBlog, category_id: e.target.value ? Number(e.target.value) : null })}
+                  className="admin-input"
+                >
+                  <option value="">未分类</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="form-group">
                 <label>标签 (逗号分隔)</label>

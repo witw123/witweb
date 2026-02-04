@@ -8,16 +8,19 @@ export async function POST(req: Request) {
   const user = await requireAuthUser();
   if (user instanceof Response) return user;
   const body = await req.json().catch(() => ({}));
+  if (!body?.prompt || String(body.prompt).trim() === "") {
+    return Response.json({ detail: "prompt is required" }, { status: 400 });
+  }
   const payload = {
     model: body.model || "sora-2",
-    prompt: body.prompt,
+    prompt: String(body.prompt).trim(),
     url: body.url,
-    aspectRatio: body.aspectRatio,
-    duration: body.duration,
+    aspectRatio: body.aspectRatio || "9:16",
+    duration: Number(body.duration || 10),
     remixTargetId: body.remixTargetId,
     size: body.size || "small",
-    webHook: "-1",
-    shutProgress: false,
+    webHook: typeof body.webHook === "string" ? body.webHook : "-1",
+    shutProgress: Boolean(body.shutProgress ?? false),
   };
   const taskId = await createVideoTask(payload);
   createTask(user, "generate", {

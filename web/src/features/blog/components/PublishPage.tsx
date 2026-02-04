@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
@@ -16,6 +16,19 @@ export default function PublishPage() {
   const [status, setStatus] = useState("");
   const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(Array.isArray(data?.items) ? data.items : []);
+      })
+      .catch(() => {
+        setCategories([]);
+      });
+  }, []);
 
   async function publish() {
     setStatus("");
@@ -35,7 +48,12 @@ export default function PublishPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ title, content, tags }),
+      body: JSON.stringify({
+        title,
+        content,
+        tags,
+        category_id: categoryId ? Number(categoryId) : null,
+      }),
     });
     setPublishing(false);
     if (!res.ok) {
@@ -47,6 +65,7 @@ export default function PublishPage() {
     setTitle("");
     setTags("");
     setContent("");
+    setCategoryId("");
   }
 
   async function uploadImage(file: File) {
@@ -114,6 +133,21 @@ export default function PublishPage() {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="文章标题"
               />
+            </label>
+            <label>
+              <span className="text-sm text-muted">分类</span>
+              <select
+                className="input mt-1"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+              >
+                <option value="">未分类</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               <span className="text-sm text-muted">标签</span>

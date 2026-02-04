@@ -10,8 +10,9 @@ export async function GET(req: Request) {
   const q = url.searchParams.get("q") || "";
   const author = url.searchParams.get("author") || "";
   const tag = url.searchParams.get("tag") || "";
+  const category = url.searchParams.get("category") || "";
   const user = await getAuthUser();
-  const data = listPosts(page, size, q, author, tag, user || "");
+  const data = listPosts(page, size, q, author, tag, user || "", category);
   return Response.json({
     items: data.items,
     total: data.total,
@@ -28,6 +29,9 @@ export async function POST(req: Request) {
   if (!body?.title || !body?.content) {
     return Response.json({ detail: "Title and content required" }, { status: 400 });
   }
-  createPost(body.title, body.slug || null, body.content, user, body.tags || "");
+  const categoryId = body?.category_id !== undefined && body?.category_id !== null && body?.category_id !== ""
+    ? Number(body.category_id)
+    : null;
+  createPost(body.title, body.slug || null, body.content, user, body.tags || "", Number.isFinite(categoryId as number) ? categoryId : null);
   return Response.json({ ok: true, user });
 }

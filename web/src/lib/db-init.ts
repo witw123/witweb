@@ -92,11 +92,40 @@ function initBlogDb() {
       tags TEXT,
       status TEXT DEFAULT 'published'
     );
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+    CREATE TABLE IF NOT EXISTS friend_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      description TEXT,
+      avatar_url TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
   `);
   ensureColumn(db, "posts", "updated_at", "updated_at TEXT");
   ensureColumn(db, "posts", "author", "author TEXT");
   ensureColumn(db, "posts", "tags", "tags TEXT");
   ensureColumn(db, "posts", "status", "status TEXT DEFAULT 'published'");
+  ensureColumn(db, "posts", "category_id", "category_id INTEGER");
+  ensureColumn(db, "posts", "view_count", "view_count INTEGER DEFAULT 0");
+  ensureColumn(db, "friend_links", "description", "description TEXT");
+  ensureColumn(db, "friend_links", "avatar_url", "avatar_url TEXT");
+  ensureColumn(db, "friend_links", "sort_order", "sort_order INTEGER DEFAULT 0");
+  ensureColumn(db, "friend_links", "is_active", "is_active INTEGER DEFAULT 1");
+  ensureColumn(db, "friend_links", "created_at", "created_at TEXT");
+  ensureColumn(db, "friend_links", "updated_at", "updated_at TEXT");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS likes (
@@ -144,11 +173,14 @@ function initBlogDb() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_post_user ON favorites(post_id, username);
     CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author);
     CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at);
+    CREATE INDEX IF NOT EXISTS idx_posts_category_id ON posts(category_id);
     CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
     CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at);
     CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
     CREATE INDEX IF NOT EXISTS idx_dislikes_post ON dislikes(post_id);
     CREATE INDEX IF NOT EXISTS idx_favorites_post ON favorites(post_id);
+    CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON categories(sort_order);
+    CREATE INDEX IF NOT EXISTS idx_friend_links_sort_order ON friend_links(sort_order);
   `);
 }
 
