@@ -69,8 +69,8 @@ SORA_MESSAGES_DB_PATH=ABSOLUTE_PATH
 
 ### 关键环境变量
 
-- `ADMIN_USERNAME` / `ADMIN_PASSWORD`：管理账号初始化信息（默认 `witw`）
-- `NEXT_PUBLIC_ADMIN_USERNAME`：前端展示的管理员用户名（默认 `witw`）
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD`：管理账号初始化信息
+- `NEXT_PUBLIC_ADMIN_USERNAME`：前端展示的管理员用户名
 - `AUTH_SECRET`：鉴权签名密钥（默认 `change-this-secret`，建议本地/生产自行设置）
 
 ## 其他说明
