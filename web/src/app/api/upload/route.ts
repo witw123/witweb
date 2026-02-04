@@ -18,7 +18,8 @@ export async function POST(req: Request) {
   const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, "");
   const ext = path.extname(safeName) || ".png";
   const name = `${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`;
-  const targetDir = path.join(process.cwd(), "public", "uploads");
+  // Keep upload path aligned with /uploads/[...path] route.ts
+  const targetDir = path.resolve(process.cwd(), "..", "uploads");
   await fs.mkdir(targetDir, { recursive: true });
   await fs.writeFile(path.join(targetDir, name), buffer);
   return Response.json({ ok: true, url: `/uploads/${name}` });
