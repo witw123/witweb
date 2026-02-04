@@ -37,6 +37,8 @@ export default function BlogPostPage() {
   const [commentPage, setCommentPage] = useState(1);
   const commentsPerPage = 5;
   const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -55,6 +57,14 @@ export default function BlogPostPage() {
   const { user: profile, token, isAuthenticated } = useAuth();
 
   const canEdit = profile?.username && post?.author && profile.username === post.author;
+  const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
+  const isAdmin = profile?.username && profile.username === adminUsername;
+
+  // Debug log
+  console.log('Profile:', profile?.username);
+  console.log('Admin Env:', process.env.NEXT_PUBLIC_ADMIN_USERNAME);
+  console.log('Is Admin:', isAdmin);
+
   const cacheUserKeys = [profile?.username || "anon"];
   const cacheKeySignature = `${cacheUserKeys.join("|")}:${slug}`;
   const localPostKeys = cacheUserKeys.map((key) => `cache:post:${key}:${slug}`);
@@ -285,6 +295,55 @@ export default function BlogPostPage() {
       loadPost({ force: true });
     } finally {
       setCommentLoading(false);
+    }
+  }
+
+  async function handleDeleteComment(commentId: number) {
+    if (!confirm("确定要删除这条评论吗？")) return;
+    const authToken = token;
+    if (!authToken) return;
+
+    try {
+      const res = await fetch(`/api/comment/${commentId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) {
+        alert("删除失败");
+        return;
+      }
+      loadComments({ force: true });
+      loadPost({ force: true });
+    } catch (e) {
+      console.error(e);
+      alert("删除出错");
+    }
+  }
+
+  async function handleUpdateComment(commentId: number) {
+    if (!editingCommentContent.trim()) return;
+    const authToken = token;
+    if (!authToken) return;
+
+    try {
+      const res = await fetch(`/api/comment/${commentId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ content: editingCommentContent }),
+      });
+      if (!res.ok) {
+        alert("更新失败");
+        return;
+      }
+      setEditingCommentId(null);
+      setEditingCommentContent("");
+      loadComments({ force: true });
+    } catch (e) {
+      console.error(e);
+      alert("更新出错");
     }
   }
 
@@ -551,7 +610,35 @@ export default function BlogPostPage() {
                 回复 <a href={`#comment-${node.reply_to_id}`} className="text-accent hover:underline">@{node.reply_to}</a>
               </div>
             )}
-            <p className="text-sm leading-relaxed mb-3 text-primary">{node.content}</p>
+            {editingCommentId === node.id ? (
+              <div className="mb-2">
+                <textarea
+                  className="input w-full p-2 text-sm mb-2"
+                  rows={3}
+                  value={editingCommentContent}
+                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="btn-primary btn-sm"
+                    onClick={() => handleUpdateComment(node.id)}
+                  >
+                    保存
+                  </button>
+                  <button
+                    className="btn-ghost btn-sm"
+                    onClick={() => {
+                      setEditingCommentId(null);
+                      setEditingCommentContent("");
+                    }}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed mb-3 text-primary">{node.content}</p>
+            )}
             <div className="flex gap-3 text-xs text-muted">
               <button
                 className="hover:text-primary transition-colors cursor-pointer"
@@ -598,6 +685,27 @@ export default function BlogPostPage() {
               >
                 <MessageCircleIcon className="inline" /> 回复
               </button>
+              {isAdmin && (
+                <>
+                  <button
+                    className="hover:text-primary transition-colors cursor-pointer ml-2"
+                    type="button"
+                    onClick={() => {
+                      setEditingCommentId(node.id);
+                      setEditingCommentContent(node.content);
+                    }}
+                  >
+                    编辑
+                  </button>
+                  <button
+                    className="hover:text-red-500 transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => handleDeleteComment(node.id)}
+                  >
+                    删除
+                  </button>
+                </>
+              )}
             </div>
 
             {depth === 0 && node.children.length > 0 && (
@@ -864,13 +972,9 @@ export default function BlogPostPage() {
             <p className="text-xs text-muted mt-2">未登录将以“访客”身份发表评论。</p>
           )}
           {commentStatus && <p className="status">{commentStatus}</p>}
-          <div className="comment-form-actions">
-            <button className="btn-primary" type="submit" style={{ display: "flex", alignItems: "center", gap: "6px" }} disabled={commentLoading}>
-              <span>评论</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
+          <div className="flex justify-end mt-2">
+            <button className="btn-primary" type="submit" disabled={commentLoading}>
+              {commentLoading ? "提交中..." : "评论"}
             </button>
           </div>
         </form>

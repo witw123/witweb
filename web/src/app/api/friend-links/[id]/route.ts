@@ -64,9 +64,9 @@ export async function DELETE(
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const payload = verifyToken(token);
+    const username = await verifyToken(token);
 
-    if (!payload || payload.username !== adminUsername) {
+    if (!username || username !== adminUsername) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

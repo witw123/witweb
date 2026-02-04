@@ -490,7 +490,7 @@ export function updateComment(commentId: number, content: string, username: stri
   const db = getBlogDb();
   const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as any;
   if (!comment) return { ok: false, error: "not_found" };
-  if (comment.author !== username && username !== adminUsername) {
+  if (username !== adminUsername) {
     return { ok: false, error: "forbidden" };
   }
   db.prepare("UPDATE comments SET content = ? WHERE id = ?").run(content, commentId);
@@ -501,7 +501,7 @@ export function deleteComment(commentId: number, username: string, adminUsername
   const db = getBlogDb();
   const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as any;
   if (!comment) return { ok: false, error: "not_found" };
-  if (comment.author !== username && username !== adminUsername) {
+  if (username !== adminUsername) {
     return { ok: false, error: "forbidden" };
   }
   db.prepare("DELETE FROM comment_votes WHERE comment_id = ?").run(commentId);
