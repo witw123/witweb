@@ -1,4 +1,4 @@
-# WitWeb (Sora2 Web Studio)
+# WitWeb 
 
 基于 Next.js App Router 的单体 Web 应用，内置多模块内容、用户和创作管理能力，数据存储使用本地 SQLite。应用入口与 API 均在 `web/` 中完成，启动后会自动在 `data/` 下创建数据库与配置文件。
 
