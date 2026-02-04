@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import RegisterPage from "@/components/legacy/RegisterPage";
+import RegisterPage from "@/features/auth/components/RegisterPage";
 
 export default function RegisterRoute() {
   return <RegisterPage />;
 }
+

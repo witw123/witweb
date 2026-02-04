@@ -1,5 +1,5 @@
-import AdminLayout from "@/components/legacy/admin/AdminLayout";
-import FriendLinksManagement from "@/components/legacy/admin/FriendLinksManagement";
+import AdminLayout from "@/features/admin/components/AdminLayout";
+import FriendLinksManagement from "@/features/admin/components/FriendLinksManagement";
 
 export default function AdminFriendsPage() {
   return (

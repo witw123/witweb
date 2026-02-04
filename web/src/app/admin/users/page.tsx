@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import UserManagementPage from "@/components/legacy/admin/UserManagementPage";
+import UserManagementPage from "@/features/admin/components/UserManagementPage";
 
 export default function AdminUsers() {
   return <UserManagementPage />;

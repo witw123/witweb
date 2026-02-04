@@ -11,10 +11,6 @@ const CREATE_API = "/v1/video/sora-video";
 const UPLOAD_CHARACTER_API = "/v1/video/sora-upload-character";
 const CREATE_CHARACTER_API = "/v1/video/sora-create-character";
 const RESULT_API = "/v1/draw/result";
-const OPENAPI_CREATE_KEY = "/client/openapi/createAPIKey";
-const OPENAPI_APIKEY_CREDITS = "/client/openapi/getAPIKeyCredits";
-const OPENAPI_CREDITS = "/client/openapi/getCredits";
-const MODEL_STATUS = "/client/common/getModelStatus";
 
 const baseDir = path.resolve(process.cwd(), "..");
 const downloadDir = path.join(baseDir, "downloads");
@@ -112,31 +108,6 @@ async function postJson(pathname: string, payload: any, headers: Record<string, 
   throw lastErr || new Error("Network error");
 }
 
-async function getJson(pathname: string, params: Record<string, any>) {
-  const cfg = getConfig();
-  const authHeader = cfg.api_key ? { Authorization: `Bearer ${cfg.api_key}` } : undefined;
-  const qs = new URLSearchParams(params as any).toString();
-  let lastErr: any = null;
-  for (const host of iterHosts()) {
-    for (let i = 0; i < 3; i += 1) {
-      try {
-        const requestHeaders: HeadersInit = authHeader ? { ...authHeader } : {};
-        const res = await fetch(host + pathname + (qs ? `?${qs}` : ""), {
-          headers: requestHeaders,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (data && typeof data === "object" && data.code && data.code !== 0) {
-          throw new Error(data.msg || "API error");
-        }
-        return data;
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-  }
-  throw lastErr || new Error("Network error");
-}
 
 function extractData(resp: any) {
   if (resp && typeof resp === "object" && "data" in resp) return resp.data;
@@ -171,21 +142,6 @@ export async function getResult(taskId: string) {
   return extractData(await postJson(RESULT_API, { id: taskId }));
 }
 
-export async function pollResult(taskId: string) {
-  while (true) {
-    await new Promise((r) => setTimeout(r, 10000));
-    const result = await getResult(taskId);
-    const status = result?.status;
-    if (status === "succeeded") return result;
-    if (status === "failed") throw new Error(result?.error || result?.failure_reason || "Task failed");
-  }
-}
-
-export function addActiveTask(taskId: string, prompt: string) {
-  const db = getStudioDb();
-  db.prepare("INSERT OR IGNORE INTO studio_active_tasks (id, prompt, start_time) VALUES (?, ?, ?)")
-    .run(taskId, prompt, Math.floor(Date.now() / 1000));
-}
 
 export function removeActiveTask(taskId: string) {
   const db = getStudioDb();
@@ -236,23 +192,6 @@ export async function finalizeVideo(taskId: string, prompt: string) {
   return { id: taskId, file: filename, url: videoUrl, pid };
 }
 
-export async function generateVideo(payload: any) {
-  const start = Math.floor(Date.now() / 1000);
-  const taskId = await createVideoTask(payload);
-  const result = await pollResult(taskId);
-  const results = result.results || [];
-  if (!results[0]?.url) throw new Error("Empty results");
-  const videoUrl = results[0].url;
-  const pid = results[0].pid;
-  const filename = path.join(downloadDir, `sora_${Date.now()}.mp4`);
-  ensureDirs();
-  await download(videoUrl, filename);
-  const duration = Math.max(0, Math.floor(Date.now() / 1000) - start);
-  saveHistory(filename, payload.prompt, taskId, pid, videoUrl, duration);
-  removeActiveTask(taskId);
-  return { id: taskId, file: filename, url: videoUrl, pid };
-}
-
 export async function uploadCharacterTask(payload: any) {
   const data = extractData(await postJson(UPLOAD_CHARACTER_API, payload));
   const taskId = data?.id;
@@ -260,38 +199,11 @@ export async function uploadCharacterTask(payload: any) {
   return taskId;
 }
 
-export async function uploadCharacter(payload: any) {
-  const taskId = await uploadCharacterTask(payload);
-  return await pollResult(taskId);
-}
-
 export async function createCharacterTask(payload: any) {
   const data = extractData(await postJson(CREATE_CHARACTER_API, payload));
   const taskId = data?.id;
   if (!taskId) throw new Error("Missing task id");
   return taskId;
-}
-
-export async function createCharacter(payload: any) {
-  const taskId = await createCharacterTask(payload);
-  return await pollResult(taskId);
-}
-
-export async function createApiKey(payload: any) {
-  return extractData(await postJson(OPENAPI_CREATE_KEY, payload));
-}
-
-export async function getApiKeyCredits(apiKey: string) {
-  return extractData(await postJson(OPENAPI_APIKEY_CREDITS, { apiKey }));
-}
-
-export async function getCredits(token: string) {
-  if (!token) throw new Error("missing token");
-  return extractData(await postJson(OPENAPI_CREDITS, { token }));
-}
-
-export async function getModelStatus(model: string) {
-  return extractData(await getJson(MODEL_STATUS, { model }));
 }
 
 export function getHistory() {

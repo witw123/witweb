@@ -20,7 +20,7 @@ export function SettingsPanel() {
     const fetchConfig = async () => {
       setLoading(true);
       try {
-        const res = await fetch("/config", {
+        const res = await fetch("/api/video/config", {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
@@ -42,8 +42,8 @@ export function SettingsPanel() {
     setSaving(true);
     setStatus(null);
     try {
-      const endpoint = key === "api_key" ? "/config/api-key" :
-        key === "host_mode" ? "/config/host-mode" : "/config";
+      const endpoint = key === "api_key" ? "/api/video/config/api-key" :
+        key === "host_mode" ? "/api/video/config/host-mode" : "/api/video/config";
       const body = key === "api_key" ? { api_key: value } :
         key === "host_mode" ? { host_mode: value } : { [key]: value };
 

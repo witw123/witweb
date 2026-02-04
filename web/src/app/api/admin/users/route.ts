@@ -1,12 +1,11 @@
 import { initDb } from "@/lib/db-init";
-import { getAuthUser } from "@/lib/http";
+import { requireAdminUser } from "@/lib/http";
 import { listUsers } from "@/lib/admin";
 
 export async function GET(req: Request) {
   initDb();
-  const user = await getAuthUser();
-  const admin = process.env.ADMIN_USERNAME || "witw";
-  if (user !== admin) return Response.json({ detail: "Admin access required" }, { status: 403 });
+  const user = await requireAdminUser();
+  if (user instanceof Response) return user;
   const url = new URL(req.url);
   const page = Number(url.searchParams.get("page") || 1);
   const limit = Number(url.searchParams.get("limit") || 20);

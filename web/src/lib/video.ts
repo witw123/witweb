@@ -90,9 +90,3 @@ export function listCharacters(username: string) {
   const db = getStudioDb();
   return db.prepare("SELECT * FROM characters WHERE username = ? ORDER BY created_at DESC").all(username);
 }
-
-export function saveCharacter(username: string, characterId: string, name?: string, sourceTaskId?: string) {
-  const db = getStudioDb();
-  db.prepare("INSERT INTO characters (username, character_id, name, source_task_id) VALUES (?, ?, ?, ?)")
-    .run(username, characterId, name || null, sourceTaskId || null);
-}

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import DashboardPage from "@/components/legacy/admin/DashboardPage";
+import DashboardPage from "@/features/admin/components/DashboardPage";
 
 export default function AdminDashboard() {
   return <DashboardPage />;

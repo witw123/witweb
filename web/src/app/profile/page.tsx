@@ -1,5 +1,5 @@
-import { Suspense } from "react";
-import ProfilePage from "@/components/legacy/ProfilePage";
+﻿import { Suspense } from "react";
+import ProfilePage from "@/features/user/components/ProfilePage";
 
 export default function ProfileRoute() {
   return (
@@ -8,3 +8,4 @@ export default function ProfileRoute() {
     </Suspense>
   );
 }
+

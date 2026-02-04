@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import FavoritesPage from "@/components/legacy/FavoritesPage";
+import FavoritesPage from "@/features/blog/components/FavoritesPage";
 
 export default function FavoritesRoute() {
   return <FavoritesPage />;
 }
+

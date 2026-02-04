@@ -1,12 +1,12 @@
 import { initDb } from "@/lib/db-init";
-import { getAuthUser } from "@/lib/http";
+import { requireAuthUser } from "@/lib/http";
 import { createVideoTask } from "@/lib/studio";
 import { createTask, updateTaskStatus } from "@/lib/video";
 
 export async function POST(req: Request) {
   initDb();
-  const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Not authenticated" }, { status: 401 });
+  const user = await requireAuthUser();
+  if (user instanceof Response) return user;
   const body = await req.json().catch(() => ({}));
   const payload = {
     model: body.model || "sora-2",
@@ -30,5 +30,5 @@ export async function POST(req: Request) {
     size: payload.size,
   }, taskId);
   updateTaskStatus(taskId, "running", 0);
-  return Response.json({ ok: true, task_id: taskId });
+  return Response.json({ ok: true, task_id: taskId, id: taskId });
 }

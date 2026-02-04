@@ -62,8 +62,3 @@ export function getStudioDb() {
 export function getMessagesDb() {
   return getDb("messages");
 }
-
-// Backward-compatible alias (defaults to blog db)
-export function getDbLegacy() {
-  return getBlogDb();
-}

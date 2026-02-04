@@ -30,8 +30,7 @@ Open:
 - Blog DB: `data/blog.db`
 - Channel DB: `data/channel.db`
 - Studio DB: `data/studio.db`
-- API config: `data/api_config.json`
-- Studio data: `data/config.json`, `data/history.json`, `data/active_tasks.json`
+- Studio task/history/config data are stored in `data/studio.db`
 
 Optional custom DB path:
 
@@ -46,3 +45,4 @@ SORA_STUDIO_DB_PATH=ABSOLUTE_PATH
 
 - FastAPI/uvicorn are no longer used.
 - Generated videos are stored in `downloads/`, uploads in `uploads/`.
+- Studio/video API routes are standardized under `/api/video/*`.
