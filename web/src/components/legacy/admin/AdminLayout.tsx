@@ -23,6 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin", label: "仪表盘" },
     { href: "/admin/users", label: "用户管理" },
     { href: "/admin/blogs", label: "文章管理" },
+    { href: "/admin/friends", label: "友链管理" },
     { href: "/admin/ai", label: "AI 服务" },
   ];
 

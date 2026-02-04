@@ -485,3 +485,26 @@ function ensureUniqueSlug(db: any, base: string) {
   }
   return slug;
 }
+
+export function updateComment(commentId: number, content: string, username: string, adminUsername: string) {
+  const db = getBlogDb();
+  const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as any;
+  if (!comment) return { ok: false, error: "not_found" };
+  if (comment.author !== username && username !== adminUsername) {
+    return { ok: false, error: "forbidden" };
+  }
+  db.prepare("UPDATE comments SET content = ? WHERE id = ?").run(content, commentId);
+  return { ok: true };
+}
+
+export function deleteComment(commentId: number, username: string, adminUsername: string) {
+  const db = getBlogDb();
+  const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as any;
+  if (!comment) return { ok: false, error: "not_found" };
+  if (comment.author !== username && username !== adminUsername) {
+    return { ok: false, error: "forbidden" };
+  }
+  db.prepare("DELETE FROM comment_votes WHERE comment_id = ?").run(commentId);
+  db.prepare("DELETE FROM comments WHERE id = ?").run(commentId);
+  return { ok: true };
+}

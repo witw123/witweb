@@ -767,13 +767,22 @@ select:focus {
 
 .tag-pill {
   font-size: 0.7rem;
-  color: var(--accent-secondary);
-  background: rgba(0, 229, 255, 0.12);
-  padding: 3px 10px;
+  color: #00ffff !important;
+  background: rgba(0, 255, 255, 0.15) !important;
+  padding: 4px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 229, 255, 0.2);
-  font-weight: 500;
+  border: 1.5px solid rgba(0, 255, 255, 0.5) !important;
+  font-weight: 600;
   display: inline-block;
+  transition: all 0.2s ease;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.3) !important;
+}
+
+.tag-pill:hover {
+  background: rgba(0, 255, 255, 0.25) !important;
+  border-color: rgba(0, 255, 255, 0.8) !important;
+  transform: translateY(-1px);
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.5) !important;
 }
 
 .highlight {
@@ -977,6 +986,10 @@ button {
 
 .blog-list-page .card * {
   color: inherit !important;
+}
+
+.blog-list-page .card .tag-pill {
+  color: #00ffff !important;
 }
 
 .blog-list-page .card a,

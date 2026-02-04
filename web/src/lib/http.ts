@@ -12,3 +12,9 @@ export async function getAuthUser() {
     return null;
   }
 }
+
+export function isAdminUser(username: string | null | undefined): boolean {
+  if (!username) return false;
+  const adminUsername = process.env.ADMIN_USERNAME || "witw";
+  return username === adminUsername;
+}

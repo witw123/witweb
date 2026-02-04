@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { getThumbnailUrl } from "@/utils/url";
+import Footer from "./Footer";
+import VisitTracker from "./VisitTracker";
 
 const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
@@ -75,6 +77,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="layout">
+      <VisitTracker />
       <header className="header">
         <div className="container header-content">
           <Link href="/" className="brand">witweb</Link>
@@ -90,6 +93,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
               <Link href="/admin" className="nav-link" onClick={closeMobileMenu}>管理后台</Link>
             )}
             <Link href="/studio" className={navClass("/studio")} onClick={closeMobileMenu}>工作台</Link>
+            <Link href="/friends" className={navClass("/friends")} onClick={closeMobileMenu}>友链</Link>
             {isAuthenticated && (
               <Link href="/publish" className={navClass("/publish")} onClick={closeMobileMenu}>发布文章</Link>
             )}
@@ -189,16 +193,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
         {children}
       </main>
 
-      <footer className="footer">
-        <div className="container">
-          <p>© {new Date().getFullYear()} witweb. 基于 Next.js 构建</p>
-          <p className="mt-2 text-sm text-zinc-500">
-            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-400 transition-colors">
-              皖ICP备2026003097号
-            </a>
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
