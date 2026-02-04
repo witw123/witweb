@@ -1,6 +1,6 @@
 import { getUsersDb } from "./db";
 import { followCounts, isFollowing } from "./follow";
-import { getUserLikesReceived, getPostCount } from "./blog";
+import { getUserLikesReceived, getPostCount, getActivityCount } from "./blog";
 
 export function getUserByUsername(username: string) {
   const db = getUsersDb();
@@ -24,6 +24,7 @@ export function publicProfile(username: string, viewer?: string | null) {
     following_count: counts.following_count,
     follower_count: counts.follower_count,
     post_count: getPostCount(username),
+    activity_count: getActivityCount(username),
     like_received_count: likesReceived,
   };
   if (viewer && viewer !== username) {

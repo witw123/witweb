@@ -12,6 +12,7 @@ export type UserProfile = {
   following_count?: number;
   follower_count?: number;
   post_count?: number;
+  activity_count?: number;
   balance?: number;
 };
 

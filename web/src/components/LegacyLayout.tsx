@@ -161,7 +161,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                             <div className="user-stat-label">{"粉丝"}</div>
                           </Link>
                           <Link href="/profile?tab=activity" className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1" onClick={() => setShowUserMenu(false)}>
-                            <div className="user-stat-value">{user?.post_count ?? 0}</div>
+                            <div className="user-stat-value">{user?.activity_count ?? user?.post_count ?? 0}</div>
                             <div className="user-stat-label">{"动态"}</div>
                           </Link>
                         </div>

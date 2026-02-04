@@ -105,6 +105,21 @@ export function getActivities(username: string, page = 1, size = 10): { items: A
   };
 }
 
+export function getActivityCount(username: string): number {
+  const db = getBlogDb();
+  const countSql = `
+    SELECT SUM(cnt) as total FROM (
+      SELECT COUNT(*) as cnt FROM posts WHERE author = ?
+      UNION ALL
+      SELECT COUNT(*) as cnt FROM likes WHERE username = ?
+      UNION ALL
+      SELECT COUNT(*) as cnt FROM comments WHERE author = ?
+    )
+  `;
+  const total = db.prepare(countSql).get(username, username, username) as { total: number };
+  return total?.total || 0;
+}
+
 export function getUserLikesReceived(username: string): number {
   const db = getBlogDb();
   const row = db.prepare(`
