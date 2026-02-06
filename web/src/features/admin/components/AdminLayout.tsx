@@ -5,19 +5,27 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 
-const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAuthenticated, loading } = useAuth();
+  const { user, token, logout, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     if (loading) return;
-    if (!isAuthenticated || user?.username !== adminUsername) {
+    if (!isAuthenticated || !token) {
       router.push("/admin/login");
+      return;
     }
-  }, [loading, isAuthenticated, user, router, pathname]);
+
+    void fetch("/api/admin/stats/overview", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) {
+        logout();
+        router.push("/admin/login");
+      }
+    });
+  }, [loading, isAuthenticated, token, logout, router, pathname]);
 
   const navItems = [
     { href: "/admin", label: "仪表盘" },

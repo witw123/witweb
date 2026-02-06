@@ -1,99 +1,126 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+type BlogItem = {
+  id: number;
+  username: string;
+  title: string;
+  status: "published" | "draft";
+  category_name?: string | null;
+  created_at: string;
+};
+
+type BlogDetail = {
+  id: number;
+  title: string;
+  content: string;
+  tags?: string;
+  category_id?: number | null;
+};
+
+type Category = {
+  id: number;
+  name: string;
+};
 
 export default function BlogManagementPage() {
-  const [blogs, setBlogs] = useState<any[]>([]);
+  const [blogs, setBlogs] = useState<BlogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [editingBlog, setEditingBlog] = useState<any>(null);
+  const [message, setMessage] = useState("");
+
+  const [editingBlog, setEditingBlog] = useState<BlogDetail | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadBlogs();
-  }, [page, search, statusFilter]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handler = () => loadBlogs();
-    window.addEventListener("profile-updated", handler as EventListener);
-    return () => window.removeEventListener("profile-updated", handler as EventListener);
-  }, [page, search, statusFilter]);
-
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadBlogs = async () => {
+  const loadBlogs = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
       const params = new URLSearchParams({
-        page: page.toString(),
+        page: String(page),
         limit: "20",
-        ...(search ? { search } : {}),
-        ...(statusFilter ? { status: statusFilter } : {}),
       });
+      if (search.trim()) params.set("search", search.trim());
+      if (statusFilter) params.set("status", statusFilter);
 
       const response = await fetch(`/api/admin/blogs?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
+      const data = await response.json().catch(() => ({}));
 
-      if (response.ok) {
-        const data = await response.json();
-        setBlogs(data.blogs || []);
-        setTotal(data.total || 0);
+      if (!response.ok || !data.success) {
+        setBlogs([]);
+        setTotal(0);
+        setMessage(data.error?.message || "加载文章失败");
+        return;
       }
-    } catch (error) {
-      console.error("Failed to load blogs:", error);
+
+      setBlogs(data.data?.items || []);
+      setTotal(data.data?.total || 0);
+    } catch {
+      setBlogs([]);
+      setTotal(0);
+      setMessage("加载文章失败");
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search, statusFilter]);
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/admin/categories?limit=200", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetch("/api/admin/categories?limit=100", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data.categories || []);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        setCategories([]);
+        return;
       }
-    } catch (error) {
+      setCategories(data.data?.items || []);
+    } catch {
       setCategories([]);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadBlogs();
+  }, [loadBlogs]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => {
+      void loadBlogs();
+    };
+    window.addEventListener("profile-updated", handler as EventListener);
+    return () => window.removeEventListener("profile-updated", handler as EventListener);
+  }, [loadBlogs]);
 
   const handleEdit = async (blogId: number) => {
     try {
       setEditLoading(true);
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/admin/blogs/${blogId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setEditingBlog(data);
-        setIsEditModalOpen(true);
-      } else {
-        alert("获取文章详情失败");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        setMessage(data.error?.message || "获取文章详情失败");
+        return;
       }
-    } catch (error) {
-      console.error("Failed to fetch blog detail:", error);
+      setEditingBlog(data.data);
+      setIsEditModalOpen(true);
     } finally {
       setEditLoading(false);
     }
@@ -118,48 +145,42 @@ export default function BlogManagementPage() {
           category_id: editingBlog.category_id || null,
         }),
       });
-
-      if (response.ok) {
-        alert("更新成功");
-        setIsEditModalOpen(false);
-        loadBlogs();
-      } else {
-        alert("更新失败");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        setMessage(data.error?.message || "更新失败");
+        return;
       }
-    } catch (error) {
-      console.error("Failed to update blog:", error);
-      alert("更新失败");
+      setMessage("更新成功");
+      setIsEditModalOpen(false);
+      void loadBlogs();
     } finally {
       setEditLoading(false);
     }
   };
 
   const handleDelete = async (blogId: number, title: string) => {
-    if (!confirm(`确定要删除文章《${title}》吗？此操作不可恢复。`)) {
-      return;
-    }
-
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/admin/blogs/${blogId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
-        alert("文章删除成功");
-        loadBlogs();
-      } else {
-        alert("删除失败");
+        setMessage(`文章《${title}》已删除`);
+        setPendingDeleteId(null);
+        void loadBlogs();
+        return;
       }
+
+      const data = await response.json().catch(() => ({}));
+      setMessage(data.error?.message || "删除失败");
     } catch (error: any) {
-      alert(`删除失败: ${error.message}`);
+      setMessage(`删除失败: ${error.message || "未知错误"}`);
     }
   };
 
-  const handleStatusChange = async (blogId: number, newStatus: string) => {
+  const handleStatusChange = async (blogId: number, newStatus: "published" | "draft") => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/admin/blogs/${blogId}`, {
@@ -172,13 +193,15 @@ export default function BlogManagementPage() {
       });
 
       if (response.ok) {
-        alert("状态更新成功");
-        loadBlogs();
-      } else {
-        alert("更新失败");
+        setMessage("状态更新成功");
+        void loadBlogs();
+        return;
       }
+
+      const data = await response.json().catch(() => ({}));
+      setMessage(data.error?.message || "更新失败");
     } catch (error: any) {
-      alert(`更新失败: ${error.message}`);
+      setMessage(`更新失败: ${error.message || "未知错误"}`);
     }
   };
 
@@ -186,22 +209,30 @@ export default function BlogManagementPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">文章管理</h1>
-        <p className="page-subtitle">管理所有用户文章</p>
+        <p className="page-subtitle">管理站内全部文章</p>
       </div>
 
       <div className="admin-card">
+        {message && <p style={{ marginBottom: "0.75rem" }}>{message}</p>}
+
         <div className="card-header" style={{ flexWrap: "wrap", gap: "1rem" }}>
           <input
             type="text"
             placeholder="搜索文章..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="admin-input"
             style={{ width: "300px" }}
           />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="admin-select"
           >
             <option value="">全部状态</option>
@@ -211,7 +242,7 @@ export default function BlogManagementPage() {
           <div style={{ marginLeft: "auto" }}>共 {total} 篇文章</div>
         </div>
 
-        {loading ? null : (
+        {!loading && (
           <table className="admin-table">
             <thead>
               <tr>
@@ -226,7 +257,9 @@ export default function BlogManagementPage() {
             <tbody>
               {blogs.map((blog) => (
                 <tr key={blog.id}>
-                  <td><strong>{blog.title}</strong></td>
+                  <td>
+                    <strong>{blog.title}</strong>
+                  </td>
                   <td>{blog.username}</td>
                   <td>{blog.category_name || "未分类"}</td>
                   <td>
@@ -236,9 +269,9 @@ export default function BlogManagementPage() {
                   </td>
                   <td>{new Date(blog.created_at).toLocaleString("zh-CN")}</td>
                   <td>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                       <button
-                        onClick={() => handleEdit(blog.id)}
+                        onClick={() => void handleEdit(blog.id)}
                         className="btn-admin btn-admin-primary"
                         style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
                       >
@@ -246,7 +279,7 @@ export default function BlogManagementPage() {
                       </button>
                       {blog.status === "draft" && (
                         <button
-                          onClick={() => handleStatusChange(blog.id, "published")}
+                          onClick={() => void handleStatusChange(blog.id, "published")}
                           className="btn-admin btn-admin-secondary"
                           style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
                         >
@@ -255,20 +288,40 @@ export default function BlogManagementPage() {
                       )}
                       {blog.status === "published" && (
                         <button
-                          onClick={() => handleStatusChange(blog.id, "draft")}
+                          onClick={() => void handleStatusChange(blog.id, "draft")}
                           className="btn-admin btn-admin-secondary"
                           style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
                         >
                           撤回
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(blog.id, blog.title)}
-                        className="btn-admin btn-admin-danger"
-                        style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                      >
-                        删除
-                      </button>
+
+                      {pendingDeleteId === blog.id ? (
+                        <>
+                          <button
+                            onClick={() => void handleDelete(blog.id, blog.title)}
+                            className="btn-admin btn-admin-danger"
+                            style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                          >
+                            确认删除
+                          </button>
+                          <button
+                            onClick={() => setPendingDeleteId(null)}
+                            className="btn-admin btn-admin-secondary"
+                            style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                          >
+                            取消
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setPendingDeleteId(blog.id)}
+                          className="btn-admin btn-admin-danger"
+                          style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                        >
+                          删除
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -298,12 +351,14 @@ export default function BlogManagementPage() {
         )}
       </div>
 
-      {isEditModalOpen && (
+      {isEditModalOpen && editingBlog && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: "800px" }}>
             <div className="modal-header">
               <h3>编辑文章</h3>
-              <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>&times;</button>
+              <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>
+                &times;
+              </button>
             </div>
             <div className="create-key-form">
               <div className="form-group">
@@ -319,7 +374,12 @@ export default function BlogManagementPage() {
                 <label>分类</label>
                 <select
                   value={editingBlog.category_id || ""}
-                  onChange={(e) => setEditingBlog({ ...editingBlog, category_id: e.target.value ? Number(e.target.value) : null })}
+                  onChange={(e) =>
+                    setEditingBlog({
+                      ...editingBlog,
+                      category_id: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
                   className="admin-input"
                 >
                   <option value="">未分类</option>
@@ -331,7 +391,7 @@ export default function BlogManagementPage() {
                 </select>
               </div>
               <div className="form-group">
-                <label>标签 (逗号分隔)</label>
+                <label>标签（逗号分隔）</label>
                 <input
                   type="text"
                   value={editingBlog.tags || ""}
@@ -357,11 +417,7 @@ export default function BlogManagementPage() {
                 >
                   取消
                 </button>
-                <button
-                  className="btn-admin btn-admin-primary"
-                  onClick={handleSaveEdit}
-                  disabled={editLoading}
-                >
+                <button className="btn-admin btn-admin-primary" onClick={() => void handleSaveEdit()} disabled={editLoading}>
                   {editLoading ? "保存中..." : "保存修改"}
                 </button>
               </div>
@@ -372,4 +428,3 @@ export default function BlogManagementPage() {
     </div>
   );
 }
-

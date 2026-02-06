@@ -1,6 +1,5 @@
-﻿"use client";
-
-import { useEffect, useState } from "react";
+"use client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PostCard from "@/features/blog/components/PostCard";
@@ -23,11 +22,14 @@ export default function FavoritesPage() {
     }
   })();
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const cacheUserKeys = [profile?.username, token, "anon"].filter(Boolean);
-  const cacheKeySignature = cacheUserKeys.join("|");
-  const localCacheKeys = cacheUserKeys.map((key) => `cache:favorites:${key}:${page}`);
+  const cacheUserKeys = useMemo(() => [profile?.username, token, "anon"].filter(Boolean), [profile?.username, token]);
+  const cacheKeySignature = useMemo(() => cacheUserKeys.join("|"), [cacheUserKeys]);
+  const localCacheKeys = useMemo(
+    () => cacheUserKeys.map((key) => `cache:favorites:${key}:${page}`),
+    [cacheUserKeys, page]
+  );
 
-  const loadFavorites = () => {
+  const loadFavorites = useCallback(() => {
     const authToken = localStorage.getItem("token");
     if (!authToken) {
       router.push("/login");
@@ -69,12 +71,14 @@ export default function FavoritesPage() {
         setStatus("ready");
       })
       .catch(() => setStatus("error"));
-  };
+  }, [cacheUserKeys, localCacheKeys, page, pageSize, router]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadFavorites();
-  }, [page, router, cacheKeySignature]);
+    const timer = setTimeout(() => {
+      loadFavorites();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadFavorites]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -86,12 +90,12 @@ export default function FavoritesPage() {
             localStorage.removeItem(key);
           }
         });
-      } catch { }
+      } catch {}
       loadFavorites();
     };
     window.addEventListener("profile-updated", handler as EventListener);
     return () => window.removeEventListener("profile-updated", handler as EventListener);
-  }, [page, cacheKeySignature]);
+  }, [cacheKeySignature, loadFavorites]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -100,15 +104,15 @@ export default function FavoritesPage() {
       <div className="page-header mb-8">
         <div>
           <h1 className="text-3xl font-bold mb-2">我的收藏</h1>
-          <p className="text-muted">您收藏的精彩内容</p>
+          <p className="text-muted">你收藏的文章都在这里</p>
         </div>
         <div className="actions">
           <Link className="btn-ghost" href="/">
-            返回主页
+            返回首页
           </Link>
         </div>
       </div>
-      {status === "error" && <p>加载失败，请稍后再试。</p>}
+      {status === "error" && <p>加载失败，请稍后重试。</p>}
       {status === "ready" && items.length === 0 && <p>暂无收藏。</p>}
       <div className="list grid">
         {items.map((post) => (
@@ -141,5 +145,3 @@ export default function FavoritesPage() {
     </div>
   );
 }
-
-

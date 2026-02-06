@@ -4,10 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 
-const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
-
 export default function AdminLoginPage() {
-  const { login, user, isAuthenticated, loading } = useAuth();
+  const { login, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -16,10 +14,19 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (isAuthenticated && user?.username === adminUsername) {
-      router.replace("/admin");
-    }
-  }, [loading, isAuthenticated, user, router]);
+    if (!isAuthenticated) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    void fetch("/api/admin/stats/overview", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (res.ok) {
+        router.replace("/admin");
+      }
+    });
+  }, [loading, isAuthenticated, router]);
 
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -37,17 +44,23 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.detail || "登录失败，请稍后重试");
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        setError(data.error?.message || "登录失败，请稍后重试");
         return;
       }
-      const data = await res.json();
-      if (data?.profile?.username !== adminUsername) {
+
+      const verifyRes = await fetch("/api/admin/stats/overview", {
+        headers: {
+          Authorization: `Bearer ${data.data.token}`,
+        },
+      });
+      if (!verifyRes.ok) {
         setError("仅管理员账号可登录管理后台");
         return;
       }
-      login(data.token, data.profile);
+
+      login(data.data.token, data.data.profile);
       router.replace("/admin");
     } finally {
       setLoadingSubmit(false);

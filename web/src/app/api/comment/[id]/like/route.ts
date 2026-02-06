@@ -1,12 +1,26 @@
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { voteComment } from "@/lib/blog";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateParams, z } from "@/lib/validate";
 
-export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
+const paramsSchema = z.object({
+  id: z.coerce.number().int().positive("评论ID必须是正整数"),
+});
+
+export const POST = withErrorHandler(async (req, { params }) => {
   const paramsData = await params;
   initDb();
+
+  // 楠岃瘉鐢ㄦ埛宸茬櫥褰?
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
-  voteComment(Number(paramsData.id), user, 1);
-  return Response.json({ ok: true });
-}
+  assertAuthenticated(user);
+
+  const { id } = validateParams(paramsData, paramsSchema);
+
+  // 鐐硅禐璇勮
+  voteComment(id, user, 1);
+
+  return successResponse({ message: "点赞成功" });
+});

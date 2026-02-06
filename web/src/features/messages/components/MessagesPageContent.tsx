@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { useSearchParams } from "next/navigation";
@@ -46,6 +47,7 @@ export default function MessagesPageContent() {
   const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
   const [inputText, setInputText] = useState("");
+  const [sendError, setSendError] = useState("");
   const [convLoading, setConvLoading] = useState(true);
   const [pendingConv, setPendingConv] = useState<Conversation | null>(null);
 
@@ -64,20 +66,26 @@ export default function MessagesPageContent() {
       const res = await fetch("/api/messages/conversations", {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (!Array.isArray(data)) {
+      const payload = await res.json().catch(() => ({}));
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+      if (!Array.isArray(list)) {
         setConversations([]);
         return;
       }
 
       if (autoSelectUsername && !pendingConv) {
-        const found = data.find((c: any) => c.other_user.username === autoSelectUsername);
+        const found = list.find((c: any) => c.other_user.username === autoSelectUsername);
         if (found) {
           setSelectedConvId(found.id);
         } else {
           try {
             const profileRes = await fetch(`/api/users/${encodeURIComponent(autoSelectUsername)}/profile`);
-            const profile = await profileRes.json();
+            const profileData = await profileRes.json();
+            const profile = profileData.data || profileData;
             if (profile && !profile.detail && profile.username) {
               const tempConv: Conversation = {
                 id: -1,
@@ -93,12 +101,12 @@ export default function MessagesPageContent() {
               setPendingConv(tempConv);
               setSelectedConvId(-1);
             }
-          } catch (err) { }
+          } catch {}
         }
       }
 
-      setConversations(data);
-    } catch (err) { }
+      setConversations(list);
+    } catch {}
     setConvLoading(false);
   };
 
@@ -109,9 +117,16 @@ export default function MessagesPageContent() {
       const res = await fetch(`/api/messages/notifications?type=${type}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
-      setNotifications(Array.isArray(data) ? data : []);
-    } catch (err) {
+      const payload = await res.json().catch(() => ({}));
+      const list = Array.isArray(payload?.data?.items)
+        ? payload.data.items
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
+      setNotifications(list);
+    } catch {
       setNotifications([]);
     } finally {
       setNotifLoading(false);
@@ -128,15 +143,21 @@ export default function MessagesPageContent() {
       const res = await fetch(`/api/messages/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
-      setMessages(Array.isArray(data) ? data : []);
-    } catch (err) {
+      const payload = await res.json().catch(() => ({}));
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+      setMessages(list);
+    } catch {
       setMessages([]);
     }
   };
 
   const handleSend = async () => {
     if (!token || !inputText.trim() || selectedConvId === null) return;
+    setSendError("");
 
     const conv = displayConversations.find(c => c.id === selectedConvId);
     if (!conv) return;
@@ -153,25 +174,30 @@ export default function MessagesPageContent() {
           content: inputText
         })
       });
-      const resData = await res.json();
+      const payload = await res.json().catch(() => ({}));
+      const resData = payload?.data || payload;
+      if (!res.ok || payload?.success === false) {
+        setSendError(payload?.error?.message || "发送失败，请稍后重试");
+        return;
+      }
       setInputText("");
 
       if (resData.conversation_id) {
-        setPendingConv(null); // Becomes a real conversation now
+        setPendingConv(null);
         setSelectedConvId(resData.conversation_id);
         fetchMessages(resData.conversation_id);
       } else {
         fetchMessages(selectedConvId);
       }
       fetchConversations();
-    } catch (err) { }
+    } catch {}
   };
 
   useEffect(() => {
     fetchConversations(targetUsername || undefined);
     const interval = setInterval(() => fetchConversations(), 10000);
     return () => clearInterval(interval);
-  }, [token, targetUsername]);
+  }, [token, targetUsername]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayConversations = [...conversations];
   if (pendingConv && !conversations.find(c => c.other_user.username === pendingConv.other_user.username)) {
@@ -180,11 +206,12 @@ export default function MessagesPageContent() {
 
   useEffect(() => {
     if (selectedConvId) {
+      setSendError("");
       fetchMessages(selectedConvId);
       const interval = setInterval(() => fetchMessages(selectedConvId), 5000);
       return () => clearInterval(interval);
     }
-  }, [selectedConvId, token]);
+  }, [selectedConvId, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (messages.length === lastMessagesCount.current && selectedConvId === lastSelectedConvId.current) return;
@@ -216,9 +243,9 @@ export default function MessagesPageContent() {
       fetch("/api/messages/read-notifications", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => { });
+      }).catch(() => {});
     }
-  }, [activeSidebarTab, token]);
+  }, [activeSidebarTab, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedConv = displayConversations.find(c => c.id === selectedConvId);
 
@@ -264,7 +291,7 @@ export default function MessagesPageContent() {
         {activeSidebarTab === "chat" ? (
           <>
             <div className="chat-list-pane">
-              <div className="chat-list-header">近期消息</div>
+              <div className="chat-list-header">最近消息</div>
               <div className="chat-items-container">
                 {displayConversations.length === 0 && !convLoading && (
                   <div className="p-4 text-center text-sm text-zinc-500">暂无消息</div>
@@ -277,7 +304,14 @@ export default function MessagesPageContent() {
                   >
                     <div className="chat-avatar-box">
                       {conv.other_user.avatar_url ? (
-                        <img src={getThumbnailUrl(conv.other_user.avatar_url, 64)} alt="" />
+                        <Image
+                          src={getThumbnailUrl(conv.other_user.avatar_url, 64)}
+                          alt={conv.other_user.nickname || conv.other_user.username}
+                          width={40}
+                          height={40}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-400">
                           {conv.other_user.nickname[0].toUpperCase()}
@@ -314,17 +348,37 @@ export default function MessagesPageContent() {
                         <div key={msg.id} className={`msg-row ${isMine ? "sent" : "received"}`}>
                           <div className="chat-avatar-box">
                             {isMine ? (
-                              user?.avatar_url ? <img src={getThumbnailUrl(user.avatar_url, 64)} alt="" /> :
+                              user?.avatar_url ? (
+                                <Image
+                                  src={getThumbnailUrl(user.avatar_url, 64)}
+                                  alt={user?.username || "me"}
+                                  width={40}
+                                  height={40}
+                                  className="w-full h-full object-cover"
+                                  unoptimized
+                                />
+                              ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-400 font-bold">{user?.username?.[0]?.toUpperCase()}</div>
+                              )
                             ) : (
-                              selectedConv.other_user.avatar_url ? <img src={getThumbnailUrl(selectedConv.other_user.avatar_url, 64)} alt="" /> :
+                              selectedConv.other_user.avatar_url ? (
+                                <Image
+                                  src={getThumbnailUrl(selectedConv.other_user.avatar_url, 64)}
+                                  alt={selectedConv.other_user.nickname || selectedConv.other_user.username}
+                                  width={40}
+                                  height={40}
+                                  className="w-full h-full object-cover"
+                                  unoptimized
+                                />
+                              ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-400 font-bold">{selectedConv.other_user.username[0].toUpperCase()}</div>
+                              )
                             )}
                           </div>
                           <div className="msg-content-wrapper">
                             <div className="msg-header-row">
                               {!isMine && <span className="msg-sender-name">{selectedConv.other_user.nickname}</span>}
-                              <span className="msg-time-text">{new Date(msg.created_at).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="msg-time-text">{new Date(msg.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                             </div>
                             <div className="msg-content-bubble">
                               {msg.content}
@@ -336,9 +390,10 @@ export default function MessagesPageContent() {
                     <div ref={chatEndRef} />
                   </div>
                   <div className="chat-input-placeholder">
+                    {sendError && <div className="mb-2 text-xs text-red-400">{sendError}</div>}
                     <textarea
                       className="chat-input-textarea"
-                      placeholder="发个消息聊聊吧~ (Enter 发送)"
+                      placeholder="发个消息聊聊吧（Enter 发送）"
                       value={inputText}
                       onChange={e => setInputText(e.target.value)}
                       onKeyDown={e => {
@@ -384,7 +439,14 @@ export default function MessagesPageContent() {
                   <div key={idx} className="notif-item">
                     <div className="notif-avatar">
                       {notif.sender_avatar ? (
-                        <img src={getThumbnailUrl(notif.sender_avatar, 64)} alt="" />
+                        <Image
+                          src={getThumbnailUrl(notif.sender_avatar, 64)}
+                          alt={notif.sender_nickname}
+                          width={40}
+                          height={40}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
                       ) : (
                         <div className="avatar-fallback">{notif.sender_nickname[0].toUpperCase()}</div>
                       )}
@@ -392,19 +454,21 @@ export default function MessagesPageContent() {
                     <div className="notif-content">
                       <div className="notif-title">
                         <span className="sender-name">{notif.sender_nickname}</span>
-                        {activeSidebarTab === "likes" && " 点赞了您的文章 "}
-                        {activeSidebarTab === "replies" && " 在文章 "}
-                        {activeSidebarTab === "at" && " 在文章 "}
+                        {activeSidebarTab === "likes" && " 赞了 "}
+                        {activeSidebarTab === "replies" && " 评论了 "}
+                        {activeSidebarTab === "at" && " 评论了 "}
                         {activeSidebarTab === "system" && " 向您发送了 "}
 
                         {activeSidebarTab !== "system" ? (
-                          <Link href={`/p/${notif.post_slug}`} className="post-link">《{notif.post_title}》</Link>
+                          <Link href={`/p/${notif.post_slug}`} className="post-link">
+                            {notif.post_title}
+                          </Link>
                         ) : (
                           <span className="post-link">{notif.post_title}</span>
                         )}
 
-                        {activeSidebarTab === "replies" && " 中回复了您"}
-                        {activeSidebarTab === "at" && " 中提及了您"}
+                        {activeSidebarTab === "replies" && " 中回复了你"}
+                        {activeSidebarTab === "at" && " 中提到了你"}
                       </div>
                       {notif.content && <div className="notif-text">{notif.content}</div>}
                       <div className="notif-time">{new Date(notif.created_at).toLocaleString()}</div>

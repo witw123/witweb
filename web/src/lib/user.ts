@@ -1,20 +1,21 @@
-import { getUsersDb } from "./db";
+﻿import { getUsersDb } from "./db";
 import { followCounts, isFollowing } from "./follow";
 import { getUserLikesReceived, getPostCount, getActivityCount } from "./blog";
+import type { User, UserProfile } from "@/types";
 
-export function getUserByUsername(username: string) {
+export function getUserByUsername(username: string): User | null {
   const db = getUsersDb();
   const row = db.prepare("SELECT id, username, password, nickname, avatar_url, cover_url, bio, balance, created_at FROM users WHERE username = ?")
-    .get(username) as any;
+    .get(username) as User | undefined;
   return row || null;
 }
 
-export function publicProfile(username: string, viewer?: string | null) {
+export function publicProfile(username: string, viewer?: string | null): UserProfile | null {
   const user = getUserByUsername(username);
   if (!user) return null;
   const counts = followCounts(username);
   const likesReceived = getUserLikesReceived(username);
-  const profile: any = {
+  const profile: UserProfile = {
     username: user.username,
     nickname: user.nickname,
     avatar_url: user.avatar_url,

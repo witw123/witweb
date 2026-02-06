@@ -86,11 +86,51 @@ SORA_MESSAGES_DB_PATH=ABSOLUTE_PATH
 - 可通过环境变量覆盖：
 
 ```bash
-NEXT_PUBLIC_ADMIN_USERNAME=your_admin_username
+ADMIN_USERNAME=your_admin_username
 ```
+
+## 安全配置
+
+### 环境变量
+
+复制 `.env.example` 到 `.env.local` 并配置：
+
+```bash
+# 必需：JWT 签名密钥（至少 32 字符）
+AUTH_SECRET=your-secret-key-here
+
+# 必需：加密密钥（用于敏感数据存储）
+ENCRYPTION_KEY=your-encryption-key-here
+
+# API 密钥（替代 data/api_config.json）
+SORA2_API_KEY=your-sora2-api-key
+GRSAI_TOKEN=your-grsai-token
+
+# 管理员用户名
+ADMIN_USERNAME=admin
+```
+
+生成安全密钥：
+
+```bash
+node scripts/generate-keys.js
+```
+
+### 安全优化
+
+详细的安全修复文档：`docs/SECURITY_FIXES.md`
+
+主要改进：
+1. ✅ API 密钥从环境变量读取（替代硬编码）
+2. ✅ SQL 注入防护加固
+3. ✅ 输入验证中间件
+4. ✅ 敏感数据加密存储
+5. ✅ 速率限制
+6. ✅ 安全响应头
 
 ## 说明
 
 - 旧版 AI 管理面板与相关 API 已移除。
 - Studio 相关接口统一在 `/api/video/*`。
 - `sketch2cad` 模块已移除。
+- **注意**：`data/api_config.json` 已被弃用，请使用环境变量配置 API 密钥。

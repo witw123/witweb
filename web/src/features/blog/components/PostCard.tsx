@@ -1,5 +1,6 @@
-﻿"use client";
+"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { getThumbnailUrl } from "@/utils/url";
 import { ThumbsUpIcon, MessageCircleIcon, BookmarkIcon } from "@/components/Icons";
@@ -31,12 +32,14 @@ export default function PostCard({
         <UserHoverCard username={post.author} className="z-10">
           <div className="author flex items-center gap-2">
             {post.author_avatar ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={post.author_name || post.author}
+                width={24}
+                height={24}
                 loading="lazy"
-                decoding="async"
                 className="w-6 h-6 rounded-full"
+                unoptimized
               />
             ) : (
               <div className="avatar-fallback w-6 h-6 flex items-center justify-center rounded-full bg-secondary text-xs">

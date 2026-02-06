@@ -1,17 +1,18 @@
 import { initDb } from "@/lib/db-init";
 import { createToken, verifyPassword } from "@/lib/auth";
 import { getUserByUsername, publicProfile } from "@/lib/user";
+import { successResponse, errorResponses } from "@/lib/api-response";
 
 export async function POST(req: Request) {
   initDb();
   const body = await req.json().catch(() => ({}));
   const { username, password } = body || {};
   if (!username || !password) {
-    return Response.json({ detail: "Invalid credentials" }, { status: 401 });
+    return errorResponses.unauthorized("Invalid credentials");
   }
   const user = getUserByUsername(username);
   if (!user || !verifyPassword(password, user.password)) {
-    return Response.json({ detail: "Invalid credentials" }, { status: 401 });
+    return errorResponses.unauthorized("Invalid credentials");
   }
   const token = await createToken(username);
   const baseProfile = publicProfile(user.username, user.username) || {
@@ -28,5 +29,5 @@ export async function POST(req: Request) {
     ...baseProfile,
     balance: user.balance ?? 0.0,
   };
-  return Response.json({ token, profile });
+  return successResponse({ token, profile });
 }

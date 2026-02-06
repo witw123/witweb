@@ -1,17 +1,35 @@
-import { initDb } from "@/lib/db-init";
-import { requireAdminUser } from "@/lib/http";
-import { listBlogs } from "@/lib/admin";
+﻿/**
+ */
 
-export async function GET(req: Request) {
+import { initDb } from "@/lib/db-init";
+import { getAuthUser } from "@/lib/http";
+import { listBlogs } from "@/lib/admin";
+import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
+import { paginatedResponse } from "@/lib/api-response";
+import { validateQuery, z } from "@/lib/validate";
+import { isAdminUser } from "@/lib/http";
+
+const querySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().default(""),
+  status: z.string().default(""),
+  username: z.string().default(""),
+  sort: z.string().default("created_at_desc"),
+});
+
+export const GET = withErrorHandler(async (req: Request) => {
   initDb();
-  const user = await requireAdminUser();
-  if (user instanceof Response) return user;
-  const url = new URL(req.url);
-  const page = Number(url.searchParams.get("page") || 1);
-  const limit = Number(url.searchParams.get("limit") || 20);
-  const search = url.searchParams.get("search") || "";
-  const status = url.searchParams.get("status") || "";
-  const username = url.searchParams.get("username") || "";
-  const sort = url.searchParams.get("sort") || "created_at_desc";
-  return Response.json(listBlogs(page, limit, search, status, username, sort));
-}
+  
+  const user = await getAuthUser();
+  assertAuthenticated(user);
+  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  
+  const { page, limit, search, status, username, sort } = await validateQuery(req, querySchema);
+  
+  const result = listBlogs(page, limit, search, status, username, sort);
+  
+  // listBlogs 杩斿洖 { blogs, total, page, limit }
+  return paginatedResponse(result.blogs, result.total, page ?? 1, limit ?? 20);
+});
+

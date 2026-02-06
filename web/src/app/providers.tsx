@@ -33,33 +33,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    const storedProfile = localStorage.getItem("profile");
+
+    if (!storedToken || !storedProfile) {
+      setToken(null);
+      setUser(null);
+      localStorage.removeItem("token");
+      localStorage.removeItem("profile");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setToken(storedToken);
+      setUser(JSON.parse(storedProfile) as UserProfile);
+    } catch {
+      setToken(null);
+      setUser(null);
+      localStorage.removeItem("token");
+      localStorage.removeItem("profile");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const notifyProfileUpdate = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("profile-updated"));
     }
   };
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    const storedProfile = localStorage.getItem("profile");
-    if (storedToken) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setToken(storedToken);
-      if (storedProfile) {
-        try {
-          setUser(JSON.parse(storedProfile));
-        } catch { }
-      }
-    }
-    setLoading(false);
-  }, []);
-
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       token,
       loading,
-      isAuthenticated: !!token,
+      isAuthenticated: !!token && !!user,
       login: (newToken, profile) => {
         localStorage.setItem("token", newToken);
         localStorage.setItem("profile", JSON.stringify(profile));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
 
 interface VideoResult {
@@ -23,7 +23,7 @@ export function Gallery() {
   const [keyword, setKeyword] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     if (!token) return;
     try {
       setLoading(true);
@@ -39,12 +39,11 @@ export function Gallery() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [fetchTasks]);
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();

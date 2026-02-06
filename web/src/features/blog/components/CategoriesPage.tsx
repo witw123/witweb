@@ -10,8 +10,8 @@ export default function CategoriesPage() {
   useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
-      .then((data) => {
-        setCategories(Array.isArray(data?.items) ? data.items : []);
+      .then((response) => {
+        setCategories(Array.isArray(response.data?.items) ? response.data.items : []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -25,7 +25,7 @@ export default function CategoriesPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
         {!loading &&
           categories.map((item) => (
-            <Link key={item.id} href={`/?category=${item.slug}`} className="card block no-underline text-inherit">
+            <Link key={item.id} href={`/?category=${item.slug}#posts-anchor`} className="card block no-underline text-inherit">
               <div className="text-lg font-semibold mb-2">{item.name}</div>
               <div className="text-sm text-muted mb-3">{item.description || "暂无描述"}</div>
               <div className="text-xs text-muted">{item.post_count || 0} 篇文章</div>
@@ -36,4 +36,3 @@ export default function CategoriesPage() {
     </div>
   );
 }
-

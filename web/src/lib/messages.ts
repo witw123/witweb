@@ -1,4 +1,5 @@
-import { getMessagesDb, getUsersDb } from "./db";
+﻿import { getMessagesDb, getUsersDb } from "./db";
+import type { ConversationListItem, PrivateMessage as PrivateMessageType } from "@/types";
 
 export interface Conversation {
   id: number;
@@ -24,7 +25,23 @@ export interface PrivateMessage {
   created_at: string;
 }
 
-export function sendMessage(sender: string, receiver: string, content: string) {
+interface ConversationRow {
+  id: number;
+  user1: string;
+  user2: string;
+  last_message: string | null;
+  last_time: string | null;
+  unread_count_user1: number;
+  unread_count_user2: number;
+}
+
+interface UserBasicInfo {
+  username: string;
+  nickname: string | null;
+  avatar_url: string | null;
+}
+
+export function sendMessage(sender: string, receiver: string, content: string): { conversation_id: number } {
   const db = getMessagesDb();
   const usersDb = getUsersDb();
 
@@ -62,7 +79,7 @@ export function sendMessage(sender: string, receiver: string, content: string) {
   return { conversation_id: conv.id };
 }
 
-export function getConversations(username: string): Conversation[] {
+export function getConversations(username: string): ConversationListItem[] {
   const db = getMessagesDb();
   const usersDb = getUsersDb();
 
@@ -70,33 +87,42 @@ export function getConversations(username: string): Conversation[] {
     SELECT * FROM conversations 
     WHERE user1 = ? OR user2 = ? 
     ORDER BY last_time DESC
-  `).all(username, username) as any[];
+  `).all(username, username) as ConversationRow[];
 
-  return convs.map(c => {
+  return convs.flatMap(c => {
     const otherUsername = c.user1 === username ? c.user2 : c.user1;
-    const otherUser = usersDb.prepare("SELECT username, nickname, avatar_url FROM users WHERE username = ?").get(otherUsername) as any;
+    const otherUser = usersDb.prepare("SELECT username, nickname, avatar_url FROM users WHERE username = ?").get(otherUsername) as UserBasicInfo | undefined;
+    if (!otherUser) {
+      // Skip orphan conversations where the other user no longer exists.
+      return [];
+    }
 
-    return {
+    return [{
       id: c.id,
       user1: c.user1,
       user2: c.user2,
-      last_message: c.last_message,
-      last_time: c.last_time,
+      last_message: c.last_message || "",
+      last_time: c.last_time || "",
       unread_count: c.user1 === username ? c.unread_count_user1 : c.unread_count_user2,
       other_user: {
-        username: otherUser?.username || otherUsername,
-        nickname: otherUser?.nickname || otherUsername,
-        avatar_url: otherUser?.avatar_url || ""
+        username: otherUser.username,
+        nickname: otherUser.nickname || otherUsername,
+        avatar_url: otherUser.avatar_url || ""
       }
-    };
+    } satisfies ConversationListItem];
   });
 }
 
-export function getMessages(conversationId: number, username: string): PrivateMessage[] {
+interface ConversationOwnership {
+  user1: string;
+  user2: string;
+}
+
+export function getMessages(conversationId: number, username: string): PrivateMessageType[] {
   const db = getMessagesDb();
 
   // Verify ownership
-  const conv = db.prepare("SELECT user1, user2 FROM conversations WHERE id = ?").get(conversationId) as any;
+  const conv = db.prepare("SELECT user1, user2 FROM conversations WHERE id = ?").get(conversationId) as ConversationOwnership | undefined;
   if (!conv || (conv.user1 !== username && conv.user2 !== username)) {
     throw new Error("Access denied");
   }
@@ -119,7 +145,7 @@ export function getMessages(conversationId: number, username: string): PrivateMe
     SELECT * FROM private_messages 
     WHERE conversation_id = ? 
     ORDER BY created_at ASC
-  `).all(conversationId) as PrivateMessage[];
+  `).all(conversationId) as PrivateMessageType[];
 }
 
 export function getUnreadTotal(username: string): number {
@@ -128,6 +154,6 @@ export function getUnreadTotal(username: string): number {
     SELECT SUM(CASE WHEN user1 = ? THEN unread_count_user1 ELSE unread_count_user2 END) as total
     FROM conversations
     WHERE user1 = ? OR user2 = ?
-  `).get(username, username, username) as { total: number };
+  `).get(username, username, username) as { total: number } | undefined;
   return row?.total || 0;
 }

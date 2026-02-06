@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
@@ -28,9 +29,6 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
   const matchIndex = normalizedQuery
     ? titleText.toLowerCase().indexOf(normalizedQuery)
     : -1;
-  const firstImageMatch = (post.content || "").match(/!\[.*?\]\((.*?)\)|<img.*?src=["'](.*?)["']/);
-  const firstImageUrl = firstImageMatch ? (firstImageMatch[1] || firstImageMatch[2]) : null;
-  // const thumbnailUrl = getThumbnailUrl(firstImageUrl, 400); // Unused currently in list view but logic existed
   const postAvatar = post.author_avatar || "";
   const avatarUrl = getThumbnailUrl(postAvatar, 64);
 
@@ -40,17 +38,19 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
         <div className="card-head flex justify-between items-start mb-3">
           <div className="author flex items-center gap-2">
             {postAvatar ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={post.author_name}
+                width={24}
+                height={24}
                 loading="lazy"
-                decoding="async"
                 className="w-6 h-6 rounded-full"
+                unoptimized
               />
             ) : (
               <div className="avatar-fallback w-6 h-6 text-xs">{post.author_name?.[0] || "U"}</div>
             )}
-            <span className="text-sm font-medium">{post.author_name || post.author || "匿名"}</span>
+            <span className="text-sm font-medium">{post.author_name || post.author || "未知作者"}</span>
           </div>
           <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
         </div>
@@ -97,7 +97,8 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
                 headers: { Authorization: `Bearer ${token}` },
               })
                 .then((res) => res.json())
-                .then((data) => {
+                .then((payload) => {
+                  const data = payload?.data || payload;
                   if (!data) return;
                   onUpdate?.({
                     ...post,
@@ -127,7 +128,8 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
                 headers: { Authorization: `Bearer ${token}` },
               })
                 .then((res) => res.json())
-                .then((data) => {
+                .then((payload) => {
+                  const data = payload?.data || payload;
                   if (!data) return;
                   onUpdate?.({
                     ...post,
@@ -157,7 +159,8 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
                 headers: { Authorization: `Bearer ${token}` },
               })
                 .then((res) => res.json())
-                .then((data) => {
+                .then((payload) => {
+                  const data = payload?.data || payload;
                   if (!data) return;
                   onUpdate?.({
                     ...post,
@@ -189,3 +192,4 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
     </div>
   );
 }
+

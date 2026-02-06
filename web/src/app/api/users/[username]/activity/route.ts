@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActivities } from "@/lib/blog";
+import { successResponse } from "@/lib/api-response";
 
 // Dynamic route for /api/users/[username]/activity
 export async function GET(
@@ -17,7 +18,7 @@ export async function GET(
 
   try {
     const data = getActivities(username, page, size);
-    return NextResponse.json(data);
+    return successResponse(data);
   } catch (err: any) {
     console.error("Error fetching activities:", err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

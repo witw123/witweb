@@ -31,8 +31,8 @@ export function CharacterLab() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "提交失败");
-      setStatus({ type: "success", msg: `角色任务已提交，任务 ID：${data.task_id || data.id}` });
+      if (!data.success) throw new Error(data.error?.message || "提交失败");
+      setStatus({ type: "success", msg: `角色任务已提交，任务 ID：${data.data?.task_id || data.data?.id}` });
     } catch (err: any) {
       setStatus({ type: "error", msg: err.message || "提交失败" });
     } finally {

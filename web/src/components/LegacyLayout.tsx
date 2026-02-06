@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -26,13 +27,13 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
     if (nextState && isAuthenticated && token) {
       try {
         const res = await fetch("/api/profile", {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.profile) {
-          updateProfile(data.profile);
+        if (data.data?.profile) {
+          updateProfile(data.data.profile);
         }
-      } catch (err) { }
+      } catch {}
     }
   };
 
@@ -57,52 +58,63 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
   }, [showUserMenu]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !token) return;
     const fetchUnread = async () => {
       try {
-        const res = await fetch("/api/messages/unread");
+        const res = await fetch("/api/messages/unread", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const data = await res.json();
-        setUnreadCount(data.unread_count || 0);
-      } catch (err) { }
+        setUnreadCount(data.data?.unread_count || 0);
+      } catch {}
     };
-    fetchUnread();
+    void fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, token]);
 
   const navClass = (path: string) =>
-    pathname === path || (path === "/studio" && isStudio)
-      ? "nav-link active"
-      : "nav-link";
+    pathname === path || (path === "/studio" && isStudio) ? "nav-link active" : "nav-link";
 
   return (
     <div className="layout">
       <VisitTracker />
       <header className="header">
         <div className="container header-content">
-          <Link href="/" className="brand">witweb</Link>
+          <Link href="/" className="brand">
+            witweb
+          </Link>
 
           <button className="mobile-menu-toggle" onClick={toggleMobileMenu} aria-label="Toggle navigation">
             <span className={`hamburger ${isMobileMenuOpen ? "active" : ""}`}></span>
           </button>
 
           <nav className={`nav ${isMobileMenuOpen ? "mobile-open" : ""}`}>
-            <Link href="/" className={navClass("/")} onClick={closeMobileMenu}>首页</Link>
-            <Link href="/categories" className={navClass("/categories")} onClick={closeMobileMenu}>分类</Link>
-
+            <Link href="/" className={navClass("/")} onClick={closeMobileMenu}>
+              首页
+            </Link>
+            <Link href="/categories" className={navClass("/categories")} onClick={closeMobileMenu}>
+              分类
+            </Link>
             {isAuthenticated && user?.username === adminUsername && (
-              <Link href="/admin" className="nav-link" onClick={closeMobileMenu}>管理后台</Link>
+              <Link href="/admin" className="nav-link" onClick={closeMobileMenu}>
+                管理后台
+              </Link>
             )}
-            <Link href="/studio" className={navClass("/studio")} onClick={closeMobileMenu}>工作台</Link>
-            <Link href="/friends" className={navClass("/friends")} onClick={closeMobileMenu}>友链</Link>
+            <Link href="/studio" className={navClass("/studio")} onClick={closeMobileMenu}>
+              工作台
+            </Link>
+            <Link href="/friends" className={navClass("/friends")} onClick={closeMobileMenu}>
+              友链
+            </Link>
             {isAuthenticated && (
-              <Link href="/publish" className={navClass("/publish")} onClick={closeMobileMenu}>发布文章</Link>
+              <Link href="/publish" className={navClass("/publish")} onClick={closeMobileMenu}>
+                发布文章
+              </Link>
             )}
           </nav>
 
-          {isMobileMenuOpen && (
-            <div className="mobile-menu-overlay" onClick={closeMobileMenu}></div>
-          )}
+          {isMobileMenuOpen && <div className="mobile-menu-overlay" onClick={closeMobileMenu}></div>}
 
           <div className="actions">
             {isAuthenticated ? (
@@ -110,23 +122,23 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                 <div className="header-message-link">
                   <Link href="/messages" className={`nav-link ${pathname === "/messages" ? "active" : ""}`}>
                     消息
-                    {unreadCount > 0 && (
-                      <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
-                    )}
+                    {unreadCount > 0 && <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                   </Link>
                 </div>
+
                 <div className="user-menu-container" ref={userMenuRef}>
                   <button className="user-button" onClick={toggleUserMenu}>
                     {user?.avatar_url ? (
-                      <img
+                      <Image
                         src={getThumbnailUrl(user.avatar_url, 64)}
                         alt={user.nickname || user.username}
+                        width={32}
+                        height={32}
                         className="user-avatar"
+                        unoptimized
                       />
                     ) : (
-                      <div className="user-avatar-fallback">
-                        {(user?.nickname || user?.username)?.[0]?.toUpperCase()}
-                      </div>
+                      <div className="user-avatar-fallback">{(user?.nickname || user?.username)?.[0]?.toUpperCase()}</div>
                     )}
                     <span className="user-name">{user?.nickname || user?.username}</span>
                     <svg className="dropdown-icon" width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -140,9 +152,12 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                       <div className="user-dropdown-body">
                         <div className="user-dropdown-avatar">
                           {user?.avatar_url ? (
-                            <img
+                            <Image
                               src={getThumbnailUrl(user.avatar_url, 96)}
                               alt={user.nickname || user.username}
+                              width={72}
+                              height={72}
+                              unoptimized
                             />
                           ) : (
                             <div className="user-dropdown-avatar-fallback">
@@ -153,27 +168,41 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                         <div className="user-dropdown-name">{user?.nickname || user?.username}</div>
                         <div className="user-dropdown-handle">@{user?.username || "user"}</div>
                         <div className="user-dropdown-stats">
-                          <Link href="/following" className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1" onClick={() => setShowUserMenu(false)}>
+                          <Link
+                            href="/following"
+                            className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1"
+                            onClick={() => setShowUserMenu(false)}
+                          >
                             <div className="user-stat-value">{user?.following_count ?? 0}</div>
-                            <div className="user-stat-label">{"关注"}</div>
+                            <div className="user-stat-label">关注</div>
                           </Link>
-                          <Link href="/followers" className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1" onClick={() => setShowUserMenu(false)}>
+                          <Link
+                            href="/followers"
+                            className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1"
+                            onClick={() => setShowUserMenu(false)}
+                          >
                             <div className="user-stat-value">{user?.follower_count ?? 0}</div>
-                            <div className="user-stat-label">{"粉丝"}</div>
+                            <div className="user-stat-label">粉丝</div>
                           </Link>
-                          <Link href="/profile?tab=activity" className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1" onClick={() => setShowUserMenu(false)}>
+                          <Link
+                            href="/profile?tab=activity"
+                            className="user-stat hover:bg-white/5 transition-colors cursor-pointer rounded-md py-1"
+                            onClick={() => setShowUserMenu(false)}
+                          >
                             <div className="user-stat-value">{user?.activity_count ?? user?.post_count ?? 0}</div>
-                            <div className="user-stat-label">{"动态"}</div>
+                            <div className="user-stat-label">动态</div>
                           </Link>
                         </div>
                         <div className="user-dropdown-links">
                           <Link href="/profile" className="dropdown-item" onClick={() => setShowUserMenu(false)}>
-                            {"\u4e2a\u4eba\u4e2d\u5fc3"}
+                            个人中心
                           </Link>
                           <Link href="/favorites" className="dropdown-item" onClick={() => setShowUserMenu(false)}>
-                            {"\u6211\u7684\u6536\u85cf"}
+                            我的收藏
                           </Link>
-                          <button onClick={handleLogout} className="dropdown-item danger">{"\u9000\u51fa\u767b\u5f55"}</button>
+                          <button onClick={handleLogout} className="dropdown-item danger">
+                            退出登录
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -182,17 +211,19 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
               </>
             ) : (
               <div className="auth-buttons">
-                <Link href="/login" className="btn-ghost">{"登录"}</Link>
-                <Link href="/register" className="btn-primary">{"注册"}</Link>
+                <Link href="/login" className="btn-ghost">
+                  登录
+                </Link>
+                <Link href="/register" className="btn-primary">
+                  注册
+                </Link>
               </div>
             )}
           </div>
         </div>
       </header>
 
-      <main className={`main-content ${isStudio ? "full-width" : "container"}`}>
-        {children}
-      </main>
+      <main className={`main-content ${isStudio ? "full-width" : "container"}`}>{children}</main>
 
       <Footer />
     </div>

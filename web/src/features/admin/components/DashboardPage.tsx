@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    loadStats();
+    void loadStats();
   }, []);
 
   const loadStats = async () => {
@@ -19,19 +20,34 @@ export default function DashboardPage() {
         },
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        setError(data.error?.message || "获取数据失败");
+        return;
       }
-    } catch (error) {
-      console.error("Failed to load stats:", error);
+
+      setStats(data.data || {});
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "请求失败");
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) {
-    return null;
+    return <div style={{ padding: "2rem", color: "#666" }}>加载中...</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "2rem", color: "#ef4444" }}>
+        <p>错误: {error}</p>
+        <button onClick={() => void loadStats()} style={{ marginTop: "1rem" }}>
+          重试
+        </button>
+      </div>
+    );
   }
 
   const statCards = [
@@ -45,7 +61,7 @@ export default function DashboardPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">仪表盘</h1>
-        <p className="page-subtitle">系统概览和统计数据</p>
+        <p className="page-subtitle">系统概览与统计数据</p>
       </div>
 
       <div className="stats-grid">

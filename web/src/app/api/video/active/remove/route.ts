@@ -1,12 +1,23 @@
+﻿import { NextRequest } from "next/server";
 import { initDb } from "@/lib/db-init";
-import { requireAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { removeActiveTask } from "@/lib/studio";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
-export async function POST(req: Request) {
+const removeActiveTaskSchema = z.object({
+  id: z.string().min(1, "Task ID is required"),
+});
+
+export const POST = withErrorHandler(async (req: NextRequest) => {
   initDb();
-  const user = await requireAuthUser();
-  if (user instanceof Response) return user;
-  const body = await req.json().catch(() => ({}));
-  removeActiveTask(body.id);
-  return Response.json({ ok: true });
-}
+
+  const user = await getAuthUser();
+  assertAuthenticated(user, "Please log in first");
+
+  const { id } = await validateBody(req, removeActiveTaskSchema);
+  removeActiveTask(id);
+
+  return successResponse({ ok: true });
+});

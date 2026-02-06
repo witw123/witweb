@@ -8,9 +8,9 @@ export async function getFavorites(page = 1, pageSize = 10) {
       Authorization: `Bearer ${token}`,
     },
   });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.detail || "Failed to fetch favorites");
+  const data = await res.json().catch(() => ({}));
+  if (!data.success) {
+    throw new Error(data.error?.message || "Failed to fetch favorites");
   }
-  return res.json();
+  return data.data;
 }

@@ -1,14 +1,136 @@
-import { getBlogDb, getUsersDb } from "./db";
+﻿import { getBlogDb, getUsersDb } from "./db";
+import type { 
+  UserRow, 
+  ActivityItem, 
+  PostListItem, 
+  PostDetail, 
+  CommentListItem, 
+  Category, 
+  NotificationItem,
+  ToggleLikeResponse,
+  ToggleFavoriteResponse,
+  OperationResponse 
+} from "@/types";
 
-type UserRow = { username: string; nickname?: string; avatar_url?: string };
+interface CountRow {
+  cnt: number;
+}
 
-function getUserMap(usernames: string[]) {
+interface TotalRow {
+  total: number;
+}
+
+interface UserIdRow {
+  id: number;
+}
+
+interface LastReadRow {
+  last_read_notifications_at: string | null;
+}
+
+interface ReplyRow {
+  id: number;
+  sender: string;
+  content: string;
+  created_at: string;
+  post_title: string;
+  post_slug: string;
+  sender_nickname?: string;
+  sender_avatar?: string;
+}
+
+interface LikeRow {
+  sender: string;
+  created_at: string;
+  post_title: string;
+  post_slug: string;
+  sender_nickname?: string;
+  sender_avatar?: string;
+}
+
+interface MentionRow {
+  id: number;
+  sender: string;
+  content: string;
+  created_at: string;
+  post_title: string;
+  post_slug: string;
+  sender_nickname?: string;
+  sender_avatar?: string;
+}
+
+interface PostQueryRow {
+  title: string;
+  slug: string;
+  content: string;
+  created_at: string;
+  author: string;
+  tags: string | null;
+  category_id: number | null;
+  view_count: number;
+  category_name: string | null;
+  category_slug: string | null;
+  like_count: number;
+  dislike_count: number;
+  comment_count: number;
+  favorite_count: number;
+  favorited_by_me: boolean;
+  author_name?: string;
+  author_avatar?: string;
+}
+
+interface PostDetailRow {
+  id: number;
+  title: string;
+  slug: string;
+  content: string;
+  created_at: string;
+  author: string;
+  tags: string | null;
+  category_id: number | null;
+  view_count: number;
+  category_name: string | null;
+  category_slug: string | null;
+  like_count: number;
+  dislike_count: number;
+  comment_count: number;
+  favorite_count: number;
+  author_name?: string;
+  author_avatar?: string;
+  liked_by_me?: boolean;
+  favorited_by_me?: boolean;
+}
+
+interface CommentRow {
+  id: number;
+  post_id: number;
+  author: string;
+  content: string;
+  created_at: string;
+  parent_id: number | null;
+  ip_address: string | null;
+  like_count: number;
+  dislike_count: number;
+  author_name?: string;
+  author_avatar?: string;
+}
+
+interface CommentVoteRow {
+  id: number;
+}
+
+interface PostIdRow {
+  id: number;
+  author: string;
+}
+
+function getUserMap(usernames: string[]): Map<string, UserRow> {
   const unique = Array.from(new Set(usernames.filter(Boolean)));
   const map = new Map<string, UserRow>();
   if (unique.length === 0) return map;
   const usersDb = getUsersDb();
   const placeholders = unique.map(() => "?").join(",");
-  const rows = usersDb.prepare(`SELECT username, nickname, avatar_url FROM users WHERE username IN (${placeholders})`).all(...unique) as any[];
+  const rows = usersDb.prepare(`SELECT username, nickname, avatar_url FROM users WHERE username IN (${placeholders})`).all(...unique) as UserRow[];
   rows.forEach((row) => map.set(row.username, row));
   return map;
 }
@@ -17,7 +139,7 @@ export function getUnreadNotificationCount(username: string): number {
   const blogDb = getBlogDb();
   const usersDb = getUsersDb();
 
-  const user = usersDb.prepare("SELECT last_read_notifications_at FROM users WHERE username = ?").get(username) as { last_read_notifications_at: string };
+  const user = usersDb.prepare("SELECT last_read_notifications_at FROM users WHERE username = ?").get(username) as LastReadRow | undefined;
   if (!user) return 0;
 
   const lastRead = user.last_read_notifications_at || "1970-01-01T00:00:00.000Z";
@@ -28,7 +150,7 @@ export function getUnreadNotificationCount(username: string): number {
     FROM comments c
     INNER JOIN posts p ON c.post_id = p.id
     WHERE p.author = ? AND c.author != ? AND c.created_at > ?
-  `).get(username, username, lastRead) as { cnt: number };
+  `).get(username, username, lastRead) as CountRow;
 
   // Count new likes on user's posts
   const newLikes = blogDb.prepare(`
@@ -36,29 +158,18 @@ export function getUnreadNotificationCount(username: string): number {
     FROM likes l
     INNER JOIN posts p ON l.post_id = p.id
     WHERE p.author = ? AND l.username != ? AND l.created_at > ?
-  `).get(username, username, lastRead) as { cnt: number };
+  `).get(username, username, lastRead) as CountRow;
 
   return (newComments?.cnt || 0) + (newLikes?.cnt || 0);
 }
 
-export function markNotificationsAsRead(username: string) {
+export function markNotificationsAsRead(username: string): void {
   const usersDb = getUsersDb();
   const now = new Date().toISOString();
   usersDb.prepare("UPDATE users SET last_read_notifications_at = ? WHERE username = ?").run(now, username);
 }
 
-// ... imports
-
-export interface ActivityItem {
-  type: 'post' | 'like' | 'comment';
-  title: string;
-  slug: string;
-  created_at: string;
-  content?: string; // for comments
-  target_user?: string; // for likes/comments (post author)
-}
-
-export function getActivities(username: string, page = 1, size = 10): { items: ActivityItem[], total: number } {
+export function getActivities(username: string, page = 1, size = 10): { items: ActivityItem[]; total: number } {
   const db = getBlogDb();
   const offset = (page - 1) * size;
 
@@ -72,16 +183,28 @@ export function getActivities(username: string, page = 1, size = 10): { items: A
       SELECT COUNT(*) as cnt FROM comments WHERE author = ?
     )
   `;
-  const total = db.prepare(countSql).get(username, username, username) as { total: number };
+  const total = db.prepare(countSql).get(username, username, username) as TotalRow;
 
   const sql = `
-    SELECT 'post' as type, title, slug, created_at, NULL as content, NULL as target_user 
+    SELECT
+      'post' as type,
+      title,
+      slug,
+      created_at,
+      substr(trim(replace(replace(content, char(10), ' '), char(13), ' ')), 1, 140) as content,
+      NULL as target_user
     FROM posts 
     WHERE author = ?
     
     UNION ALL
     
-    SELECT 'like' as type, p.title, p.slug, l.created_at, NULL as content, p.author as target_user 
+    SELECT
+      'like' as type,
+      p.title,
+      p.slug,
+      l.created_at,
+      substr(trim(replace(replace(p.content, char(10), ' '), char(13), ' ')), 1, 140) as content,
+      p.author as target_user
     FROM likes l 
     INNER JOIN posts p ON l.post_id = p.id 
     WHERE l.username = ?
@@ -116,7 +239,7 @@ export function getActivityCount(username: string): number {
       SELECT COUNT(*) as cnt FROM comments WHERE author = ?
     )
   `;
-  const total = db.prepare(countSql).get(username, username, username) as { total: number };
+  const total = db.prepare(countSql).get(username, username, username) as TotalRow;
   return total?.total || 0;
 }
 
@@ -127,17 +250,17 @@ export function getUserLikesReceived(username: string): number {
     FROM likes l 
     INNER JOIN posts p ON l.post_id = p.id 
     WHERE p.author = ?
-  `).get(username) as { total: number };
+  `).get(username) as TotalRow;
   return row?.total || 0;
 }
 
 export function getPostCount(username: string): number {
   const db = getBlogDb();
-  const row = db.prepare("SELECT COUNT(*) as total FROM posts WHERE author = ?").get(username) as { total: number };
+  const row = db.prepare("SELECT COUNT(*) as total FROM posts WHERE author = ?").get(username) as TotalRow;
   return row?.total || 0;
 }
 
-export function getRepliesToUser(username: string, page = 1, size = 10) {
+export function getRepliesToUser(username: string, page = 1, size = 10): ReplyRow[] {
   const db = getBlogDb();
   const offset = (page - 1) * size;
   const rows = db.prepare(`
@@ -149,7 +272,7 @@ export function getRepliesToUser(username: string, page = 1, size = 10) {
     WHERE p.author = ? AND c.author != ?
     ORDER BY c.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(username, username, size, offset) as any[];
+  `).all(username, username, size, offset) as ReplyRow[];
 
   const userMap = getUserMap(rows.map(r => r.sender));
   rows.forEach(r => {
@@ -160,7 +283,7 @@ export function getRepliesToUser(username: string, page = 1, size = 10) {
   return rows;
 }
 
-export function getLikesToUser(username: string, page = 1, size = 10) {
+export function getLikesToUser(username: string, page = 1, size = 10): LikeRow[] {
   const db = getBlogDb();
   const offset = (page - 1) * size;
   const rows = db.prepare(`
@@ -172,7 +295,7 @@ export function getLikesToUser(username: string, page = 1, size = 10) {
     WHERE p.author = ? AND l.username != ?
     ORDER BY l.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(username, username, size, offset) as any[];
+  `).all(username, username, size, offset) as LikeRow[];
 
   const userMap = getUserMap(rows.map(r => r.sender));
   rows.forEach(r => {
@@ -183,7 +306,7 @@ export function getLikesToUser(username: string, page = 1, size = 10) {
   return rows;
 }
 
-export function getMentionsToUser(username: string, page = 1, size = 10) {
+export function getMentionsToUser(username: string, page = 1, size = 10): MentionRow[] {
   const db = getBlogDb();
   const offset = (page - 1) * size;
   // Look for "@username" in comments
@@ -196,7 +319,7 @@ export function getMentionsToUser(username: string, page = 1, size = 10) {
     WHERE c.content LIKE ? AND c.author != ?
     ORDER BY c.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(`%@${username}%`, username, size, offset) as any[];
+  `).all(`%@${username}%`, username, size, offset) as MentionRow[];
 
   const userMap = getUserMap(rows.map(r => r.sender));
   rows.forEach(r => {
@@ -207,7 +330,7 @@ export function getMentionsToUser(username: string, page = 1, size = 10) {
   return rows;
 }
 
-export function getSystemNotifications(username: string) {
+export function getSystemNotifications(username: string): NotificationItem[] {
   // Mock system notification for new users or general announcements
   const now = new Date().toISOString();
   return [
@@ -219,7 +342,7 @@ export function getSystemNotifications(username: string) {
       created_at: now,
       post_title: "站点公告",
       post_slug: "#"
-    }
+    } satisfies NotificationItem
   ];
 }
 
@@ -231,18 +354,18 @@ export function listPosts(
   tag = "",
   username = "",
   category = "",
-) {
+): { items: PostListItem[]; total: number; page: number; size: number } {
   const db = getBlogDb();
   page = Math.max(1, page);
   size = Math.max(1, Math.min(50, size));
   const filters: string[] = [];
-  const params: any[] = [];
+  const params: (string | number)[] = [];
   if (query) {
     filters.push("p.title LIKE ?");
     params.push(`%${query}%`);
   }
   if (author) {
-    const userRow = getUsersDb().prepare("SELECT id FROM users WHERE username = ?").get(author) as any;
+    const userRow = getUsersDb().prepare("SELECT id FROM users WHERE username = ?").get(author) as UserIdRow | undefined;
     if (userRow?.id) {
       filters.push("(p.author = ? OR p.author = ?)");
       params.push(author, String(userRow.id));
@@ -261,7 +384,7 @@ export function listPosts(
   }
   const fromSql = "FROM posts p LEFT JOIN categories c ON c.id = p.category_id";
   const whereSql = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-  const totalRow = db.prepare(`SELECT COUNT(*) AS cnt ${fromSql} ${whereSql}`).get(...params) as any;
+  const totalRow = db.prepare(`SELECT COUNT(*) AS cnt ${fromSql} ${whereSql}`).get(...params) as CountRow;
   const total = totalRow?.cnt || 0;
   const offset = (page - 1) * size;
   const rows = db.prepare(`
@@ -290,7 +413,7 @@ export function listPosts(
     ${whereSql}
     ORDER BY p.id DESC
     LIMIT ? OFFSET ?
-  `).all(username || "", username || "", ...params, size, offset) as any[];
+  `).all(username || "", username || "", ...params, size, offset) as PostQueryRow[];
 
   const userMap = getUserMap(rows.map((r) => r.author));
   rows.forEach((row) => {
@@ -299,10 +422,10 @@ export function listPosts(
     row.author_avatar = user?.avatar_url || "";
   });
 
-  return { items: rows, total, page, size };
+  return { items: rows as PostListItem[], total, page, size };
 }
 
-export function getPost(slug: string, username = "") {
+export function getPost(slug: string, username = ""): PostDetail | null {
   const db = getBlogDb();
   const row = db.prepare(`
     SELECT
@@ -324,7 +447,7 @@ export function getPost(slug: string, username = "") {
     FROM posts p
     LEFT JOIN categories c ON c.id = p.category_id
     WHERE p.slug = ?
-  `).get(slug) as any;
+  `).get(slug) as PostDetailRow | undefined;
   if (!row) return null;
 
   const userMap = getUserMap([row.author]);
@@ -338,7 +461,7 @@ export function getPost(slug: string, username = "") {
     row.liked_by_me = !!liked;
     row.favorited_by_me = !!favorited;
   }
-  return row;
+  return row as PostDetail;
 }
 
 export function createPost(
@@ -348,7 +471,7 @@ export function createPost(
   author: string,
   tags = "",
   categoryId: number | null = null,
-) {
+): string {
   const db = getBlogDb();
   const finalSlug = slug && slug.trim() ? slugify(slug) : slugify(title);
   const unique = ensureUniqueSlug(db, finalSlug);
@@ -358,10 +481,10 @@ export function createPost(
   return unique;
 }
 
-export function incrementPostView(slug: string) {
+export function incrementPostView(slug: string): number {
   const db = getBlogDb();
   db.prepare("UPDATE posts SET view_count = COALESCE(view_count, 0) + 1 WHERE slug = ?").run(slug);
-  const row = db.prepare("SELECT COALESCE(view_count, 0) AS view_count FROM posts WHERE slug = ?").get(slug) as any;
+  const row = db.prepare("SELECT COALESCE(view_count, 0) AS view_count FROM posts WHERE slug = ?").get(slug) as { view_count: number } | undefined;
   return row?.view_count ?? 0;
 }
 
@@ -372,9 +495,9 @@ export function updatePost(
   tags: string,
   username: string,
   categoryId: number | null = null,
-) {
+): OperationResponse {
   const db = getBlogDb();
-  const row = db.prepare("SELECT author FROM posts WHERE slug = ?").get(slug) as any;
+  const row = db.prepare("SELECT author FROM posts WHERE slug = ?").get(slug) as { author: string } | undefined;
   if (!row) return { ok: false, error: "not_found" };
   if (row.author !== username) return { ok: false, error: "forbidden" };
   db.prepare("UPDATE posts SET title = ?, content = ?, tags = ?, category_id = ?, updated_at = ? WHERE slug = ?")
@@ -382,9 +505,9 @@ export function updatePost(
   return { ok: true };
 }
 
-export function deletePost(slug: string, username: string, adminUsername: string) {
+export function deletePost(slug: string, username: string, adminUsername: string): OperationResponse {
   const db = getBlogDb();
-  const row = db.prepare("SELECT id, author FROM posts WHERE slug = ?").get(slug) as any;
+  const row = db.prepare("SELECT id, author FROM posts WHERE slug = ?").get(slug) as PostIdRow | undefined;
   if (!row) return { ok: false, error: "not_found" };
   if (row.author !== username && username !== adminUsername) return { ok: false, error: "forbidden" };
   db.prepare("DELETE FROM posts WHERE id = ?").run(row.id);
@@ -395,9 +518,9 @@ export function deletePost(slug: string, username: string, adminUsername: string
   return { ok: true };
 }
 
-export function listComments(slug: string) {
+export function listComments(slug: string): CommentListItem[] {
   const db = getBlogDb();
-  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as any;
+  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as UserIdRow | undefined;
   if (!post) return [];
   const rows = db.prepare(`
     SELECT
@@ -413,7 +536,7 @@ export function listComments(slug: string) {
     FROM comments c
     WHERE c.post_id = ?
     ORDER BY c.id DESC
-  `).all(post.id) as any[];
+  `).all(post.id) as CommentRow[];
 
   const userMap = getUserMap(rows.map((r) => r.author));
   rows.forEach((row) => {
@@ -422,21 +545,21 @@ export function listComments(slug: string) {
     row.author_avatar = user?.avatar_url || "";
   });
 
-  return rows;
+  return rows as CommentListItem[];
 }
 
-export function addComment(slug: string, author: string, content: string, parentId: number | null, ip: string) {
+export function addComment(slug: string, author: string, content: string, parentId: number | null, ip: string): OperationResponse {
   const db = getBlogDb();
-  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as any;
+  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as UserIdRow | undefined;
   if (!post) return { ok: false, error: "not_found" };
   db.prepare("INSERT INTO comments (post_id, author, content, created_at, parent_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)")
     .run(post.id, author, content, new Date().toISOString(), parentId, ip);
   return { ok: true };
 }
 
-export function toggleLike(slug: string, username: string, value: 1 | -1) {
+export function toggleLike(slug: string, username: string, value: 1 | -1): ToggleLikeResponse {
   const db = getBlogDb();
-  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as any;
+  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as UserIdRow | undefined;
   if (!post) return { ok: false, error: "not_found" };
   if (value === 1) {
     const exists = db.prepare("SELECT id FROM likes WHERE post_id = ? AND username = ?").get(post.id, username);
@@ -456,9 +579,9 @@ export function toggleLike(slug: string, username: string, value: 1 | -1) {
   return { ok: true, disliked: true };
 }
 
-export function toggleFavorite(slug: string, username: string) {
+export function toggleFavorite(slug: string, username: string): ToggleFavoriteResponse {
   const db = getBlogDb();
-  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as any;
+  const post = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug) as UserIdRow | undefined;
   if (!post) return { ok: false, error: "not_found" };
   const exists = db.prepare("SELECT id FROM favorites WHERE post_id = ? AND username = ?").get(post.id, username);
   if (exists) {
@@ -469,12 +592,12 @@ export function toggleFavorite(slug: string, username: string) {
   return { ok: true, favorited: true };
 }
 
-export function listFavorites(username: string, page = 1, size = 10) {
+export function listFavorites(username: string, page = 1, size = 10): { items: PostListItem[]; total: number; page: number; size: number } {
   const db = getBlogDb();
   page = Math.max(1, page);
   size = Math.max(1, Math.min(50, size));
   const offset = (page - 1) * size;
-  const totalRow = db.prepare("SELECT COUNT(*) AS cnt FROM favorites WHERE username = ?").get(username) as any;
+  const totalRow = db.prepare("SELECT COUNT(*) AS cnt FROM favorites WHERE username = ?").get(username) as CountRow;
   const total = totalRow?.cnt || 0;
   const rows = db.prepare(`
     SELECT
@@ -494,7 +617,7 @@ export function listFavorites(username: string, page = 1, size = 10) {
     WHERE fav.username = ?
     ORDER BY fav.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(username, size, offset) as any[];
+  `).all(username, size, offset) as PostQueryRow[];
 
   const userMap = getUserMap(rows.map((r) => r.author));
   rows.forEach((row) => {
@@ -503,12 +626,12 @@ export function listFavorites(username: string, page = 1, size = 10) {
     row.author_avatar = user?.avatar_url || "";
   });
 
-  return { items: rows, total, page, size };
+  return { items: rows as PostListItem[], total, page, size };
 }
 
-export function voteComment(commentId: number, username: string, value: 1 | -1) {
+export function voteComment(commentId: number, username: string, value: 1 | -1): void {
   const db = getBlogDb();
-  const existing = db.prepare("SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?").get(commentId, username) as any;
+  const existing = db.prepare("SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?").get(commentId, username) as CommentVoteRow | undefined;
   if (existing) {
     db.prepare("UPDATE comment_votes SET value = ?, created_at = ? WHERE id = ?")
       .run(value, new Date().toISOString(), existing.id);
@@ -518,15 +641,15 @@ export function voteComment(commentId: number, username: string, value: 1 | -1) 
   }
 }
 
-export function getPostSlugForComment(commentId: number) {
+export function getPostSlugForComment(commentId: number): string {
   const db = getBlogDb();
-  const row = db.prepare("SELECT post_id FROM comments WHERE id = ?").get(commentId) as any;
+  const row = db.prepare("SELECT post_id FROM comments WHERE id = ?").get(commentId) as { post_id: number } | undefined;
   if (!row) return "";
-  const post = db.prepare("SELECT slug FROM posts WHERE id = ?").get(row.post_id) as any;
+  const post = db.prepare("SELECT slug FROM posts WHERE id = ?").get(row.post_id) as { slug: string } | undefined;
   return post?.slug || "";
 }
 
-function slugify(text: string) {
+function slugify(text: string): string {
   return String(text || "")
     .trim()
     .toLowerCase()
@@ -534,7 +657,13 @@ function slugify(text: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function ensureUniqueSlug(db: any, base: string) {
+interface DatabaseInstance {
+  prepare: (sql: string) => {
+    get: (...params: unknown[]) => unknown;
+  };
+}
+
+function ensureUniqueSlug(db: DatabaseInstance, base: string): string {
   let slug = base || "post";
   let i = 1;
   while (db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug)) {
@@ -544,7 +673,7 @@ function ensureUniqueSlug(db: any, base: string) {
   return slug;
 }
 
-export function listCategories(includeInactive = false) {
+export function listCategories(includeInactive = false): Category[] {
   const db = getBlogDb();
   const rows = db.prepare(`
     SELECT
@@ -562,13 +691,17 @@ export function listCategories(includeInactive = false) {
     FROM categories c
     ${includeInactive ? "" : "WHERE c.is_active = 1"}
     ORDER BY c.sort_order ASC, c.id ASC
-  `).all() as any[];
+  `).all() as Category[];
   return rows;
 }
 
-export function updateComment(commentId: number, content: string, username: string, adminUsername: string) {
+interface CommentAuthorRow {
+  author: string;
+}
+
+export function updateComment(commentId: number, content: string, username: string, adminUsername: string): OperationResponse {
   const db = getBlogDb();
-  const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as any;
+  const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as CommentAuthorRow | undefined;
   if (!comment) return { ok: false, error: "not_found" };
   if (username !== adminUsername) {
     return { ok: false, error: "forbidden" };
@@ -577,9 +710,9 @@ export function updateComment(commentId: number, content: string, username: stri
   return { ok: true };
 }
 
-export function deleteComment(commentId: number, username: string, adminUsername: string) {
+export function deleteComment(commentId: number, username: string, adminUsername: string): OperationResponse {
   const db = getBlogDb();
-  const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as any;
+  const comment = db.prepare("SELECT author FROM comments WHERE id = ?").get(commentId) as CommentAuthorRow | undefined;
   if (!comment) return { ok: false, error: "not_found" };
   if (username !== adminUsername) {
     return { ok: false, error: "forbidden" };
@@ -588,3 +721,4 @@ export function deleteComment(commentId: number, username: string, adminUsername
   db.prepare("DELETE FROM comments WHERE id = ?").run(commentId);
   return { ok: true };
 }
+

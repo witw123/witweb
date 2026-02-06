@@ -85,9 +85,9 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "参考图上传失败");
-      setFormData((prev) => ({ ...prev, url: data.url || "" }));
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) throw new Error(data.error?.message || "参考图上传失败");
+      setFormData((prev) => ({ ...prev, url: data.data?.url || "" }));
       setStatus({ type: "success", msg: "参考图已上传，可直接提交任务。" });
     } catch (err: any) {
       setStatus({ type: "error", msg: err.message || "参考图上传失败" });
@@ -123,9 +123,9 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
         },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "任务提交失败");
-      const taskId = data.task_id || data.id;
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) throw new Error(data.error?.message || "任务提交失败");
+      const taskId = data.data?.task_id || data.data?.id;
       setLastTaskId(taskId || "");
       setStatus({ type: "success", msg: `任务创建成功：${taskId}` });
       onTaskCreated?.(taskId);
@@ -230,7 +230,7 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
               accept="image/*"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) uploadReferenceImage(file);
+                if (file) void uploadReferenceImage(file);
               }}
               className="studio-input"
             />

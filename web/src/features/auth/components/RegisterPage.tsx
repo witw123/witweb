@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,7 +37,7 @@ export default function RegisterPage() {
     }
 
     if (password.length < 6) {
-      setError("密码至少需要6位字符");
+      setError("密码至少需要 6 位字符");
       return;
     }
 
@@ -52,31 +53,38 @@ export default function RegisterPage() {
           avatar_url: avatarUrl,
         }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.detail || "注册失败，请稍后重试");
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        const detailMessage =
+          data.error?.details && typeof data.error.details === "object"
+            ? Object.values(data.error.details)[0]
+            : "";
+        setError((detailMessage as string) || data.error?.message || "注册失败，请稍后重试");
         return;
       }
-      const data = await res.json();
-      if (data.token && data.profile) {
-        login(data.token, data.profile);
+
+      if (data.data?.token && data.data?.profile) {
+        login(data.data.token, data.data.profile);
       }
       router.push("/");
+    } catch {
+      setError("网络异常，请检查服务是否启动后重试");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-primary px-4">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">AI Studio</h1>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-primary px-4">
+      <div className="mb-8 text-center">
+        <h1 className="mb-2 text-3xl font-bold">AI Studio</h1>
         <p className="text-secondary">注册后自动登录</p>
       </div>
 
       <form className="card form w-full max-w-md p-8 shadow-lg" onSubmit={handleRegister}>
-        <label className="block mb-4">
-          <span className="block mb-1 font-medium">账号</span>
+        <label className="mb-4 block">
+          <span className="mb-1 block font-medium">账号</span>
           <input
             className="input"
             value={username}
@@ -84,51 +92,60 @@ export default function RegisterPage() {
             placeholder="设置账号"
           />
         </label>
-        <label className="block mb-4">
-          <span className="block mb-1 font-medium">昵称</span>
+
+        <label className="mb-4 block">
+          <span className="mb-1 block font-medium">昵称</span>
           <input
             className="input"
             value={nickname}
             onChange={(event) => setNickname(event.target.value)}
-            placeholder="显示昵称"
+            placeholder="显示昵称（可选）"
           />
         </label>
-        <label className="block mb-4">
-          <span className="block mb-1 font-medium">头像</span>
+
+        <label className="mb-4 block">
+          <span className="mb-1 block font-medium">头像</span>
           <div className="flex items-center gap-4">
             {avatarUrl && (
-              <img
+              <Image
                 src={avatarUrl}
                 alt="Avatar preview"
-                className="w-16 h-16 rounded-full object-cover border-2 border-accent"
+                width={64}
+                height={64}
+                className="h-16 w-16 rounded-full border-2 border-accent object-cover"
+                unoptimized
               />
             )}
             <input
               type="file"
               accept="image/*"
               onChange={handleAvatarChange}
-              className="text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-opacity-90 cursor-pointer"
+              className="cursor-pointer text-sm text-muted file:mr-4 file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-opacity-90"
             />
           </div>
         </label>
-        <label className="block mb-6">
-          <span className="block mb-1 font-medium">密码</span>
+
+        <label className="mb-6 block">
+          <span className="mb-1 block font-medium">密码</span>
           <input
             className="input"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="设置密码"
+            placeholder="设置密码（至少 6 位）"
           />
         </label>
+
         {error && (
-          <p className="text-accent mb-4 text-sm bg-accent/10 p-3 rounded border border-accent/20">
+          <p className="mb-4 rounded border border-accent/20 bg-accent/10 p-3 text-sm text-accent">
             {error}
           </p>
         )}
+
         <button className="btn-primary w-full justify-center" type="submit" disabled={loading}>
           {loading ? "注册中..." : "注册并登录"}
         </button>
+
         <div className="mt-4 text-center">
           <Link className="btn-ghost text-sm" href="/login">
             已有账号？直接登录

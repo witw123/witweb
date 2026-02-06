@@ -1,36 +1,61 @@
-import { getUsersDb } from "./db";
+﻿import { getUsersDb } from "./db";
+import type { FollowCounts, FollowingItem, FollowerItem } from "@/types";
 
-export function followCounts(username: string) {
+interface CountRow {
+  cnt: number;
+}
+
+export function followCounts(username: string): FollowCounts {
   const db = getUsersDb();
-  const following = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as any;
-  const followers = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE following = ?").get(username) as any;
+  const following = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as CountRow;
+  const followers = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE following = ?").get(username) as CountRow;
   return {
     following_count: following?.cnt || 0,
     follower_count: followers?.cnt || 0,
   };
 }
 
-export function isFollowing(follower: string, following: string) {
+export function isFollowing(follower: string, following: string): boolean {
   const db = getUsersDb();
   const row = db.prepare("SELECT 1 FROM follows WHERE follower = ? AND following = ?")
     .get(follower, following);
   return !!row;
 }
 
-export function followUser(follower: string, following: string) {
+export function followUser(follower: string, following: string): void {
   const db = getUsersDb();
   if (follower === following) return;
   db.prepare("INSERT OR IGNORE INTO follows (follower, following) VALUES (?, ?)")
     .run(follower, following);
 }
 
-export function unfollowUser(follower: string, following: string) {
+export function unfollowUser(follower: string, following: string): void {
   const db = getUsersDb();
   db.prepare("DELETE FROM follows WHERE follower = ? AND following = ?")
     .run(follower, following);
 }
 
-export function listFollowing(username: string, page = 1, size = 20, query = "") {
+interface FollowingQueryRow {
+  username: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  follower_count: number;
+  following_count: number;
+  is_mutual: number;
+}
+
+interface FollowerQueryRow {
+  username: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  follower_count: number;
+  following_count: number;
+  is_following: number;
+}
+
+export function listFollowing(username: string, page = 1, size = 20, query = ""): { items: FollowingItem[]; total: number; page: number; size: number } {
   const db = getUsersDb();
   page = Math.max(1, page);
   size = Math.max(1, Math.min(50, size));
@@ -44,10 +69,10 @@ export function listFollowing(username: string, page = 1, size = 20, query = "")
       FROM follows f
       JOIN users u ON u.username = f.following
       WHERE f.follower = ? AND (u.username LIKE ? OR u.nickname LIKE ?)
-    `).get(username, `%${keyword}%`, `%${keyword}%`) as any;
+    `).get(username, `%${keyword}%`, `%${keyword}%`) as CountRow;
     total = row?.cnt || 0;
   } else {
-    const row = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as any;
+    const row = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE follower = ?").get(username) as CountRow;
     total = row?.cnt || 0;
   }
 
@@ -83,10 +108,20 @@ export function listFollowing(username: string, page = 1, size = 20, query = "")
         LIMIT ? OFFSET ?
       `).all(username, username, size, offset);
 
-  return { items: rows, total, page, size };
+  const items = (rows as FollowingQueryRow[]).map(row => ({
+    username: row.username,
+    nickname: row.nickname,
+    avatar_url: row.avatar_url,
+    bio: row.bio,
+    follower_count: row.follower_count,
+    following_count: row.following_count,
+    is_mutual: Boolean(row.is_mutual)
+  } satisfies FollowingItem));
+
+  return { items, total, page, size };
 }
 
-export function listFollowers(username: string, page = 1, size = 20, query = "") {
+export function listFollowers(username: string, page = 1, size = 20, query = ""): { items: FollowerItem[]; total: number; page: number; size: number } {
   const db = getUsersDb();
   page = Math.max(1, page);
   size = Math.max(1, Math.min(50, size));
@@ -100,10 +135,10 @@ export function listFollowers(username: string, page = 1, size = 20, query = "")
       FROM follows f
       JOIN users u ON u.username = f.follower
       WHERE f.following = ? AND (u.username LIKE ? OR u.nickname LIKE ?)
-    `).get(username, `%${keyword}%`, `%${keyword}%`) as any;
+    `).get(username, `%${keyword}%`, `%${keyword}%`) as CountRow;
     total = row?.cnt || 0;
   } else {
-    const row = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE following = ?").get(username) as any;
+    const row = db.prepare("SELECT COUNT(*) AS cnt FROM follows WHERE following = ?").get(username) as CountRow;
     total = row?.cnt || 0;
   }
 
@@ -139,5 +174,15 @@ export function listFollowers(username: string, page = 1, size = 20, query = "")
         LIMIT ? OFFSET ?
       `).all(username, username, size, offset);
 
-  return { items: rows, total, page, size };
+  const items = (rows as FollowerQueryRow[]).map(row => ({
+    username: row.username,
+    nickname: row.nickname,
+    avatar_url: row.avatar_url,
+    bio: row.bio,
+    follower_count: row.follower_count,
+    following_count: row.following_count,
+    is_following: Boolean(row.is_following)
+  } satisfies FollowerItem));
+
+  return { items, total, page, size };
 }

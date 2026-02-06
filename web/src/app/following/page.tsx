@@ -5,7 +5,7 @@ import FollowingPageContent from "@/features/user/components/FollowingPageConten
 export default function FollowingPage() {
   return (
     <RequireAuth>
-      <Suspense fallback={<div className="flex justify-center py-20 animate-pulse text-zinc-500">鍔犺浇涓?..</div>}>
+      <Suspense fallback={<div className="flex justify-center py-20 animate-pulse text-zinc-500">加载中...</div>}>
         <FollowingPageContent />
       </Suspense>
     </RequireAuth>

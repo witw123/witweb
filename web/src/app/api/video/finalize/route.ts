@@ -1,11 +1,24 @@
+﻿import { NextRequest } from "next/server";
 import { initDb } from "@/lib/db-init";
-import { requireAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { finalizeVideo } from "@/lib/studio";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
-export async function POST(req: Request) {
+const finalizeSchema = z.object({
+  id: z.string().min(1, "Task ID is required"),
+  prompt: z.string().optional(),
+});
+
+export const POST = withErrorHandler(async (req: NextRequest) => {
   initDb();
-  const user = await requireAuthUser();
-  if (user instanceof Response) return user;
-  const body = await req.json().catch(() => ({}));
-  return Response.json(await finalizeVideo(body.id, body.prompt));
-}
+
+  const user = await getAuthUser();
+  assertAuthenticated(user, "Please log in first");
+
+  const { id, prompt } = await validateBody(req, finalizeSchema);
+  const result = await finalizeVideo(id, prompt ?? "");
+
+  return successResponse(result);
+});

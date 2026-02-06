@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
 
 interface Task {
@@ -28,7 +28,7 @@ export function TaskList() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchTasks = async (silent = false) => {
+  const fetchTasks = useCallback(async (silent = false) => {
     if (!token) return;
     if (!silent) setRefreshing(true);
 
@@ -62,19 +62,17 @@ export function TaskList() {
       setLoading(false);
       if (!silent) setRefreshing(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [fetchTasks]);
 
   useEffect(() => {
     if (!autoRefresh) return;
     const timer = setInterval(() => fetchTasks(true), 5000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, autoRefresh]);
+  }, [autoRefresh, fetchTasks]);
 
   const copyId = async (id: string) => {
     try {

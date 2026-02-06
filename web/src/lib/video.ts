@@ -1,8 +1,9 @@
-import { getStudioDb } from "./db";
+﻿import { getStudioDb } from "./db";
 import { getResult } from "./studio";
 import crypto from "crypto";
+import type { CreateVideoTaskRequest, VideoTask, VideoAPIResult, VideoResult, Character } from "@/types";
 
-export function createTask(username: string, taskType: string, params: any, taskId?: string) {
+export function createTask(username: string, taskType: string, params: CreateVideoTaskRequest, taskId?: string): string {
   const db = getStudioDb();
   const id = taskId || crypto.randomUUID();
   db.prepare(`
@@ -30,10 +31,17 @@ export function createTask(username: string, taskType: string, params: any, task
   return id;
 }
 
-export function updateTaskStatus(taskId: string, status: string, progress?: number, resultJson?: string, failureReason?: string, error?: string) {
+export function updateTaskStatus(
+  taskId: string, 
+  status: string, 
+  progress?: number, 
+  resultJson?: string, 
+  failureReason?: string, 
+  error?: string
+): void {
   const db = getStudioDb();
   const fields = ["status = ?", "updated_at = datetime('now', 'localtime')"];
-  const params: any[] = [status];
+  const params: (string | number | undefined)[] = [status];
   if (progress !== undefined) { fields.push("progress = ?"); params.push(progress); }
   if (resultJson !== undefined) { fields.push("result_json = ?"); params.push(resultJson); }
   if (failureReason !== undefined) { fields.push("failure_reason = ?"); params.push(failureReason); }
@@ -42,7 +50,7 @@ export function updateTaskStatus(taskId: string, status: string, progress?: numb
   db.prepare(`UPDATE video_tasks SET ${fields.join(", ")} WHERE id = ?`).run(...params);
 }
 
-export function saveResults(taskId: string, results: any[]) {
+export function saveResults(taskId: string, results: VideoAPIResult[]): void {
   const db = getStudioDb();
   const stmt = db.prepare(`
     INSERT INTO video_results (task_id, url, remove_watermark, pid, character_id)
@@ -53,29 +61,29 @@ export function saveResults(taskId: string, results: any[]) {
   }
 }
 
-export function getTask(taskId: string, username?: string) {
+export function getTask(taskId: string, username?: string): VideoTask & { results: VideoResult[] } | null {
   const db = getStudioDb();
   const row = username
     ? db.prepare("SELECT * FROM video_tasks WHERE id = ? AND username = ?").get(taskId, username)
     : db.prepare("SELECT * FROM video_tasks WHERE id = ?").get(taskId);
   if (!row) return null;
-  const results = db.prepare("SELECT * FROM video_results WHERE task_id = ?").all(taskId);
-  return { ...row, results };
+  const results = db.prepare("SELECT * FROM video_results WHERE task_id = ?").all(taskId) as VideoResult[];
+  return { ...row as VideoTask, results };
 }
 
-export function listTasks(username: string, page = 1, limit = 20, taskType?: string) {
+export function listTasks(username: string, page = 1, limit = 20, taskType?: string): { tasks: VideoTask[]; total: number; page: number; limit: number } {
   const db = getStudioDb();
   const offset = (page - 1) * limit;
   let where = "WHERE username = ?";
-  const params: any[] = [username];
+  const params: (string | number)[] = [username];
   if (taskType) { where += " AND task_type = ?"; params.push(taskType); }
-  const total = (db.prepare(`SELECT COUNT(*) AS cnt FROM video_tasks ${where}`).get(...params) as any)?.cnt || 0;
+  const total = (db.prepare(`SELECT COUNT(*) AS cnt FROM video_tasks ${where}`).get(...params) as { cnt: number })?.cnt || 0;
   const tasks = db.prepare(`SELECT * FROM video_tasks ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset);
+    .all(...params, limit, offset) as VideoTask[];
   return { tasks, total, page, limit };
 }
 
-export async function pollAndUpdate(taskId: string) {
+export async function pollAndUpdate(taskId: string): Promise<ReturnType<typeof getResult>> {
   const result = await getResult(taskId);
   const status = result?.status || "running";
   const progress = result?.progress || 0;
@@ -86,7 +94,7 @@ export async function pollAndUpdate(taskId: string) {
   return result;
 }
 
-export function listCharacters(username: string) {
+export function listCharacters(username: string): Character[] {
   const db = getStudioDb();
-  return db.prepare("SELECT * FROM characters WHERE username = ? ORDER BY created_at DESC").all(username);
+  return db.prepare("SELECT * FROM characters WHERE username = ? ORDER BY created_at DESC").all(username) as Character[];
 }

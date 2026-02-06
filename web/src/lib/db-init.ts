@@ -1,9 +1,9 @@
-import "server-only";
+﻿import "server-only";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
 import { getUsersDb, getBlogDb, getStudioDb, getMessagesDb } from "./db";
-import { hashPassword } from "./auth";
+import { hashPassword, verifyPassword } from "./auth";
 
 const DATA_DIR = path.resolve(process.cwd(), "..", "data");
 const LEGACY_DB = path.join(DATA_DIR, "blog.db");
@@ -20,11 +20,21 @@ function ensureColumn(db: any, table: string, column: string, ddl: string) {
 function ensureAdminUser() {
   const db = getUsersDb();
   const adminUsername = process.env.ADMIN_USERNAME || "witw";
-  const adminPassword = process.env.ADMIN_PASSWORD || "witw";
-  const exists = db.prepare("SELECT id FROM users WHERE username = ?").get(adminUsername);
+  const explicitAdminPassword = process.env.ADMIN_PASSWORD;
+  const adminPassword = explicitAdminPassword || "witw";
+  const exists = db.prepare("SELECT id, password FROM users WHERE username = ?").get(adminUsername) as
+    | { id: number; password: string }
+    | undefined;
   if (!exists) {
     db.prepare("INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?)")
       .run(adminUsername, hashPassword(adminPassword), adminUsername, "", "", "");
+    return;
+  }
+
+  // Only sync password when ADMIN_PASSWORD is explicitly provided.
+  // This avoids overriding manually changed passwords when env is unset.
+  if (explicitAdminPassword && !verifyPassword(explicitAdminPassword, exists.password)) {
+    db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashPassword(explicitAdminPassword), exists.id);
   }
 }
 
@@ -74,7 +84,7 @@ function ensureSystemBot() {
   const exists = db.prepare("SELECT id FROM users WHERE username = ?").get(botUsername);
   if (!exists) {
     db.prepare("INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio, is_bot) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(botUsername, hashPassword("bot"), "WitWeb Assistant", "", "", "我是 WitWeb 的智能助手", 1);
+      .run(botUsername, hashPassword("bot"), "WitWeb Assistant", "", "", "I am WitWeb's AI assistant.", 1);
   }
 }
 

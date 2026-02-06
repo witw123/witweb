@@ -1,8 +1,13 @@
-import { SignJWT, jwtVerify } from "jose";
+﻿import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
+import { authConfig } from "./config";
 
-const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "change-this-secret");
+const secret = new TextEncoder().encode(authConfig.secret || "change-this-secret-min-32-characters-long");
 const algo = "HS256";
+
+if (typeof window === "undefined" && secret.length < 32) {
+  console.warn("[SECURITY WARNING] AUTH_SECRET should be at least 32 characters long for production use");
+}
 
 export async function createToken(username: string) {
   return new SignJWT({ sub: username })
@@ -34,7 +39,7 @@ export async function verifyAuth(req: NextRequest) {
   try {
     const username = await verifyToken(token);
     return username ? { username } : null;
-  } catch (err) {
+  } catch { 
     return null;
   }
 }

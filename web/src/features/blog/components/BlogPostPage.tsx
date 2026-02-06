@@ -8,7 +8,7 @@ import { getThumbnailUrl } from "@/utils/url";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
 import UserHoverCard from "@/features/blog/components/UserHoverCard";
 import { marked } from "marked";
-import DOMPurify from "dompurify";
+import createDOMPurify from "dompurify";
 import { useAuth } from "@/app/providers";
 import {
   clearAllListCache,
@@ -21,6 +21,7 @@ import {
 } from "@/utils/memoryStore";
 import { resizeImageFile } from "@/utils/image";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
+import { emitPostMetricsUpdated, POST_METRICS_UPDATED_EVENT, type PostMetricsUpdateDetail } from "../utils/postMetricsSync";
 
 export default function BlogPostPage() {
   const params = useParams<{ slug: string }>();
@@ -56,17 +57,16 @@ export default function BlogPostPage() {
   const editPreviewRef = useRef<HTMLDivElement | null>(null);
   const imageReplaceInputRef = useRef<HTMLInputElement | null>(null);
   const refreshCommentsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const purifier = useMemo(
+    () => (typeof window !== "undefined" ? createDOMPurify(window) : null),
+    []
+  );
 
   const { user: profile, token, isAuthenticated } = useAuth();
 
   const canEdit = profile?.username && post?.author && profile.username === post.author;
   const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
   const isAdmin = profile?.username && profile.username === adminUsername;
-
-  // Debug log
-  console.log('Profile:', profile?.username);
-  console.log('Admin Env:', process.env.NEXT_PUBLIC_ADMIN_USERNAME);
-  console.log('Is Admin:', isAdmin);
 
   const cacheUserKeys = [profile?.username || "anon"];
   const cacheKeySignature = `${cacheUserKeys.join("|")}:${slug}`;
@@ -82,7 +82,8 @@ export default function BlogPostPage() {
   }
 
   function sanitizeHtml(html: string) {
-    return DOMPurify.sanitize(html, {
+    if (!purifier) return html;
+    return purifier.sanitize(html, {
       USE_PROFILES: { html: true },
       ADD_ATTR: ["style", "id"],
     });
@@ -91,72 +92,102 @@ export default function BlogPostPage() {
   function loadPost(options: { force?: boolean } = {}) {
     const { force = false } = options;
     if (!slug) return;
+    let hasCached = false;
     if (!force) {
       for (const key of cacheUserKeys) {
         const cached = getPostCache(`${key}:${slug}`);
         if (cached) {
           setPost(cached);
           setStatus("ready");
-          return;
+          hasCached = true;
+          break;
         }
       }
-      for (const key of localPostKeys) {
-        const cached = getCachedJson(key);
-        if (cached) {
-          setPost(cached);
-          setStatus("ready");
-          return;
+      if (!hasCached) {
+        for (const key of localPostKeys) {
+          const cached = getCachedJson(key);
+          if (cached) {
+            setPost(cached);
+            setStatus("ready");
+            hasCached = true;
+            break;
+          }
         }
       }
+    }
+    if (!hasCached || force) {
+      setStatus("loading");
     }
     const authToken = token;
     fetch(`/api/blog/${slug}`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     })
       .then((res) => res.json())
-      .then((data) => {
+      .then((payload) => {
+        const data = payload?.data ?? payload;
+        if (!data || payload?.success === false) {
+          setStatus("error");
+          return;
+        }
         setPost(data);
         cacheUserKeys.forEach((key) => setPostCache(`${key}:${slug}`, data));
         localPostKeys.forEach((key) => setCachedJson(key, data));
         setStatus("ready");
       })
-      .catch(() => setStatus("error"));
+      .catch(() => {
+        if (!hasCached || force) {
+          setStatus("error");
+        }
+      });
   }
 
   function loadComments(options: { force?: boolean } = {}) {
     const { force = false } = options;
     if (!slug) return;
+    let hasCached = false;
     if (!force) {
       for (const key of cacheUserKeys) {
         const cached = getCommentsCache(`${key}:${slug}`);
         if (cached) {
           setComments(Array.isArray(cached) ? cached : []);
           setCommentListStatus("ready");
-          return;
+          hasCached = true;
+          break;
         }
       }
-      for (const key of localCommentKeys) {
-        const cached = getCachedJson(key);
-        if (cached) {
-          setComments(Array.isArray(cached) ? cached : []);
-          setCommentListStatus("ready");
-          return;
+      if (!hasCached) {
+        for (const key of localCommentKeys) {
+          const cached = getCachedJson(key);
+          if (cached) {
+            setComments(Array.isArray(cached) ? cached : []);
+            setCommentListStatus("ready");
+            hasCached = true;
+            break;
+          }
         }
       }
     }
-    setCommentListStatus("loading");
+    if (!hasCached || force) {
+      setCommentListStatus("loading");
+    }
     fetch(`/api/blog/${slug}/comments`)
       .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
+      .then((payload) => {
+        const list = Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
         setComments(list);
         cacheUserKeys.forEach((key) => setCommentsCache(`${key}:${slug}`, list));
         localCommentKeys.forEach((key) => setCachedJson(key, list));
         setCommentListStatus("ready");
       })
       .catch(() => {
-        setComments([]);
-        setCommentListStatus("error");
+        if (!hasCached || force) {
+          setComments([]);
+          setCommentListStatus("error");
+        }
       });
   }
 
@@ -176,7 +207,11 @@ export default function BlogPostPage() {
       loadComments({ force: true });
     };
     window.addEventListener("profile-updated", handler as EventListener);
-    return () => window.removeEventListener("profile-updated", handler as EventListener);
+    window.addEventListener("blog-updated", handler as EventListener);
+    return () => {
+      window.removeEventListener("profile-updated", handler as EventListener);
+      window.removeEventListener("blog-updated", handler as EventListener);
+    };
   }, [slug, cacheKeySignature]);
 
   useEffect(() => {
@@ -196,8 +231,9 @@ export default function BlogPostPage() {
       .then((res) => res.json())
       .then((data) => {
         sessionStorage.setItem(viewedKey, "1");
-        if (typeof data?.view_count === "number") {
-          setPost((prev: any) => (prev ? { ...prev, view_count: data.view_count } : prev));
+        const viewCount = data?.data?.view_count ?? data?.view_count;
+        if (typeof viewCount === "number") {
+          setPost((prev: any) => (prev ? { ...prev, view_count: viewCount } : prev));
         }
       })
       .catch(() => { });
@@ -205,56 +241,69 @@ export default function BlogPostPage() {
 
   useEffect(() => {
     if (!slug) return;
-    let cachedPost: any = null;
-    for (const key of cacheUserKeys) {
-      cachedPost = getPostCache(`${key}:${slug}`);
-      if (cachedPost) break;
-    }
-    if (!cachedPost) {
-      for (const key of localPostKeys) {
-        cachedPost = getCachedJson(key);
-        if (cachedPost) break;
-      }
-    }
-    let cachedComments: any = null;
-    for (const key of cacheUserKeys) {
-      cachedComments = getCommentsCache(`${key}:${slug}`);
-      if (cachedComments) break;
-    }
-    if (!cachedComments) {
-      for (const key of localCommentKeys) {
-        cachedComments = getCachedJson(key);
-        if (cachedComments) break;
-      }
-    }
-    if (cachedPost) {
-      setPost(cachedPost);
-      setStatus("ready");
-    } else {
-      setStatus("loading");
-    }
-    if (cachedComments) {
-      setComments(Array.isArray(cachedComments) ? cachedComments : []);
-      setCommentListStatus("ready");
-    }
-    if (!cachedPost) {
+    loadPost();
+    loadComments();
+  }, [slug, cacheKeySignature]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !slug) return;
+    const refreshNow = () => {
       loadPost({ force: true });
-    }
-    if (!cachedComments) {
       loadComments({ force: true });
-    }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    };
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    }, 15000);
+    window.addEventListener("focus", refreshNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", refreshNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [slug, cacheKeySignature]);
 
   useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
       .then((data) => {
-        setCategories(Array.isArray(data?.items) ? data.items : []);
+        setCategories(Array.isArray(data?.data?.items) ? data.data.items : []);
       })
       .catch(() => {
         setCategories([]);
       });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMetricsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<PostMetricsUpdateDetail>).detail;
+      if (!detail?.slug || !slug || detail.slug !== slug) return;
+      setPost((prev: any) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          ...(detail.like_count !== undefined ? { like_count: detail.like_count } : {}),
+          ...(detail.dislike_count !== undefined ? { dislike_count: detail.dislike_count } : {}),
+          ...(detail.favorite_count !== undefined ? { favorite_count: detail.favorite_count } : {}),
+          ...(detail.comment_count !== undefined ? { comment_count: detail.comment_count } : {}),
+          ...(detail.favorited_by_me !== undefined ? { favorited_by_me: detail.favorited_by_me } : {}),
+        };
+        cacheUserKeys.forEach((key) => setPostCache(`${key}:${slug}`, next));
+        localPostKeys.forEach((key) => setCachedJson(key, next));
+        return next;
+      });
+    };
+    window.addEventListener(POST_METRICS_UPDATED_EVENT, onMetricsUpdated as EventListener);
+    return () => window.removeEventListener(POST_METRICS_UPDATED_EVENT, onMetricsUpdated as EventListener);
+  }, [slug, cacheKeySignature]);
 
   useEffect(() => {
     if (post) {
@@ -278,8 +327,69 @@ export default function BlogPostPage() {
     if (!res.ok) {
       return;
     }
-    await res.json().catch(() => ({}));
-    loadPost({ force: true });
+    const payload = await res.json().catch(() => ({}));
+    const data = payload?.data || payload;
+    const next = {
+      like_count: data?.like_count ?? post?.like_count,
+      dislike_count: data?.dislike_count ?? post?.dislike_count,
+      favorite_count: data?.favorite_count ?? post?.favorite_count,
+      comment_count: data?.comment_count ?? post?.comment_count,
+      favorited_by_me: data?.favorited ?? post?.favorited_by_me,
+    };
+    setPost((prev: any) => (prev ? { ...prev, ...next } : prev));
+    emitPostMetricsUpdated({ slug, ...next });
+  }
+
+  async function handleFavorite() {
+    const authToken = token;
+    if (!authToken || !slug) {
+      router.push("/login");
+      return;
+    }
+    const res = await fetch(`/api/blog/${slug}/favorite`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) {
+      return;
+    }
+    const payload = await res.json().catch(() => ({}));
+    const data = payload?.data || payload;
+    const next = {
+      like_count: data?.like_count ?? post?.like_count,
+      dislike_count: data?.dislike_count ?? post?.dislike_count,
+      favorite_count: data?.favorite_count ?? post?.favorite_count,
+      comment_count: data?.comment_count ?? post?.comment_count,
+      favorited_by_me: data?.favorited ?? post?.favorited_by_me,
+    };
+    setPost((prev: any) => (prev ? { ...prev, ...next } : prev));
+    emitPostMetricsUpdated({ slug, ...next });
+  }
+
+  async function handleDislike() {
+    const authToken = token;
+    if (!authToken || !slug) {
+      setCommentStatus("请先登录后再操作。");
+      return;
+    }
+    const res = await fetch(`/api/blog/${slug}/dislike`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) {
+      return;
+    }
+    const payload = await res.json().catch(() => ({}));
+    const data = payload?.data || payload;
+    const next = {
+      like_count: data?.like_count ?? post?.like_count,
+      dislike_count: data?.dislike_count ?? post?.dislike_count,
+      favorite_count: data?.favorite_count ?? post?.favorite_count,
+      comment_count: data?.comment_count ?? post?.comment_count,
+      favorited_by_me: data?.favorited ?? post?.favorited_by_me,
+    };
+    setPost((prev: any) => (prev ? { ...prev, ...next } : prev));
+    emitPostMetricsUpdated({ slug, ...next });
   }
 
   function scheduleCommentsRefresh() {
@@ -322,7 +432,7 @@ export default function BlogPostPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setCommentStatus(data.detail || "评论失败。");
+        setCommentStatus(data?.error?.message || data?.detail || "评论失败。");
         return;
       }
       setCommentText("");
@@ -331,6 +441,9 @@ export default function BlogPostPage() {
       setCommentPage(1);
       loadComments({ force: true });
       loadPost({ force: true });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("blog-updated", { detail: { slug } }));
+      }
     } finally {
       setCommentLoading(false);
     }
@@ -352,6 +465,9 @@ export default function BlogPostPage() {
       }
       loadComments({ force: true });
       loadPost({ force: true });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("blog-updated", { detail: { slug } }));
+      }
     } catch (e) {
       console.error(e);
       alert("删除出错");
@@ -379,6 +495,10 @@ export default function BlogPostPage() {
       setEditingCommentId(null);
       setEditingCommentContent("");
       loadComments({ force: true });
+      loadPost({ force: true });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("blog-updated", { detail: { slug } }));
+      }
     } catch (e) {
       console.error(e);
       alert("更新出错");
@@ -411,7 +531,7 @@ export default function BlogPostPage() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setEditStatus(data.detail || "保存失败。");
+      setEditStatus(data?.error?.message || data?.detail || "保存失败。");
       return;
     }
     setIsEditing(false);
@@ -425,6 +545,9 @@ export default function BlogPostPage() {
       });
     } catch { }
     loadPost({ force: true });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("blog-updated", { detail: { slug } }));
+    }
   }
 
   function insertImageMarkup(url: string, widthValue: string) {
@@ -465,7 +588,7 @@ export default function BlogPostPage() {
       return null;
     }
     const data = await res.json();
-    return data.url || null;
+    return data?.data?.url || data?.url || null;
   }
 
   function removeSelectedImage() {
@@ -832,44 +955,18 @@ export default function BlogPostPage() {
                 <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
               </button>
               <button
-                className={`btn-ghost btn-sm ${post.favorited_by_me ? "text-accent" : ""}`}
-                type="button"
-                onClick={() => {
-                  const authToken = token;
-                  if (!authToken) {
-                    router.push("/login");
-                    return;
-                  }
-                  fetch(`/api/blog/${slug}/favorite`, {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${authToken}` },
-                  })
-                    .then((res) => res.json())
-                    .then(() => loadPost({ force: true }))
-                    .catch(() => { });
-                }}
-              >
-                <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
-              </button>
-              <button
                 className="btn-ghost btn-sm"
                 type="button"
-                onClick={() => {
-                  const authToken = token;
-                  if (!authToken) {
-                    setCommentStatus("请先登录后再操作。");
-                    return;
-                  }
-                  fetch(`/api/blog/${slug}/dislike`, {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${authToken}` },
-                  })
-                    .then((res) => res.json())
-                    .then(() => loadPost({ force: true }))
-                    .catch(() => { });
-                }}
+                onClick={handleDislike}
               >
                 <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
+              </button>
+              <button
+                className={`btn-ghost btn-sm ${post.favorited_by_me ? "text-accent" : ""}`}
+                type="button"
+                onClick={handleFavorite}
+              >
+                <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
               </button>
               <span className="btn-ghost btn-sm cursor-default">
                 <MessageCircleIcon className="inline" /> {comments.length ?? 0}

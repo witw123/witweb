@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import { useAuth } from "@/app/providers";
 import { resizeImageFile } from "@/utils/image";
 
 export default function PublishPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
   const router = useRouter();
   const contentRef = useRef<HTMLTextAreaElement | null>(null);
   const [title, setTitle] = useState("");
@@ -22,8 +22,8 @@ export default function PublishPage() {
   useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
-      .then((data) => {
-        setCategories(Array.isArray(data?.items) ? data.items : []);
+      .then((response) => {
+        setCategories(Array.isArray(response.data?.items) ? response.data.items : []);
       })
       .catch(() => {
         setCategories([]);
@@ -36,11 +36,12 @@ export default function PublishPage() {
       setStatus("标题和内容不能为空。");
       return;
     }
-    const token = typeof window === "undefined" ? null : localStorage.getItem("token");
+
     if (!token) {
       router.push("/login");
       return;
     }
+
     setPublishing(true);
     const res = await fetch("/api/blog", {
       method: "POST",
@@ -56,49 +57,55 @@ export default function PublishPage() {
       }),
     });
     setPublishing(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setStatus(data.detail || "发布失败。");
+
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload?.success) {
+      setStatus(payload?.error?.message || "发布失败。");
       return;
     }
+
     setStatus("已发布。");
     setTitle("");
     setTags("");
     setContent("");
     setCategoryId("");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("blog-updated"));
+    }
   }
 
   async function uploadImage(file: File) {
-    const token = typeof window === "undefined" ? null : localStorage.getItem("token");
     if (!token) {
       router.push("/login");
       return;
     }
+
     setUploading(true);
     const resized = await resizeImageFile(file, 1600);
     const formData = new FormData();
     formData.append("file", resized);
+
     const res = await fetch("/api/upload-image", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
     setUploading(false);
-    if (!res.ok) {
-      setStatus("图片上传失败。");
+
+    const payload = await res.json().catch(() => ({}));
+    const imageUrl = payload?.data?.url || payload?.url;
+    if (!res.ok || !imageUrl) {
+      setStatus(payload?.error?.message || "图片上传失败。");
       return;
     }
-    const data = await res.json().catch(() => ({}));
-    if (!data.url) {
-      setStatus("图片上传失败。");
-      return;
-    }
-    const markup = `![](${data.url})`;
+
+    const markup = `![](${imageUrl})`;
     const textarea = contentRef.current;
     if (!textarea) {
       setContent((prev) => `${prev}\n\n${markup}\n`);
       return;
     }
+
     const start = textarea.selectionStart || 0;
     const end = textarea.selectionEnd || 0;
     setContent((prev) => `${prev.slice(0, start)}${markup}${prev.slice(end)}`);
@@ -121,6 +128,7 @@ export default function PublishPage() {
             <Link href="/login" className="btn-primary">登录</Link>
           )}
         </div>
+
         {!isAuthenticated ? (
           <p className="text-muted">登录后可发布文章。</p>
         ) : (
@@ -134,6 +142,7 @@ export default function PublishPage() {
                 placeholder="文章标题"
               />
             </label>
+
             <label>
               <span className="text-sm text-muted">分类</span>
               <select
@@ -149,6 +158,7 @@ export default function PublishPage() {
                 ))}
               </select>
             </label>
+
             <label>
               <span className="text-sm text-muted">标签</span>
               <input
@@ -158,6 +168,7 @@ export default function PublishPage() {
                 placeholder="例如：AI, 工程, 系统"
               />
             </label>
+
             <label>
               <span className="text-sm text-muted">内容</span>
               <textarea
@@ -169,6 +180,7 @@ export default function PublishPage() {
                 placeholder="使用 Markdown 写作..."
               />
             </label>
+
             <div className="flex items-center gap-4 mt-1">
               <label className="btn-ghost">
                 <input
@@ -184,7 +196,9 @@ export default function PublishPage() {
                 {uploading ? "上传中..." : "上传图片"}
               </label>
             </div>
+
             {status && <p className="text-accent text-sm mt-2">{status}</p>}
+
             <button className="btn-primary w-full mt-4" type="button" onClick={publish} disabled={publishing}>
               {publishing ? "发布中..." : "发布文章"}
             </button>

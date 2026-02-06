@@ -1,17 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿/**
+ */
+
 import { getUnreadTotal } from "@/lib/messages";
 import { getUnreadNotificationCount } from "@/lib/blog";
-import { verifyAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/http";
+import { withErrorHandler } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
 
-export async function GET(req: NextRequest) {
-  const auth = await verifyAuth(req);
-  if (!auth) return NextResponse.json({ unread_count: 0 }); // Silent for badge
+export const GET = withErrorHandler(async () => {
+  const user = await getAuthUser();
+  if (!user) {
+    return successResponse({ unread_count: 0 });
+  }
 
   try {
-    const msgTotal = getUnreadTotal(auth.username);
-    const notifTotal = getUnreadNotificationCount(auth.username);
-    return NextResponse.json({ unread_count: msgTotal + notifTotal });
-  } catch (err: any) {
-    return NextResponse.json({ unread_count: 0 });
+    const msgTotal = getUnreadTotal(user);
+    const notifTotal = getUnreadNotificationCount(user);
+    return successResponse({ unread_count: msgTotal + notifTotal });
+  } catch {
+    return successResponse({ unread_count: 0 });
   }
-}
+});

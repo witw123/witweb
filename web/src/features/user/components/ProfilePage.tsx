@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { compressImageFile, resizeImageToDataUrl } from "@/utils/image";
 import { getThumbnailUrl } from "@/utils/url";
 import { clearAllCaches } from "@/utils/memoryStore";
@@ -41,19 +42,10 @@ function formatDate(value?: string) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
-function buildExcerpt(content?: string) {
-  if (!content) return "";
-  return content
-    .replace(/[#>*`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 120);
-}
-
 export default function ProfilePage({ targetUsername }: { targetUsername?: string }) {
   const { user: authUser, updateProfile, token } = useAuth();
   const [targetProfile, setTargetProfile] = useState<any>(null);
-  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [, setLoadingProfile] = useState(false);
 
   const isOwnProfile = !targetUsername || targetUsername === authUser?.username;
   const username = targetUsername || authUser?.username || "";
@@ -77,11 +69,6 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 5;
   const totalPages = Math.ceil(totalCount / pageSize);
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
@@ -120,7 +107,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     } else if (!isOwnProfile && username) {
       fetchProfile();
     }
-  }, [username, authUser, isOwnProfile]);
+  }, [username, authUser, isOwnProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProfile = async () => {
     if (!username) return;
@@ -130,9 +117,11 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
-      setTargetProfile(data);
-      setNickname(data.nickname || data.username || "");
-      setBio(data.bio || "");
+      // 閺€顖涘瘮閺傛壆娈?API 閺嶇厧绱?{ success: true, data: {...} }
+      const profile = data.data || data;
+      setTargetProfile(profile);
+      setNickname(profile.nickname || profile.username || "");
+      setBio(profile.bio || "");
     } catch (err) {
       console.error(err);
     } finally {
@@ -166,8 +155,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       body: form,
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.url) throw new Error("upload_failed");
-    return data.url as string;
+    const url = data?.data?.url || data?.url;
+    if (!res.ok || !url) throw new Error("upload_failed");
+    return url as string;
   }
 
   async function handleCoverChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -211,14 +201,14 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
         return;
       }
       const data = await res.json();
-      if (data.profile) {
-        updateProfile(data.profile);
+      if (data.data?.profile) {
+        updateProfile(data.data.profile);
       }
       clearAllCaches();
       try {
         const ts = Date.now().toString();
         localStorage.setItem("profile_updated_at", ts);
-        window.dispatchEvent(new CustomEvent("profile-updated", { detail: { ...data.profile, updated_at: ts } }));
+        window.dispatchEvent(new CustomEvent("profile-updated", { detail: { ...data.data?.profile, updated_at: ts } }));
       } catch { }
       setStatus("success");
       setTimeout(() => setStatus(""), 2000);
@@ -240,7 +230,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       lastSavedBioRef.current = bio;
       handleSave(undefined, true);
     }, 800);
-  }, [bio, username, isOwnProfile]);
+  }, [bio, username, isOwnProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isOwnProfile || !username) return;
@@ -250,7 +240,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       lastSavedNameRef.current = nickname;
       handleSave(undefined, true);
     }, 800);
-  }, [nickname, username, isOwnProfile]);
+  }, [nickname, username, isOwnProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const safeJson = async (res: Response) => {
     if (!res.ok) throw new Error("http_error");
@@ -269,9 +259,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     try {
       const res = await fetch(`/api/blog?author=${encodeURIComponent(username)}&page=${page}&size=${pageSize}`);
       const data = await safeJson(res);
-      const items = data.items || [];
+      const items = data.data?.items || [];
       setPosts(items);
-      setTotalCount(data.total || 0);
+      setTotalCount(data.data?.total || 0);
       return items as PostItem[];
     } catch {
       setPosts([]);
@@ -289,8 +279,8 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await safeJson(res);
-      setFavorites(data.items || []);
-      setTotalCount(data.total || 0);
+      setFavorites(data.data?.items || []);
+      setTotalCount(data.data?.total || 0);
     } catch {
       setFavorites([]);
       setTotalCount(0);
@@ -305,9 +295,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     try {
       const res = await fetch(`/api/users/${encodeURIComponent(username)}/activity?page=${page}&size=${pageSize}`);
       const data = await safeJson(res);
-      const items = data.items || [];
+      const items = data.data?.items || data.items || [];
       setActivity(items);
-      setTotalCount(data.total || 0);
+      setTotalCount(data.data?.total || data.total || 0);
     } finally {
       if (!silent) setTabLoading(false);
     }
@@ -323,7 +313,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     } else {
       loadActivity();
     }
-  }, [username, activeTab, page]);
+  }, [username, activeTab, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadCounts = async () => {
     if (!username) return;
@@ -332,11 +322,13 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await safeJson(res);
-      if (data && !data.__error) {
+      // 閺€顖涘瘮閺傛壆娈?API 閺嶇厧绱?{ success: true, data: {...} }
+      const profile = data.data || data;
+      if (profile && !profile.__error) {
         if (isOwnProfile) {
-          updateProfile({ ...(authUser || {}), ...data });
+          updateProfile({ ...(authUser || {}), ...profile });
         } else {
-          setTargetProfile((prev: any) => ({ ...prev, ...data }));
+          setTargetProfile((prev: any) => ({ ...prev, ...profile }));
         }
       }
     } catch {
@@ -372,7 +364,14 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
           <div className="profile-identity">
             <div className="profile-avatar">
               {avatarSrc ? (
-                <img src={avatarSrc} alt="Avatar" className="profile-avatar-img" />
+                <Image
+                  src={avatarSrc}
+                  alt="Avatar"
+                  width={144}
+                  height={144}
+                  className="profile-avatar-img"
+                  unoptimized
+                />
               ) : (
                 <div className="profile-avatar-fallback">
                   {username?.[0]?.toUpperCase()}
@@ -413,7 +412,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
                   placeholder={"\u8bf7\u8f93\u5165\u7b80\u4ecb"}
                 />
               ) : (
-                <p className="profile-bio-display">{bio || "这个人很懒，什么都没有写~"}</p>
+                <p className="profile-bio-display">{bio || "这个人很懒，还没有填写简介"}</p>
               )}
             </div>
 
@@ -423,7 +422,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
                   href={`/messages?username=${username}`}
                   className="profile-msg-btn"
                 >
-                  发消息
+                  私信 Ta
                 </Link>
                 <button
                   onClick={toggleFollow}
@@ -534,20 +533,30 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
                             <>
                               <span>{"\u53d1\u5e03\u4e86\u6587\u7ae0 "}</span>
                               <a href={`/post/${item.slug}`} className="text-accent hover:underline font-medium">《{item.title}》</a>
+                              {item.content && (
+                                <div className="mt-2 pl-3 border-l-2 border-white/20 text-white/70 italic text-sm line-clamp-2">
+                                  “{item.content}”
+                                </div>
+                              )}
                             </>
                           )}
                           {item.type === 'like' && (
                             <>
                               <span>{"\u70b9\u8d5e\u4e86 "}</span>
-                              <span className="font-medium text-white">{item.target_user || "Unknown"}</span>
+                              <span className="font-medium text-white">{item.target_user || "未知用户"}</span>
                               <span>{" \u7684\u6587\u7ae0 "}</span>
                               <a href={`/post/${item.slug}`} className="text-accent hover:underline font-medium">《{item.title}》</a>
+                              {item.content && (
+                                <div className="mt-2 pl-3 border-l-2 border-white/20 text-white/70 italic text-sm line-clamp-2">
+                                  “{item.content}”
+                                </div>
+                              )}
                             </>
                           )}
                           {item.type === 'comment' && (
                             <>
                               <span>{"\u8bc4\u8bba\u4e86 "}</span>
-                              <span className="font-medium text-white">{item.target_user || "Unknown"}</span>
+                              <span className="font-medium text-white">{item.target_user || "未知用户"}</span>
                               <span>{" \u7684\u6587\u7ae0 "}</span>
                               <a href={`/post/${item.slug}`} className="text-accent hover:underline font-medium">《{item.title}》</a>
                               <div className="mt-2 pl-3 border-l-2 border-white/20 text-white/70 italic text-sm line-clamp-2">
@@ -610,3 +619,4 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     </div >
   );
 }
+

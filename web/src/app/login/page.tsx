@@ -30,16 +30,17 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.detail || "登录失败，请稍后重试");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setError(data.error?.message || "登录失败，请稍后重试");
         return;
       }
-      const data = await res.json();
-      if (data?.token && data?.profile) {
-        login(data.token, data.profile);
+      if (data.data?.token && data.data?.profile) {
+        login(data.data.token, data.data.profile);
       }
       router.push("/");
+    } catch {
+      setError("网络异常，请检查服务是否启动后重试");
     } finally {
       setLoading(false);
     }

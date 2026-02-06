@@ -1,4 +1,4 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { requireAuthUser } from "@/lib/http";
 import { createVideoTask } from "@/lib/studio";
 import { createTask, updateTaskStatus } from "@/lib/video";

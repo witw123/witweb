@@ -1,6 +1,7 @@
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { getPost, updatePost, deletePost } from "@/lib/blog";
+import { successResponse, errorResponses } from "@/lib/api-response";
 
 export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) {
   const paramsData = await params;
@@ -8,18 +9,18 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   const slug = paramsData.slug;
   const user = await getAuthUser();
   const post = getPost(slug, user || "");
-  if (!post) return Response.json({ detail: "Post not found" }, { status: 404 });
-  return Response.json(post);
+  if (!post) return errorResponses.notFound("Post not found");
+  return successResponse(post);
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const paramsData = await params;
   initDb();
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
+  if (!user) return errorResponses.unauthorized("Missing token");
   const body = await req.json().catch(() => ({}));
   if (!body?.title || !body?.content) {
-    return Response.json({ detail: "Title and content required" }, { status: 400 });
+    return errorResponses.badRequest("Title and content required");
   }
   const categoryId = body?.category_id !== undefined && body?.category_id !== null && body?.category_id !== ""
     ? Number(body.category_id)
@@ -33,22 +34,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
     Number.isFinite(categoryId as number) ? categoryId : null,
   );
   if (!res.ok && res.error === "not_found") {
-    return Response.json({ detail: "Post not found" }, { status: 404 });
+    return errorResponses.notFound("Post not found");
   }
-  if (!res.ok) return Response.json({ detail: "Forbidden" }, { status: 403 });
-  return Response.json({ ok: true });
+  if (!res.ok) return errorResponses.forbidden("Forbidden");
+  return successResponse({ ok: true });
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ slug: string }> }) {
   const paramsData = await params;
   initDb();
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
+  if (!user) return errorResponses.unauthorized("Missing token");
   const admin = process.env.ADMIN_USERNAME || "witw";
   const res = deletePost(paramsData.slug, user, admin);
   if (!res.ok && res.error === "not_found") {
-    return Response.json({ detail: "Post not found" }, { status: 404 });
+    return errorResponses.notFound("Post not found");
   }
-  if (!res.ok) return Response.json({ detail: "Forbidden" }, { status: 403 });
-  return Response.json({ ok: true });
+  if (!res.ok) return errorResponses.forbidden("Forbidden");
+  return successResponse({ ok: true });
 }

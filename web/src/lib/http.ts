@@ -1,5 +1,6 @@
-import { headers } from "next/headers";
+﻿import { headers } from "next/headers";
 import { verifyToken } from "./auth";
+import { authConfig } from "./config";
 
 export async function getAuthUser() {
   const h = await headers();
@@ -15,8 +16,7 @@ export async function getAuthUser() {
 
 export function isAdminUser(username: string | null | undefined): boolean {
   if (!username) return false;
-  const adminUsername = process.env.ADMIN_USERNAME || "witw";
-  return username === adminUsername;
+  return username === authConfig.adminUsername;
 }
 
 export async function requireAuthUser(): Promise<string | Response> {

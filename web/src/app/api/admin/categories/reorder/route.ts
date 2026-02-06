@@ -1,17 +1,30 @@
-import { initDb } from "@/lib/db-init";
-import { requireAdminUser } from "@/lib/http";
-import { reorderCategories } from "@/lib/admin";
+﻿/**
+ */
 
-export async function POST(req: Request) {
+import { initDb } from "@/lib/db-init";
+import { getAuthUser } from "@/lib/http";
+import { reorderCategories } from "@/lib/admin";
+import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
+import { isAdminUser } from "@/lib/http";
+
+// 璇锋眰浣撻獙璇?Schema
+const reorderSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1, "ID 列表不能为空"),
+});
+
+export const POST = withErrorHandler(async (req: Request) => {
   initDb();
-  const user = await requireAdminUser();
-  if (user instanceof Response) return user;
-  const body = await req.json().catch(() => ({}));
-  const ids = Array.isArray(body?.ids) ? body.ids.map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v)) : [];
-  if (!ids.length) {
-    return Response.json({ detail: "ids 不能为空" }, { status: 400 });
-  }
-  reorderCategories(ids);
-  return Response.json({ ok: true });
-}
+  
+  const user = await getAuthUser();
+  assertAuthenticated(user);
+  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  
+  const body = await validateBody(req, reorderSchema);
+  
+  reorderCategories(body.ids);
+  
+  return successResponse({ reordered: true });
+});
 

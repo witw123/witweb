@@ -1,6 +1,26 @@
+﻿/**
+ */
+
 import { initDb } from "@/lib/db-init";
-import { requireAdminUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { createCategory, listCategories } from "@/lib/admin";
+import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
+import { errorResponses, paginatedResponse, createdResponse } from "@/lib/api-response";
+import { validateQuery, validateBody, z } from "@/lib/validate";
+import { isAdminUser } from "@/lib/http";
+
+const querySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+  search: z.string().default(""),
+});
+
+const createCategorySchema = z.object({
+  name: z.string().min(1, "分类名称不能为空").max(100, "分类名称最多100字符"),
+  slug: z.string().max(100).optional(),
+  description: z.string().max(500).default(""),
+  is_active: z.union([z.boolean(), z.number()]).default(1),
+});
 
 function slugify(text: string) {
   return String(text || "")
@@ -10,44 +30,48 @@ function slugify(text: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: Request) => {
   initDb();
-  const user = await requireAdminUser();
-  if (user instanceof Response) return user;
+  
+  const user = await getAuthUser();
+  assertAuthenticated(user);
+  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  
+  const { page, limit, search } = await validateQuery(req, querySchema);
+  
+  const result = listCategories(page, limit, search);
+  
+  // listCategories 杩斿洖 { categories, total, page, limit }
+  return paginatedResponse(result.categories, result.total, page ?? 1, limit ?? 100);
+});
 
-  const url = new URL(req.url);
-  const page = Number(url.searchParams.get("page") || 1);
-  const limit = Number(url.searchParams.get("limit") || 100);
-  const search = url.searchParams.get("search") || "";
-
-  return Response.json(listCategories(page, limit, search));
-}
-
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: Request) => {
   initDb();
-  const user = await requireAdminUser();
-  if (user instanceof Response) return user;
-
-  const body = await req.json().catch(() => ({}));
-  const name = String(body?.name || "").trim();
-  const rawSlug = String(body?.slug || "").trim();
-  const slug = slugify(rawSlug || name);
-  if (!name || !slug) {
-    return Response.json({ detail: "分类名称不能为空" }, { status: 400 });
+  
+  const user = await getAuthUser();
+  assertAuthenticated(user);
+  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  
+  const body = await validateBody(req, createCategorySchema);
+  
+  const slug = body.slug?.trim() || slugify(body.name);
+  
+  if (!slug) {
+    return errorResponses.badRequest("分类别名不能为空");
   }
+  
   try {
     const id = createCategory({
-      name,
+      name: body.name.trim(),
       slug,
-      description: body?.description || "",
-      is_active: body?.is_active === 0 ? 0 : 1,
+      description: body.description,
+      is_active: body.is_active === 0 || body.is_active === false ? 0 : 1,
     });
-    return Response.json({ ok: true, id });
+    return createdResponse({ id });
   } catch (error: any) {
     if (String(error?.message || "").includes("UNIQUE")) {
-      return Response.json({ detail: "分类名称或别名已存在" }, { status: 409 });
+      return errorResponses.conflict("分类名称或别名已存在");
     }
-    return Response.json({ detail: "创建失败" }, { status: 500 });
+    throw error;
   }
-}
-
+});

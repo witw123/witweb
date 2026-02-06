@@ -1,23 +1,45 @@
+﻿/**
+ */
+
+import { NextRequest } from "next/server";
 import { initDb } from "@/lib/db-init";
-import { requireAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { uploadCharacterTask } from "@/lib/studio";
 import { createTask, updateTaskStatus } from "@/lib/video";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
-export async function POST(req: Request) {
+const uploadCharacterSchema = z.object({
+  url: z.string().min(1, "URL涓嶈兘涓虹┖"),
+  timestamps: z.string().default("0,3"),
+  webHook: z.string().default("-1"),
+  shutProgress: z.boolean().default(false),
+});
+
+export const POST = withErrorHandler(async (req: NextRequest) => {
   initDb();
-  const user = await requireAuthUser();
-  if (user instanceof Response) return user;
-  const body = await req.json().catch(() => ({}));
-  if (!body?.url || String(body.url).trim() === "") {
-    return Response.json({ detail: "url is required" }, { status: 400 });
-  }
+
+  const user = await getAuthUser();
+  assertAuthenticated(user, "请先登录");
+
+  const body = await validateBody(req, uploadCharacterSchema);
+
   const taskId = await uploadCharacterTask({
-    url: String(body.url).trim(),
-    timestamps: body.timestamps || "0,3",
-    webHook: typeof body.webHook === "string" ? body.webHook : "-1",
-    shutProgress: Boolean(body.shutProgress ?? false),
+    url: body.url.trim(),
+    timestamps: body.timestamps,
+    webHook: body.webHook,
+    shutProgress: body.shutProgress,
   });
-  createTask(user, "upload_character", { url: body.url, timestamps: body.timestamps }, taskId);
+
+  createTask(
+    user,
+    "upload_character",
+    { url: body.url, timestamps: body.timestamps },
+    taskId
+  );
   updateTaskStatus(taskId, "running", 0);
-  return Response.json({ ok: true, task_id: taskId, id: taskId });
-}
+
+  return successResponse({ ok: true, task_id: taskId, id: taskId });
+});
+

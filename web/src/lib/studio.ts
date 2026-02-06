@@ -1,10 +1,12 @@
-import path from "path";
+﻿import path from "path";
 import fs from "fs";
 import { getStudioDb } from "./db";
+import { apiConfig } from "./config";
+import { maskSensitiveValue } from "./security";
 
 const HOSTS = {
-  overseas: "https://grsaiapi.com",
-  domestic: "https://grsai.dakka.com.cn",
+  overseas: apiConfig.grsai.overseasUrl,
+  domestic: apiConfig.grsai.domesticUrl,
 };
 
 const CREATE_API = "/v1/video/sora-video";
@@ -52,11 +54,25 @@ function setConfigValue(key: string, value: any) {
 }
 
 export function setApiKey(api_key: string) {
+  console.warn("[DEPRECATED] Storing API keys in database is deprecated. Use SORA2_API_KEY or GRSAI_TOKEN environment variable instead.");
   setConfigValue("api_key", api_key);
 }
 
 export function setToken(token: string) {
+  console.warn("[DEPRECATED] Storing tokens in database is deprecated. Use GRSAI_TOKEN environment variable instead.");
   setConfigValue("token", token);
+}
+
+/**
+ */
+export function getApiStatus() {
+  const apiKey = getApiKey();
+  return {
+    configured: !!apiKey,
+    apiKeyPreview: apiKey ? maskSensitiveValue(apiKey, 4, 4) : null,
+    hostMode: getHostMode(),
+    hosts: HOSTS,
+  };
 }
 
 export function setHostMode(host_mode: string) {
@@ -81,9 +97,25 @@ function iterHosts() {
   return [HOSTS.domestic, HOSTS.overseas];
 }
 
-async function postJson(pathname: string, payload: any, headers: Record<string, string> = {}) {
+/**
+ */
+function getApiKey(): string | undefined {
+  const envKey = apiConfig.sora2.apiKey || apiConfig.grsai.token;
+  if (envKey) {
+    return envKey;
+  }
+  
   const cfg = getConfig();
-  const authHeader = cfg.api_key ? { Authorization: `Bearer ${cfg.api_key}` } : undefined;
+  return cfg.api_key || cfg.token;
+}
+
+async function postJson(pathname: string, payload: any, headers: Record<string, string> = {}) {
+  const apiKey = getApiKey();
+  const authHeader = apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined;
+  
+  if (!apiKey && typeof window === "undefined") {
+    console.warn("[API WARNING] No API key configured. Set SORA2_API_KEY or GRSAI_TOKEN environment variable.");
+  }
   let lastErr: any = null;
   for (const host of iterHosts()) {
     for (let i = 0; i < 3; i += 1) {

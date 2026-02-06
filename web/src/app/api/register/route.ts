@@ -1,34 +1,64 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { createToken, hashPassword } from "@/lib/auth";
 import { getUsersDb } from "@/lib/db";
 import { getUserByUsername, publicProfile } from "@/lib/user";
+import { withErrorHandler } from "@/middleware/error-handler";
+import { createdResponse, errorResponses } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
-export async function POST(req: Request) {
+const registerSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(1, "用户名不能为空")
+    .min(2, "用户名至少 2 位")
+    .max(30, "用户名最多 30 位")
+    .regex(/^[A-Za-z0-9_]+$/, "用户名仅支持英文、数字和下划线"),
+  password: z.string().min(1, "密码不能为空").min(6, "密码至少 6 位"),
+  nickname: z.string().trim().max(50, "昵称最多 50 位").optional(),
+  avatar_url: z.string().url("头像 URL 格式不正确").optional().or(z.literal("")),
+  cover_url: z.string().url("封面 URL 格式不正确").optional().or(z.literal("")),
+  bio: z.string().trim().max(500, "简介最多 500 字").optional(),
+});
+
+export const POST = withErrorHandler(async (req) => {
   initDb();
-  const body = await req.json().catch(() => ({}));
-  const { username, password, nickname, avatar_url, cover_url, bio } = body || {};
-  if (!username || !password) {
-    return Response.json({ detail: "Missing credentials" }, { status: 400 });
-  }
+
+  const body = await validateBody(req, registerSchema);
+  const { username, password, nickname, avatar_url, cover_url, bio } = body;
+
   const db = getUsersDb();
   const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
   if (existing) {
-    return Response.json({ detail: "Username already exists" }, { status: 409 });
+    return errorResponses.conflict("用户名已存在");
   }
-  const nick = nickname || username;
-  db.prepare("INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(username, hashPassword(password), nick, avatar_url || "", cover_url || "", bio || "");
+
+  const normalizedNickname = nickname || username;
+  db.prepare(
+    "INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    username,
+    hashPassword(password),
+    normalizedNickname,
+    avatar_url || "",
+    cover_url || "",
+    bio || ""
+  );
+
   const token = await createToken(username);
   const row = getUserByUsername(username);
-  const baseProfile = publicProfile(username, username) || {
-    username,
-    nickname: nick,
-    avatar_url: avatar_url || "",
-    cover_url: cover_url || "",
-    bio: bio || "",
-    created_at: row?.created_at,
-    following_count: 0,
-    follower_count: 0,
-  };
-  return Response.json({ token, profile: baseProfile });
-}
+
+  const profile =
+    publicProfile(username, username) || {
+      username,
+      nickname: normalizedNickname,
+      avatar_url: avatar_url || "",
+      cover_url: cover_url || "",
+      bio: bio || "",
+      created_at: row?.created_at,
+      following_count: 0,
+      follower_count: 0,
+    };
+
+  return createdResponse({ token, profile });
+});

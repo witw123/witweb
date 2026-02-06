@@ -1,81 +1,70 @@
-import { NextResponse } from "next/server";
+﻿import { initDb } from "@/lib/db-init";
 import { getBlogDb } from "@/lib/db";
-import { verifyToken } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getAuthUser } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
-import { initDb } from "@/lib/db-init";
+import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
+import { successResponse, createdResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
 const adminUsername = process.env.ADMIN_USERNAME || process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
-// GET - Get all active friend links
-export async function GET() {
-  try {
-    initDb();
-    const db = getBlogDb();
-    const headersList = await headers();
-    const authHeader = headersList.get("authorization");
-    let isAdmin = false;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "");
-      const username = await verifyToken(token).catch(() => null);
-      isAdmin = !!username && username === adminUsername;
-    }
+const friendLinkSchema = z.object({
+  name: z.string().min(1, "名称不能为空").max(100, "名称最多100字符"),
+  url: z.string().min(1, "URL不能为空").url("URL格式不正确"),
+  description: z.string().max(500, "描述最多500字符").optional().default(""),
+  avatar_url: z.union([z.string().url("头像URL格式不正确"), z.literal("")]).optional().nullable().default(null),
+  sort_order: z.coerce.number().int().default(0),
+});
 
-    const links = db.prepare(`
-      SELECT id, name, url, description, avatar_url, sort_order, is_active
-      FROM friend_links
-      ${isAdmin ? "" : "WHERE is_active = 1"}
-      ORDER BY sort_order ASC, created_at DESC
-    `).all();
+export const GET = withErrorHandler(async () => {
+  initDb();
+  const db = getBlogDb();
 
-    return NextResponse.json({ links });
-  } catch (error) {
-    console.error("Error fetching friend links:", error);
-    return NextResponse.json({ error: "Failed to fetch friend links" }, { status: 500 });
+  // 鑾峰彇褰撳墠鐢ㄦ埛锛堝彲閫夛級
+  const user = await getAuthUser();
+  const isAdmin = !!user && user === adminUsername;
+
+  const links = db.prepare(`
+    SELECT id, name, url, description, avatar_url, sort_order, is_active
+    FROM friend_links
+    ${isAdmin ? "" : "WHERE is_active = 1"}
+    ORDER BY sort_order ASC, created_at DESC
+  `).all();
+
+  return successResponse({ links });
+});
+
+export const POST = withErrorHandler(async (req) => {
+  initDb();
+
+  // 楠岃瘉鐢ㄦ埛宸茬櫥褰曚笖鏄鐞嗗憳
+  const user = await getAuthUser();
+  assertAuthenticated(user);
+  assertAuthorized(user === adminUsername, "只有管理员可以添加友链");
+
+  // 楠岃瘉璇锋眰浣?
+  const body = await validateBody(req, friendLinkSchema);
+
+  const db = getBlogDb();
+
+  let finalAvatarUrl = body.avatar_url || null;
+  if (!finalAvatarUrl) {
+    finalAvatarUrl = await detectFriendLinkIcon(body.url);
   }
-}
 
-// POST - Add new friend link (admin only)
-export async function POST(request: Request) {
-  try {
-    initDb();
-    const headersList = await headers();
-    const authHeader = headersList.get("authorization");
+  const result = db.prepare(`
+    INSERT INTO friend_links (name, url, description, avatar_url, sort_order)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    body.name,
+    body.url,
+    body.description || null,
+    finalAvatarUrl,
+    body.sort_order
+  );
 
-    if (!authHeader) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const username = await verifyToken(token);
-
-    if (!username || username !== adminUsername) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { name, url, description, avatar_url, sort_order } = await request.json();
-
-    if (!name || !url) {
-      return NextResponse.json({ error: "Name and URL are required" }, { status: 400 });
-    }
-
-    const db = getBlogDb();
-    let finalAvatarUrl = avatar_url || null;
-    if (!finalAvatarUrl) {
-      finalAvatarUrl = await detectFriendLinkIcon(url);
-    }
-
-    const result = db.prepare(`
-      INSERT INTO friend_links (name, url, description, avatar_url, sort_order)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(name, url, description || null, finalAvatarUrl, sort_order || 0);
-
-    return NextResponse.json({
-      id: result.lastInsertRowid,
-      message: "Friend link added successfully"
-    });
-  } catch (error) {
-    console.error("Error adding friend link:", error);
-    return NextResponse.json({ error: "Failed to add friend link" }, { status: 500 });
-  }
-}
+  return createdResponse({
+    id: result.lastInsertRowid,
+    message: "友链添加成功",
+  });
+});
