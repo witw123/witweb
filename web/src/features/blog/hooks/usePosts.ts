@@ -29,13 +29,13 @@ interface PostsResult {
 
 export function usePosts(options: UsePostsOptions) {
   const { page = 1, pageSize = 10, query = "", author = "", tag = "", category = "", token } = options;
-  
+
   const [posts, setPosts] = useState<PostListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const etagRef = useRef<string>("");
-  
+
   const buildCacheKey = useCallback(() => {
     const params = new URLSearchParams();
     params.set("page", String(page));
@@ -50,7 +50,7 @@ export function usePosts(options: UsePostsOptions) {
   const fetchPosts = useCallback(async (force = false) => {
     const cacheKey = buildCacheKey();
     let hasCached = false;
-    
+
     if (!force) {
       const cached = (getListCache(cacheKey) || getCachedJson<PostsResult>(cacheKey, CACHE_TTL)) as PostsResult | null;
       if (cached && Array.isArray(cached.items) && typeof cached.total === "number") {
@@ -115,20 +115,12 @@ export function usePosts(options: UsePostsOptions) {
     const refreshNow = () => {
       void fetchPosts(true);
     };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void fetchPosts(true);
-      }
-    };
-    window.addEventListener("focus", refreshNow);
+    // 只监听明确的更新事件，移除 focus 和 visibilitychange 以减少不必要的刷新
     window.addEventListener("blog-updated", refreshNow as EventListener);
     window.addEventListener("profile-updated", refreshNow as EventListener);
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      window.removeEventListener("focus", refreshNow);
       window.removeEventListener("blog-updated", refreshNow as EventListener);
       window.removeEventListener("profile-updated", refreshNow as EventListener);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [fetchPosts]);
 
@@ -141,13 +133,13 @@ export function usePosts(options: UsePostsOptions) {
         prev.map((item) =>
           item.slug === detail.slug
             ? {
-                ...item,
-                ...(detail.like_count !== undefined ? { like_count: detail.like_count } : {}),
-                ...(detail.dislike_count !== undefined ? { dislike_count: detail.dislike_count } : {}),
-                ...(detail.favorite_count !== undefined ? { favorite_count: detail.favorite_count } : {}),
-                ...(detail.comment_count !== undefined ? { comment_count: detail.comment_count } : {}),
-                ...(detail.favorited_by_me !== undefined ? { favorited_by_me: detail.favorited_by_me } : {}),
-              }
+              ...item,
+              ...(detail.like_count !== undefined ? { like_count: detail.like_count } : {}),
+              ...(detail.dislike_count !== undefined ? { dislike_count: detail.dislike_count } : {}),
+              ...(detail.favorite_count !== undefined ? { favorite_count: detail.favorite_count } : {}),
+              ...(detail.comment_count !== undefined ? { comment_count: detail.comment_count } : {}),
+              ...(detail.favorited_by_me !== undefined ? { favorited_by_me: detail.favorited_by_me } : {}),
+            }
             : item
         )
       );
@@ -159,8 +151,8 @@ export function usePosts(options: UsePostsOptions) {
   const refresh = useCallback(() => fetchPosts(true), [fetchPosts]);
 
   const updatePost = useCallback((slug: string, updates: Partial<PostListItem>) => {
-    setPosts(prev => 
-      prev.map(post => 
+    setPosts(prev =>
+      prev.map(post =>
         post.slug === slug ? { ...post, ...updates } : post
       )
     );

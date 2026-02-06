@@ -20,6 +20,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const isStudio = pathname.startsWith("/studio");
+  const isHome = pathname === "/";
 
   const toggleUserMenu = async () => {
     const nextState = !showUserMenu;
@@ -223,7 +224,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
 
-      <main className={`main-content ${isStudio ? "full-width" : "container"}`}>{children}</main>
+      <main className={`main-content ${isStudio || isHome ? "full-width" : "container"}`}>{children}</main>
 
       <Footer />
     </div>

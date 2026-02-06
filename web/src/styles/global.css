@@ -464,6 +464,12 @@
   display: inline-block;
 }
 
+/* Icon alignment */
+svg.inline {
+  vertical-align: middle;
+  transform: translateY(2px);
+}
+
 /* Text utilities */
 .no-underline {
   text-decoration: none;
@@ -761,28 +767,34 @@ select:focus {
 .tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 0;
 }
 
 .tag-pill {
-  font-size: 0.7rem;
-  color: #00ffff !important;
-  background: rgba(0, 255, 255, 0.15) !important;
-  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
   border-radius: 999px;
-  border: 1.5px solid rgba(0, 255, 255, 0.5) !important;
-  font-weight: 600;
-  display: inline-block;
-  transition: all 0.2s ease;
-  text-shadow: 0 0 8px rgba(0, 255, 255, 0.3) !important;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  background: rgba(0, 80, 130, 0.22);
+  box-shadow: none;
+  color: #e9f6ff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-size: 11px;
+  transform: translateZ(0);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
 
 .tag-pill:hover {
-  background: rgba(0, 255, 255, 0.25) !important;
-  border-color: rgba(0, 255, 255, 0.8) !important;
-  transform: translateY(-1px);
-  text-shadow: 0 0 12px rgba(0, 255, 255, 0.5) !important;
+  transform: translateY(-2px);
+  border-color: rgba(0, 255, 255, 0.55);
+  box-shadow: none;
+  filter: none;
 }
 
 .highlight {

@@ -35,7 +35,7 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
   return (
     <div className="card block no-underline text-inherit h-full flex flex-col">
       <Link href={`/post/${post.slug}`} className="block no-underline text-inherit flex-1">
-        <div className="card-head flex justify-between items-start mb-3">
+        <div className="card-head flex justify-between items-start mb-2">
           <div className="author flex items-center gap-2">
             {postAvatar ? (
               <Image
@@ -55,7 +55,7 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
           <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
         </div>
 
-        <h2 className="text-xl font-bold mb-3 leading-tight">
+        <h2 className="text-xl font-bold mb-2 leading-tight">
           {matchIndex >= 0 ? (
             <>
               {titleText.slice(0, matchIndex)}
@@ -69,12 +69,12 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
           )}
         </h2>
 
-        <p className="excerpt text-muted text-sm mb-6 line-clamp-2 leading-relaxed">
+        <p className="excerpt text-muted text-sm mb-4 line-clamp-2 leading-relaxed">
           {preview}
         </p>
       </Link>
 
-      <div className="post-card-footer flex justify-between items-center mt-auto pt-4 border-t border-white/5">
+      <div className="post-card-footer flex justify-between items-center mt-auto pt-3 border-t border-white/5">
         <div className="tag-list">
           {tagList.map((tag: string) => (
             <span key={tag} className="tag-pill">#{tag}</span>

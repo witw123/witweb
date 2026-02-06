@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { usePosts, usePostActions } from "../hooks";
@@ -10,7 +10,7 @@ import { PostList } from "./post-list";
 import { Pagination } from "./pagination/Pagination";
 import { Loading } from "@/components/ui/Loading";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export default function BlogListPage() {
   const router = useRouter();
@@ -22,6 +22,8 @@ export default function BlogListPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
+  const [allTags, setAllTags] = useState<Array<{ tag: string; count: number }>>([]);
   const hasCategoryFilter = Boolean(selectedCategory);
 
   useEffect(() => {
@@ -30,11 +32,24 @@ export default function BlogListPage() {
     setPage(1);
   }, [searchParams]);
 
+  // 获取所有标签
+  useEffect(() => {
+    fetch("/api/tags")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.tags) {
+          setAllTags(data.data.tags.slice(0, 12));
+        }
+      })
+      .catch((err) => console.error("Failed to fetch tags:", err));
+  }, []);
+
   // 数据获取
   const { posts, status, error, updatePost, totalPages } = usePosts({
     page,
     pageSize: PAGE_SIZE,
     query: submittedQuery,
+    tag: selectedTag,
     category: selectedCategory,
     token,
   });
@@ -55,22 +70,13 @@ export default function BlogListPage() {
     setPage(1);
   }, []);
 
-  const handleCategoryChange = useCallback(
-    (value: string) => {
-      setSelectedCategory(value);
-      setPage(1);
+  const tags = useMemo(() => {
+    return allTags.map((item) => [item.tag, item.count] as [string, number]);
+  }, [allTags]);
 
-      const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set("category", value);
-      } else {
-        params.delete("category");
-      }
-      const query = params.toString();
-      router.replace(query ? `/?${query}` : "/");
-    },
-    [router, searchParams]
-  );
+  const maxTagCount = useMemo(() => {
+    return Math.max(1, ...tags.map(([, count]) => count));
+  }, [tags]);
 
   const handleCommentClick = useCallback((slug: string) => {
     router.push(`/post/${slug}#comments`);
@@ -94,22 +100,7 @@ export default function BlogListPage() {
 
       <div id="posts-anchor" className="scroll-mt-20" />
 
-      <div className="container mx-auto max-w-4xl px-4 pt-16" style={{ minHeight: "calc(100vh - 60px)", paddingBottom: "64px" }}>
-        {/* 筛选栏 */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-          <h3 className="text-3xl font-bold text-white tracking-tight">最新文章</h3>
-          
-          <div className="w-full md:flex-1">
-            <SearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onSearch={handleSearch}
-              posts={posts}
-            />
-          </div>
-
-        </div>
-
+      <div className="container mx-auto w-full pt-16" style={{ minHeight: "calc(100vh - 60px)", paddingBottom: "64px" }}>
         {/* 状态展示 */}
         {isLoading && (
           <div className="py-16">
@@ -128,23 +119,122 @@ export default function BlogListPage() {
 
         {/* 文章列表 */}
         {!isLoading && !hasError && (
-          <>
-            <PostList
-              posts={posts}
-              highlightQuery={submittedQuery}
-              currentUser={user}
-              onLike={like}
-              onDislike={dislike}
-              onFavorite={favorite}
-              onCommentClick={handleCommentClick}
-            />
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[clamp(240px,24vw,380px)_minmax(0,1fr)]">
+            <aside className="lg:sticky lg:top-24 lg:self-start">
+              <div className="tag-atlas-shell">
+                <div className="tag-atlas">
+                  <div className="tag-atlas-head">
+                    <div>
+                      <div className="tag-atlas-kicker">WITWEB ATLAS</div>
+                      <h4 className="tag-atlas-title">标签</h4>
+                      <div className="tag-atlas-sub"></div>
+                    </div>
 
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          </>
+                    {selectedTag ? (
+                      <button
+                        type="button"
+                        className="tag-atlas-reset"
+                        onClick={() => {
+                          setSelectedTag("");
+                          setPage(1);
+                        }}
+                        title="清除标签筛选"
+                      >
+                        清除
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {selectedTag && (
+                    <div className="tag-atlas-focus">
+                      <span className="tag-atlas-focus-dot" />
+                      <span className="tag-atlas-focus-text">
+                        Focus: <span className="tag-atlas-focus-tag">#{selectedTag}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {tags.length === 0 ? (
+                    <p className="tag-atlas-empty">当前结果暂无标签</p>
+                  ) : (
+                    <div className="tag-atlas-cloud" role="list">
+                      {tags.map(([tag, count]) => {
+                        const active = selectedTag === tag;
+                        const strength = Math.min(1, Math.max(0.15, count / maxTagCount));
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            role="listitem"
+                            className={`tag-atlas-chip ${active ? "is-active" : ""}`}
+                            style={{ ["--tag-strength" as any]: strength } as React.CSSProperties}
+                            onClick={() => {
+                              setSelectedTag(active ? "" : tag);
+                              setPage(1);
+                            }}
+                          >
+                            <span className="tag-atlas-chip-hash">#</span>
+                            <span className="tag-atlas-chip-text">{tag}</span>
+                            <span className="tag-atlas-chip-count">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="tag-atlas-foot">
+                    <div className="tag-atlas-foot-line" />
+                    <div className="tag-atlas-foot-text">精选你的内容</div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <section className="home-feed-shell min-w-0">
+              <div className="home-feed">
+                <header className="home-feed-head">
+                  <div>
+                    <div className="home-feed-kicker">LATEST TRANSMISSIONS</div>
+                    <h3 className="home-feed-title">最新文章</h3>
+                  </div>
+
+                  {(submittedQuery || selectedTag) && (
+                    <div className="home-feed-filters">
+                      {submittedQuery && <span className="home-feed-filter">搜索: {submittedQuery}</span>}
+                      {selectedTag && <span className="home-feed-filter">标签: #{selectedTag}</span>}
+                    </div>
+                  )}
+                </header>
+
+                <div className="home-search-shell">
+                  <SearchBar
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    onSearch={handleSearch}
+                    posts={posts}
+                  />
+                </div>
+
+                <PostList
+                  posts={posts}
+                  highlightQuery={submittedQuery}
+                  currentUser={user}
+                  onLike={like}
+                  onDislike={dislike}
+                  onFavorite={favorite}
+                  onCommentClick={handleCommentClick}
+                />
+
+                <div className="home-feed-foot">
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
         )}
       </div>
     </div>

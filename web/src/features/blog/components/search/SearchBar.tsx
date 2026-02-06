@@ -109,7 +109,7 @@ export function SearchBar({
       </div>
 
       <input
-        className="h-[52px] w-full rounded-full border border-zinc-700 bg-zinc-800 text-base text-zinc-100 transition-all placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+        className="h-[42px] w-full rounded-full border border-zinc-700 bg-zinc-800 text-base text-zinc-100 transition-all placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
         style={{ paddingLeft: "3.5rem", paddingRight: "3rem" }}
         value={value}
         onChange={(e) => {

@@ -17,7 +17,7 @@ interface HeroSectionProps {
 
 export function HeroSection({
   title = "witw 的技术与创作交流平台",
-  subtitle = "记录 AI 工程实践、系统构建与个人工具的演进。",
+  subtitle = "记录项目实践、工具构建与个人经验。",
   primaryAction = { label: "开始阅读", onClick: () => {} },
   secondaryAction = { label: "关于我", href: "/profile" },
 }: HeroSectionProps) {
@@ -34,7 +34,7 @@ export function HeroSection({
         className="relative z-10 mb-6 inline-flex items-center justify-center rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-blue-400 backdrop-blur-md"
         style={{ fontFamily: "var(--font-heading)" }}
       >
-        AI · 工程 · 创作
+        共享 · 共建 · 共赢
       </div>
 
       <h1
