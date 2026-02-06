@@ -258,7 +258,7 @@ select:focus {
   border: 1px solid rgba(0, 255, 255, 0.35);
   background: rgba(0, 80, 130, 0.22);
   box-shadow: none;
-  color: #e9f6ff;
+  color: #ffffff;
   font-weight: 700;
   letter-spacing: 0.01em;
   font-size: 11px;
@@ -419,7 +419,7 @@ select:focus {
   border: 1px solid rgba(0, 255, 255, 0.35);
   background: rgba(0, 80, 130, 0.22);
   box-shadow: none;
-  color: #e9f6ff;
+  color: #ffffff;
   font-weight: 700;
   letter-spacing: 0.01em;
   font-size: calc(11px + var(--tag-strength) * 3px);
