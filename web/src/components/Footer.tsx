@@ -65,7 +65,7 @@ export default function Footer() {
             rel="noopener noreferrer"
             className="hover:text-gray-400 transition-colors"
           >
-            浙ICP备2026003097号
+            皖ICP备2026003097号
           </a>
         </div>
       </div>
