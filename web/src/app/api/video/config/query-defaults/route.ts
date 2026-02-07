@@ -13,7 +13,7 @@ import { successResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
 
 const queryDefaultsSchema = z.object({
-  data: z.record(z.unknown()).default({}),
+  data: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const POST = withErrorHandler(async (req) => {
