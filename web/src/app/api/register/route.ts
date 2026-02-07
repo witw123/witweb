@@ -45,12 +45,13 @@ export const POST = withErrorHandler(async (req) => {
     bio || ""
   );
 
-  const token = await createToken(username);
   const row = getUserByUsername(username);
+  const token = await createToken(username, row?.role || "user");
 
   const profile =
     publicProfile(username, username) || {
       username,
+      role: row?.role || "user",
       nickname: normalizedNickname,
       avatar_url: avatar_url || "",
       cover_url: cover_url || "",

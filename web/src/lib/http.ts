@@ -1,12 +1,34 @@
-﻿import { headers } from "next/headers";
+import { headers } from "next/headers";
 import { verifyToken } from "./auth";
 import { authConfig } from "./config";
+import { AUTH_COOKIE_NAME } from "./auth-constants";
+import { getUsersDb } from "./db";
+
+function getTokenFromCookie(cookieHeader: string): string | null {
+  const cookies = cookieHeader.split(";");
+  for (const entry of cookies) {
+    const [key, ...parts] = entry.trim().split("=");
+    if (key === AUTH_COOKIE_NAME) {
+      const value = parts.join("=");
+      return value ? decodeURIComponent(value) : null;
+    }
+  }
+  return null;
+}
 
 export async function getAuthUser() {
   const h = await headers();
   const auth = h.get("authorization") || "";
-  if (!auth.toLowerCase().startsWith("bearer ")) return null;
-  const token = auth.slice(7);
+  let token: string | null = null;
+
+  if (auth.toLowerCase().startsWith("bearer ")) {
+    token = auth.slice(7);
+  } else {
+    token = getTokenFromCookie(h.get("cookie") || "");
+  }
+
+  if (!token) return null;
+
   try {
     return await verifyToken(token);
   } catch {
@@ -16,6 +38,14 @@ export async function getAuthUser() {
 
 export function isAdminUser(username: string | null | undefined): boolean {
   if (!username) return false;
+
+  try {
+    const db = getUsersDb();
+    const row = db.prepare("SELECT role FROM users WHERE username = ?").get(username) as { role?: string } | undefined;
+    if (row?.role === "admin") return true;
+  } catch {
+  }
+
   return username === authConfig.adminUsername;
 }
 

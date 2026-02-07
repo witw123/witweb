@@ -97,7 +97,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
             <Link href="/categories" className={navClass("/categories")} onClick={closeMobileMenu}>
               分类
             </Link>
-            {isAuthenticated && user?.username === adminUsername && (
+            {isAuthenticated && (user?.role === "admin" || user?.username === adminUsername) && (
               <Link href="/admin" className="nav-link" onClick={closeMobileMenu}>
                 管理后台
               </Link>

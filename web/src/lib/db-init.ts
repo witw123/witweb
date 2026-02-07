@@ -26,10 +26,13 @@ function ensureAdminUser() {
     | { id: number; password: string }
     | undefined;
   if (!exists) {
-    db.prepare("INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(adminUsername, hashPassword(adminPassword), adminUsername, "", "", "");
+    db.prepare("INSERT INTO users (username, password, role, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(adminUsername, hashPassword(adminPassword), "admin", adminUsername, "", "", "");
     return;
   }
+
+  db.prepare("UPDATE users SET role = 'admin' WHERE username = ?").run(adminUsername);
+  db.prepare("UPDATE users SET role = 'user' WHERE role IS NULL OR trim(role) = ''").run();
 
   // Only sync password when ADMIN_PASSWORD is explicitly provided.
   // This avoids overriding manually changed passwords when env is unset.
@@ -45,6 +48,7 @@ function initUsersDb() {
       id INTEGER PRIMARY KEY,
       username TEXT UNIQUE,
       password TEXT,
+      role TEXT DEFAULT 'user',
       nickname TEXT,
       avatar_url TEXT,
       cover_url TEXT,
@@ -58,6 +62,7 @@ function initUsersDb() {
   ensureColumn(db, "users", "cover_url", "cover_url TEXT");
   ensureColumn(db, "users", "bio", "bio TEXT");
   ensureColumn(db, "users", "balance", "balance REAL DEFAULT 0.0");
+  ensureColumn(db, "users", "role", "role TEXT DEFAULT 'user'");
   ensureColumn(db, "users", "created_at", "created_at TEXT");
   ensureColumn(db, "users", "last_read_notifications_at", "last_read_notifications_at TEXT DEFAULT '1970-01-01 00:00:00'");
   ensureColumn(db, "users", "is_bot", "is_bot BOOLEAN DEFAULT 0");
@@ -83,8 +88,8 @@ function ensureSystemBot() {
   const botUsername = "WitAI";
   const exists = db.prepare("SELECT id FROM users WHERE username = ?").get(botUsername);
   if (!exists) {
-    db.prepare("INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio, is_bot) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(botUsername, hashPassword("bot"), "WitWeb Assistant", "", "", "I am WitWeb's AI assistant.", 1);
+    db.prepare("INSERT INTO users (username, password, role, nickname, avatar_url, cover_url, bio, is_bot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(botUsername, hashPassword("bot"), "bot", "WitWeb Assistant", "", "", "I am WitWeb's AI assistant.", 1);
   }
 }
 

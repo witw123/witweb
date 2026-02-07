@@ -1,14 +1,22 @@
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { followUser } from "@/lib/follow";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
-export async function POST(req: Request) {
+const followSchema = z.object({
+  username: z.string().trim().min(1, "用户名不能为空"),
+});
+
+export const POST = withErrorHandler(async (req: Request) => {
   initDb();
+
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
-  const body = await req.json().catch(() => ({}));
-  const target = (body?.username || "").trim();
-  if (!target) return Response.json({ detail: "Missing username" }, { status: 400 });
-  followUser(user, target);
-  return Response.json({ ok: true });
-}
+  assertAuthenticated(user);
+
+  const body = await validateBody(req, followSchema);
+  followUser(user, body.username);
+
+  return successResponse({ ok: true });
+});

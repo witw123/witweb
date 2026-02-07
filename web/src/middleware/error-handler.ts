@@ -13,12 +13,12 @@ import {
 export type ApiHandler<T = unknown> = (
   req: NextRequest,
   context?: { params: Promise<Record<string, string | string[]>> }
-) => Promise<NextResponse<T>> | NextResponse<T>;
+) => Promise<Response> | Response;
 
 export type FlexibleApiHandler<TParams = any> = (
   req: NextRequest,
   context: { params: Promise<TParams> }
-) => Promise<NextResponse<any>> | NextResponse<any>;
+) => Promise<Response> | Response;
 
 export function withErrorHandler(handler: FlexibleApiHandler): FlexibleApiHandler {
   return async (req, context) => {

@@ -1,7 +1,7 @@
 ﻿
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getThumbnailUrl } from "@/utils/url";
@@ -22,6 +22,33 @@ import {
 import { resizeImageFile } from "@/utils/image";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import { emitPostMetricsUpdated, POST_METRICS_UPDATED_EVENT, type PostMetricsUpdateDetail } from "../utils/postMetricsSync";
+
+function escapeHtml(content: string) {
+  return content
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function hasMarkdownSyntax(content: string) {
+  const markdownPattern =
+    /(^\s{0,3}(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|~~~)|\[[^\]]+\]\([^)]+\)|!\[[^\]]*]\([^)]+\)|`[^`]+`|^\s*([-*_]\s*){3,}$)/m;
+  return markdownPattern.test(content);
+}
+
+function renderPlainTextHtml(content: string) {
+  const normalized = String(content || "").replace(/\r\n?/g, "\n");
+  if (!normalized.trim()) return "";
+  const paragraphs = normalized
+    .split(/\n{2,}/)
+    .map((chunk) => chunk.replace(/^\n+|\n+$/g, ""))
+    .filter((chunk) => chunk.trim().length > 0);
+  return paragraphs
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
 
 export default function BlogPostPage() {
   const params = useParams<{ slug: string }>();
@@ -66,7 +93,7 @@ export default function BlogPostPage() {
 
   const canEdit = profile?.username && post?.author && profile.username === post.author;
   const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
-  const isAdmin = profile?.username && profile.username === adminUsername;
+  const isAdmin = !!profile?.username && (profile?.role === "admin" || profile.username === adminUsername);
 
   const cacheUserKeys = [profile?.username || "anon"];
   const cacheKeySignature = `${cacheUserKeys.join("|")}:${slug}`;
@@ -81,13 +108,13 @@ export default function BlogPostPage() {
       .replace(/^-+|-+$/g, "");
   }
 
-  function sanitizeHtml(html: string) {
+  const sanitizeHtml = useCallback((html: string) => {
     if (!purifier) return html;
     return purifier.sanitize(html, {
       USE_PROFILES: { html: true },
       ADD_ATTR: ["style", "id"],
     });
-  }
+  }, [purifier]);
 
   function loadPost(options: { force?: boolean } = {}) {
     const { force = false } = options;
@@ -662,6 +689,10 @@ export default function BlogPostPage() {
   }, [post?.content]);
 
   const { html: markdownHtml, toc: tocItems } = useMemo(() => {
+    const source = String(post?.content || "");
+    if (!hasMarkdownSyntax(source)) {
+      return { html: sanitizeHtml(renderPlainTextHtml(source)), toc: [] as Array<{ id: string; text: string; level: number }> };
+    }
     const items: Array<{ id: string; text: string; level: number }> = [];
     const slugCounts = new Map<string, number>();
     const renderer = new marked.Renderer();
@@ -679,20 +710,24 @@ export default function BlogPostPage() {
       const alt = text || "";
       return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
     };
-    const html = marked.parse(post?.content || "", { renderer });
+    const html = marked.parse(source, { renderer, gfm: true, breaks: true });
     return { html: sanitizeHtml(String(html)), toc: items };
-  }, [post?.content]);
+  }, [post?.content, sanitizeHtml]);
 
   const editPreviewHtml = useMemo(() => {
+    const source = String(editContent || "");
+    if (!hasMarkdownSyntax(source)) {
+      return sanitizeHtml(renderPlainTextHtml(source));
+    }
     const renderer = new marked.Renderer();
     renderer.image = (href: string | null, title: string | null, text: string) => {
       const safeTitle = title ? ` title="${title}"` : "";
       const alt = text || "";
       return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
     };
-    const html = marked.parse(editContent || "", { renderer });
+    const html = marked.parse(source, { renderer, gfm: true, breaks: true });
     return sanitizeHtml(String(html));
-  }, [editContent]);
+  }, [editContent, sanitizeHtml]);
 
   function buildCommentTree(list: any[]) {
     const nodes = new Map<string, any>();

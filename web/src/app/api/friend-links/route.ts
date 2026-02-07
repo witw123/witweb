@@ -1,12 +1,10 @@
 ﻿import { initDb } from "@/lib/db-init";
 import { getBlogDb } from "@/lib/db";
-import { getAuthUser } from "@/lib/http";
+import { getAuthUser, isAdminUser } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, createdResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
-
-const adminUsername = process.env.ADMIN_USERNAME || process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
 const friendLinkSchema = z.object({
   name: z.string().min(1, "名称不能为空").max(100, "名称最多100字符"),
@@ -22,7 +20,7 @@ export const GET = withErrorHandler(async () => {
 
   // 鑾峰彇褰撳墠鐢ㄦ埛锛堝彲閫夛級
   const user = await getAuthUser();
-  const isAdmin = !!user && user === adminUsername;
+  const isAdmin = !!user && isAdminUser(user);
 
   const links = db.prepare(`
     SELECT id, name, url, description, avatar_url, sort_order, is_active
@@ -40,7 +38,7 @@ export const POST = withErrorHandler(async (req) => {
   // 楠岃瘉鐢ㄦ埛宸茬櫥褰曚笖鏄鐞嗗憳
   const user = await getAuthUser();
   assertAuthenticated(user);
-  assertAuthorized(user === adminUsername, "只有管理员可以添加友链");
+  assertAuthorized(isAdminUser(user), "只有管理员可以添加友链");
 
   // 楠岃瘉璇锋眰浣?
   const body = await validateBody(req, friendLinkSchema);

@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
     "livekit-client",
     "livekit-server-sdk"
   ],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
 };
 
 export default nextConfig;

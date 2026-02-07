@@ -1,9 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
 
 export type UserProfile = {
   username: string;
+  role?: "admin" | "user" | "bot";
   nickname?: string;
   avatar_url?: string;
   cover_url?: string;
@@ -28,6 +30,18 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function syncAuthCookie(token: string | null) {
+  if (typeof document === "undefined") return;
+
+  if (!token) {
+    document.cookie = `${AUTH_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+    return;
+  }
+
+  const encoded = encodeURIComponent(token);
+  document.cookie = `${AUTH_COOKIE_NAME}=${encoded}; Path=/; Max-Age=86400; SameSite=Lax`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -42,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       localStorage.removeItem("token");
       localStorage.removeItem("profile");
+      syncAuthCookie(null);
       setLoading(false);
       return;
     }
@@ -49,11 +64,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setToken(storedToken);
       setUser(JSON.parse(storedProfile) as UserProfile);
+      syncAuthCookie(storedToken);
     } catch {
       setToken(null);
       setUser(null);
       localStorage.removeItem("token");
       localStorage.removeItem("profile");
+      syncAuthCookie(null);
     } finally {
       setLoading(false);
     }
@@ -74,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login: (newToken, profile) => {
         localStorage.setItem("token", newToken);
         localStorage.setItem("profile", JSON.stringify(profile));
+        syncAuthCookie(newToken);
         setToken(newToken);
         setUser(profile);
         notifyProfileUpdate();
@@ -81,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout: () => {
         localStorage.removeItem("token");
         localStorage.removeItem("profile");
+        syncAuthCookie(null);
         setToken(null);
         setUser(null);
         notifyProfileUpdate();

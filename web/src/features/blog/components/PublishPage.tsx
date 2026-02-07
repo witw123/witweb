@@ -177,7 +177,7 @@ export default function PublishPage() {
                 rows={12}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="使用 Markdown 写作..."
+                placeholder="支持 Markdown；普通文本也会保留换行和段落格式。"
               />
             </label>
 

@@ -13,7 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated || !token) {
-      router.push("/admin/login");
+      router.replace("/admin/login");
       return;
     }
 
@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }).then((res) => {
       if (!res.ok) {
         logout();
-        router.push("/admin/login");
+        router.replace("/admin/login");
       }
     });
   }, [loading, isAuthenticated, token, logout, router, pathname]);
@@ -61,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             type="button"
             onClick={() => {
               logout();
-              router.push("/admin/login");
+              router.replace("/admin/login");
             }}
           >
             退出登录

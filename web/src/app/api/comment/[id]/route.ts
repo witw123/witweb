@@ -1,43 +1,47 @@
 import { initDb } from "@/lib/db-init";
-import { getAuthUser } from "@/lib/http";
-import { updateComment, deleteComment, getPostSlugForComment } from "@/lib/blog";
+import { getAuthUser, isAdminUser } from "@/lib/http";
+import { updateComment, deleteComment } from "@/lib/blog";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse, errorResponses } from "@/lib/api-response";
+import { validateBody, validateParams, z } from "@/lib/validate";
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const paramsData = await params;
+const paramsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+const updateSchema = z.object({
+  content: z.string().trim().min(1, "Empty content"),
+});
+
+export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   initDb();
+
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
+  assertAuthenticated(user);
 
-  const body = await req.json().catch(() => ({}));
-  const content = (body?.content || "").trim();
-  if (!content) return Response.json({ detail: "Empty content" }, { status: 400 });
+  const { id } = validateParams(await params, paramsSchema);
+  const body = await validateBody(req, updateSchema);
+  const res = updateComment(id, body.content, isAdminUser(user));
 
-  const adminUsername = process.env.ADMIN_USERNAME || "witw";
-  const res = updateComment(Number(paramsData.id), content, user, adminUsername);
+  if (!res.ok && res.error === "not_found") return errorResponses.notFound("Comment not found");
+  if (!res.ok && res.error === "forbidden") return errorResponses.forbidden("Forbidden");
+  if (!res.ok) return errorResponses.internal("Update failed");
 
-  if (!res.ok) {
-    if (res.error === "not_found") return Response.json({ detail: "Comment not found" }, { status: 404 });
-    if (res.error === "forbidden") return Response.json({ detail: "Forbidden" }, { status: 403 });
-    return Response.json({ detail: "Update failed" }, { status: 500 });
-  }
+  return successResponse({ ok: true });
+});
 
-  return Response.json({ ok: true });
-}
-
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const paramsData = await params;
+export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ id: string }> }) => {
   initDb();
+
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
+  assertAuthenticated(user);
 
-  const adminUsername = process.env.ADMIN_USERNAME || "witw";
-  const res = deleteComment(Number(paramsData.id), user, adminUsername);
+  const { id } = validateParams(await params, paramsSchema);
+  const res = deleteComment(id, isAdminUser(user));
 
-  if (!res.ok) {
-    if (res.error === "not_found") return Response.json({ detail: "Comment not found" }, { status: 404 });
-    if (res.error === "forbidden") return Response.json({ detail: "Forbidden" }, { status: 403 });
-    return Response.json({ detail: "Delete failed" }, { status: 500 });
-  }
+  if (!res.ok && res.error === "not_found") return errorResponses.notFound("Comment not found");
+  if (!res.ok && res.error === "forbidden") return errorResponses.forbidden("Forbidden");
+  if (!res.ok) return errorResponses.internal("Delete failed");
 
-  return Response.json({ ok: true });
-}
+  return successResponse({ ok: true });
+});

@@ -12,6 +12,7 @@ export interface User {
   id: number;
   username: string;
   password: string;
+  role?: "admin" | "user" | "bot";
   nickname: string | null;
   avatar_url: string | null;
   cover_url: string | null;
@@ -27,6 +28,7 @@ export interface User {
  */
 export interface UserProfile {
   username: string;
+  role?: "admin" | "user" | "bot";
   nickname: string | null;
   avatar_url: string | null;
   cover_url: string | null;
@@ -191,6 +193,7 @@ export interface UserRow {
  */
 export interface JWTPayload {
   sub: string;
+  role?: "admin" | "user" | "bot";
   iat?: number;
   exp?: number;
 }

@@ -5,7 +5,7 @@ import type { User, UserProfile } from "@/types";
 
 export function getUserByUsername(username: string): User | null {
   const db = getUsersDb();
-  const row = db.prepare("SELECT id, username, password, nickname, avatar_url, cover_url, bio, balance, created_at FROM users WHERE username = ?")
+  const row = db.prepare("SELECT id, username, password, role, nickname, avatar_url, cover_url, bio, balance, created_at FROM users WHERE username = ?")
     .get(username) as User | undefined;
   return row || null;
 }
@@ -17,6 +17,7 @@ export function publicProfile(username: string, viewer?: string | null): UserPro
   const likesReceived = getUserLikesReceived(username);
   const profile: UserProfile = {
     username: user.username,
+    role: user.role || "user",
     nickname: user.nickname,
     avatar_url: user.avatar_url,
     cover_url: user.cover_url || "",

@@ -2,27 +2,45 @@ import { initDb } from "@/lib/db-init";
 import { getUsersDb } from "@/lib/db";
 import { getAuthUser } from "@/lib/http";
 import { publicProfile } from "@/lib/user";
+import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
+import { successResponse } from "@/lib/api-response";
+import { validateBody, z } from "@/lib/validate";
 
-export async function GET() {
+const profileSchema = z.object({
+  nickname: z.string().trim().min(1).max(50).optional(),
+  avatar_url: z.string().trim().optional(),
+  cover_url: z.string().trim().optional(),
+  bio: z.string().trim().max(500).optional(),
+});
+
+export const GET = withErrorHandler(async () => {
   initDb();
+
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
+  assertAuthenticated(user);
+
   const profile = publicProfile(user, user);
-  return Response.json({ ok: true, profile });
-}
+  return successResponse({ profile });
+});
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: Request) => {
   initDb();
+
   const user = await getAuthUser();
-  if (!user) return Response.json({ detail: "Missing token" }, { status: 401 });
-  const body = await req.json().catch(() => ({}));
-  const nickname = body?.nickname || user;
-  const avatarUrl = body?.avatar_url || "";
-  const coverUrl = body?.cover_url || "";
-  const bio = body?.bio || "";
+  assertAuthenticated(user);
+
+  const body = await validateBody(req, profileSchema);
   const db = getUsersDb();
+
   db.prepare("UPDATE users SET nickname = ?, avatar_url = ?, cover_url = ?, bio = ? WHERE username = ?")
-    .run(nickname, avatarUrl, coverUrl, bio, user);
+    .run(
+      body.nickname || user,
+      body.avatar_url || "",
+      body.cover_url || "",
+      body.bio || "",
+      user
+    );
+
   const profile = publicProfile(user, user);
-  return Response.json({ ok: true, profile });
-}
+  return successResponse({ profile });
+});

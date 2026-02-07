@@ -1,26 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getActivities } from "@/lib/blog";
-import { successResponse } from "@/lib/api-response";
+import { successResponse, errorResponses } from "@/lib/api-response";
+import { withErrorHandler } from "@/middleware/error-handler";
+import { validateParams, validateQuery, z } from "@/lib/validate";
 
-// Dynamic route for /api/users/[username]/activity
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ username: string }> } // Params is a Promise in recent Next.js
-) {
-  const { username } = await params;
-  const searchParams = request.nextUrl.searchParams;
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const size = parseInt(searchParams.get("size") || "10", 10);
+const paramsSchema = z.object({
+  username: z.string().trim().min(1, "username is required"),
+});
 
-  if (!username) {
-    return NextResponse.json({ error: "Invalid username" }, { status: 400 });
-  }
+const querySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(10),
+});
 
-  try {
-    const data = getActivities(username, page, size);
-    return successResponse(data);
-  } catch (err: any) {
-    console.error("Error fetching activities:", err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
-}
+export const GET = withErrorHandler(async (
+  request: Request,
+  { params }: { params: Promise<{ username: string }> }
+) => {
+  const { username } = validateParams(await params, paramsSchema);
+  if (!username) return errorResponses.badRequest("Invalid username");
+
+  const { page, size } = await validateQuery(request, querySchema);
+  const data = getActivities(username, page, size);
+  return successResponse(data);
+});
