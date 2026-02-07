@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { getThumbnailUrl } from "@/utils/url";
-import { ThumbsUpIcon, MessageCircleIcon, BookmarkIcon } from "@/components/Icons";
+import { ThumbsUpIcon, MessageCircleIcon, BookmarkIcon, ThumbsDownIcon } from "@/components/Icons";
 import UserHoverCard from "@/features/blog/components/UserHoverCard";
 
 export default function PostCard({
@@ -23,12 +23,15 @@ export default function PostCard({
   onDelete?: (post: any) => void;
   canEdit?: boolean;
 }) {
-  const tagList = (post.tags || "").split(",").filter(Boolean).map((t: string) => t.trim());
+  const tagList = (post.tags || "")
+    .split(/[,，]/)
+    .filter(Boolean)
+    .map((t: string) => t.trim());
   const avatarUrl = getThumbnailUrl(post.author_avatar, 64);
 
   return (
-    <div className="card post-card">
-      <div className="card-head flex justify-between items-start mb-2">
+    <article className="card post-card post-card-item">
+      <div className="card-head post-card-head mb-2 flex items-start justify-between">
         <UserHoverCard username={post.author} className="z-10">
           <div className="author flex items-center gap-2">
             {post.author_avatar ? (
@@ -38,34 +41,34 @@ export default function PostCard({
                 width={24}
                 height={24}
                 loading="lazy"
-                className="w-6 h-6 rounded-full"
+                className="h-6 w-6 rounded-full"
                 unoptimized
               />
             ) : (
-              <div className="avatar-fallback w-6 h-6 flex items-center justify-center rounded-full bg-secondary text-xs">
+              <div className="avatar-fallback flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs">
                 {(post.author_name || post.author || "U")?.[0]}
               </div>
             )}
-            <span className="text-sm font-medium hover:text-blue-400 transition-colors uppercase">
-              {post.author_name || post.author || "匿名"}
-            </span>
+            <span className="text-sm font-medium uppercase">{post.author_name || post.author || "匿名"}</span>
           </div>
         </UserHoverCard>
         <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
       </div>
 
-      <Link href={`/post/${post.slug}`} className="block group">
-        <h2 className="text-xl font-bold mb-2 leading-tight group-hover:text-blue-500 transition-colors">{post.title}</h2>
+      <Link href={`/post/${post.slug}`} className="post-card-link post-card-main block">
+        <h2 className="post-card-title mb-2 line-clamp-2 text-xl font-bold leading-tight">{post.title}</h2>
 
-        <p className="excerpt text-muted text-sm mb-4 line-clamp-2 leading-relaxed">
+        <p className="excerpt post-card-excerpt mb-4 text-sm leading-relaxed text-muted line-clamp-3">
           {(post.content || "").replace(/\s+/g, " ").trim().slice(0, 140)}
         </p>
       </Link>
 
-      <div className="post-card-footer flex justify-between items-center mt-auto">
+      <div className="post-card-footer mt-auto flex items-center justify-between gap-4">
         <div className="tag-list">
           {tagList.slice(0, 3).map((tag: string) => (
-            <span key={tag} className="tag-pill">#{tag}</span>
+            <span key={tag} className="tag-pill">
+              #{tag}
+            </span>
           ))}
         </div>
 
@@ -92,7 +95,7 @@ export default function PostCard({
                   onDislike(post);
                 }}
               >
-                <ThumbsUpIcon className="inline" /> {post.dislike_count ?? 0}
+                <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
               </button>
             )}
             {onFavorite && (
@@ -122,19 +125,18 @@ export default function PostCard({
           </div>
         ) : (
           <div className="post-card-actions flex gap-1">
-            <span className="text-sm text-muted flex items-center gap-1">
+            <span className="flex items-center gap-1 text-sm text-muted">
               <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
             </span>
-            <span className="text-sm text-muted flex items-center gap-1">
+            <span className="flex items-center gap-1 text-sm text-muted">
               <MessageCircleIcon className="inline" /> {post.comment_count ?? 0}
             </span>
-            <span className="text-sm text-muted flex items-center gap-1">
+            <span className="flex items-center gap-1 text-sm text-muted">
               <BookmarkIcon className="inline" /> {post.favorite_count ?? 0}
             </span>
           </div>
         )}
       </div>
-    </div>
+    </article>
   );
 }
-

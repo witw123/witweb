@@ -4,8 +4,10 @@ import StudioLayout from "@/components/studio/core/StudioLayout";
 
 export default function StudioPage() {
   return (
-    <div className="w-full max-w-[1400px] mx-auto py-8">
-      <StudioLayout />
+    <div className="app-page-shell">
+      <div className="app-page-container w-full max-w-[1400px]">
+        <StudioLayout />
+      </div>
     </div>
   );
 }

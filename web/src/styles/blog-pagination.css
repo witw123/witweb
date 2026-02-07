@@ -1,0 +1,24 @@
+﻿.blog-pagination {
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+}
+
+.blog-pagination-label {
+  color: rgba(226, 232, 240, 0.72);
+  letter-spacing: 0.01em;
+}
+
+.blog-pagination-btn {
+  min-width: 78px;
+}
+
+@media (max-width: 768px) {
+  .blog-pagination {
+    gap: 8px;
+  }
+
+  .blog-pagination-label {
+    font-size: 12px;
+  }
+}

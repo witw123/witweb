@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo } from "react";
 import type { PostListItem } from "@/types/blog";
@@ -33,7 +33,7 @@ export const PostActions = memo(function PostActions({
       >
         <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
       </button>
-      
+
       <button
         className="btn-ghost btn-sm"
         type="button"
@@ -46,7 +46,7 @@ export const PostActions = memo(function PostActions({
       >
         <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
       </button>
-      
+
       <button
         className={`btn-ghost btn-sm ${post.favorited_by_me ? "text-accent" : ""}`}
         type="button"
@@ -59,7 +59,7 @@ export const PostActions = memo(function PostActions({
       >
         <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
       </button>
-      
+
       <button
         className="btn-ghost btn-sm"
         type="button"

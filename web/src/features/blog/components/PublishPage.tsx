@@ -117,8 +117,8 @@ export default function PublishPage() {
   }
 
   return (
-    <div className="container" style={{ paddingTop: "32px", paddingBottom: "32px" }}>
-      <div className="card" style={{ maxWidth: 760, margin: "0 auto" }}>
+    <div className="container blog-page-shell publish-shell">
+      <div className="card blog-page-card">
         <div className="card-head">
           <div>
             <h2 className="text-2xl font-bold">发布新文章</h2>

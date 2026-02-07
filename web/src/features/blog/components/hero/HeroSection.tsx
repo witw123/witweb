@@ -22,38 +22,22 @@ export function HeroSection({
   secondaryAction = { label: "关于我", href: "/profile" },
 }: HeroSectionProps) {
   return (
-    <section
-      className="hero-section relative flex min-h-[calc(100vh-64px)] flex-col items-center justify-center overflow-hidden px-4 text-center"
-      style={{
-        background: "radial-gradient(ellipse at top, rgba(59, 130, 246, 0.15), transparent 60%)",
-      }}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-20 [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+    <section className="hero-section relative flex min-h-[calc(100vh-64px)] flex-col items-center justify-center overflow-hidden px-4 text-center">
+      <div className="hero-grid" />
 
-      <div
-        className="relative z-10 mb-6 inline-flex items-center justify-center rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-blue-400 backdrop-blur-md"
-        style={{ fontFamily: "var(--font-heading)" }}
-      >
+      <div className="hero-kicker relative z-10 mb-6 inline-flex items-center justify-center rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider">
         共享 · 共建 · 共赢
       </div>
 
-      <h1
-        className="relative z-10 mx-auto mb-6 max-w-5xl text-4xl font-extrabold leading-[1.2] tracking-tight md:text-5xl lg:text-5xl"
-        style={{
-          fontFamily: "var(--font-heading)",
-          background: "linear-gradient(to bottom, #fff 40%, #a1a1a1 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-        }}
-      >
+      <h1 className="hero-title relative z-10 mx-auto mb-6 max-w-5xl text-4xl font-extrabold leading-[1.2] tracking-tight md:text-5xl lg:text-5xl">
         {title}
       </h1>
 
-      <p className="relative z-10 mx-auto mb-10 max-w-2xl text-base font-medium leading-relaxed text-zinc-400 md:text-lg">
+      <p className="hero-subtitle relative z-10 mx-auto mb-10 max-w-2xl text-base font-medium leading-relaxed md:text-lg">
         {subtitle}
       </p>
 
-      <div className="relative z-10 flex gap-4">
+      <div className="hero-actions relative z-10 flex gap-4">
         <button className="btn-hero btn-hero-primary" onClick={primaryAction.onClick}>
           {primaryAction.label}
         </button>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -50,38 +50,29 @@ export default function FollowersPageContent() {
   };
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-10">
-      <div className="mb-8 flex items-baseline gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-white">
-          {username ? `${username} 的粉丝` : "我的粉丝"}
-        </h1>
-        <span className="text-sm text-zinc-500">({items.length})</span>
-      </div>
+    <div className="app-page-shell">
+      <div className="app-page-container">
+        <div className="app-page-header">
+          <h1 className="app-page-title">{username ? `${username} 的粉丝` : "我的粉丝"}</h1>
+          <p className="app-page-subtitle">共 {items.length} 人</p>
+        </div>
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="h-10 w-10 animate-spin rounded-full border-t-2 border-blue-500"></div>
-        </div>
-      ) : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/20 py-24 text-center">
-          <p className="text-lg text-zinc-500">还没有人关注你</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {items.map((user) => (
-            <div
-              key={user.username}
-              className="flex items-center justify-between rounded-lg border border-zinc-800/50 bg-[#1e1e1e] p-4 transition-colors hover:border-zinc-700"
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-4">
-                <Link href={`/user/${user.username}`}>
-                  <div className="flex-shrink-0">
+        {loading ? (
+          <div className="app-loading-fallback">加载中...</div>
+        ) : items.length === 0 ? (
+          <div className="card blog-page-card py-16 text-center text-muted">还没有人关注你</div>
+        ) : (
+          <div className="user-rel-grid">
+            {items.map((user) => (
+              <div key={user.username} className="user-rel-card">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Link href={`/user/${user.username}`}>
                     {user.avatar_url ? (
                       <Image
                         src={user.avatar_url}
                         alt={user.nickname || user.username}
-                        width={56}
-                        height={56}
+                        width={52}
+                        height={52}
                         className="h-14 w-14 rounded-full bg-zinc-800 object-cover"
                         unoptimized
                       />
@@ -90,43 +81,36 @@ export default function FollowersPageContent() {
                         {user.nickname?.[0] || user.username?.[0]}
                       </div>
                     )}
-                  </div>
-                </Link>
-                <div className="min-w-0 flex-1 pr-4">
-                  <Link href={`/user/${user.username}`} className="inline-block max-w-full transition-colors hover:text-blue-400">
-                    <h2 className="truncate text-[15px] font-bold text-white">{user.nickname || user.username}</h2>
                   </Link>
-                  <p className="mt-1 truncate text-xs text-zinc-400">
-                    {user.bio || "这个人很懒，什么都没写"}
-                  </p>
-                  <div className="mt-2 flex gap-3 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-                    <span>关注 {user.following_count}</span>
-                    <span>粉丝 {user.follower_count}</span>
+                  <div className="min-w-0 flex-1">
+                    <Link href={`/user/${user.username}`} className="inline-block max-w-full transition-colors hover:text-blue-400">
+                      <h2 className="truncate text-[15px] font-bold text-white">{user.nickname || user.username}</h2>
+                    </Link>
+                    <p className="mt-1 truncate text-xs text-zinc-400">{user.bio || "这个人很懒，什么都没写"}</p>
+                    <div className="mt-2 flex gap-3 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                      <span>关注 {user.following_count}</span>
+                      <span>粉丝 {user.follower_count}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex-shrink-0">
-                {user.is_following ? (
-                  <button
-                    disabled
-                    className="flex cursor-default items-center gap-1.5 rounded-md border border-zinc-700/30 bg-zinc-800/50 px-4 py-1.5 text-[13px] font-medium text-zinc-500"
-                  >
-                    {user.is_mutual ? "已互相关注" : "已关注"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void handleFollow(user.username)}
-                    className="flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-1.5 text-[13px] font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-[0_6px_15px_rgba(37,99,235,0.3)]"
-                  >
-                    关注
-                  </button>
-                )}
+                <div className="flex-shrink-0">
+                  {user.is_following ? (
+                    <button disabled className="btn-ghost user-rel-btn cursor-default opacity-70">
+                      {user.is_mutual ? "已互相关注" : "已关注"}
+                    </button>
+                  ) : (
+                    <button onClick={() => void handleFollow(user.username)} className="btn-primary user-rel-btn justify-center">
+                      关注
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+

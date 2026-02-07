@@ -7,16 +7,16 @@ import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
 
-// 璇锋眰浣撻獙璇?Schema
+// 请求体验证 Schema
 const trackVisitSchema = z.object({
-  visitorId: z.string().min(1, "Visitor ID 涓嶈兘涓虹┖"),
+  visitorId: z.string().min(1, "Visitor ID 不能为空"),
   pageUrl: z.string().default("/"),
 });
 
 export const POST = withErrorHandler(async (request: Request) => {
   const db = getBlogDb();
-  
-  // 楠岃瘉璇锋眰浣?
+
+  // 验证请求体
   const { visitorId, pageUrl } = await validateBody(request, trackVisitSchema);
 
   const headersList = await headers();
@@ -36,7 +36,7 @@ export const POST = withErrorHandler(async (request: Request) => {
 
   if (existingVisitor) {
     db.prepare(`
-      UPDATE unique_visitors 
+      UPDATE unique_visitors
       SET last_visit = CURRENT_TIMESTAMP, visit_count = visit_count + 1
       WHERE visitor_id = ?
     `).run(visitorId);

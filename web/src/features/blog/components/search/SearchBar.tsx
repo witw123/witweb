@@ -100,8 +100,8 @@ export function SearchBar({
   }, []);
 
   return (
-    <div ref={searchRef} className="relative w-full min-w-0">
-      <div className="pointer-events-none absolute left-4 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center text-zinc-400">
+    <div ref={searchRef} className="blog-search relative w-full min-w-0">
+      <div className="blog-search-icon pointer-events-none absolute left-4 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -109,7 +109,7 @@ export function SearchBar({
       </div>
 
       <input
-        className="h-[42px] w-full rounded-full border border-zinc-700 bg-zinc-800 text-base text-zinc-100 transition-all placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+        className="blog-search-input h-[42px] w-full rounded-full text-base transition-all focus:outline-none"
         style={{ paddingLeft: "3.5rem", paddingRight: "3rem" }}
         value={value}
         onChange={(e) => {
@@ -123,8 +123,9 @@ export function SearchBar({
 
       {value && (
         <button
-          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-500 transition-colors hover:bg-white/10 hover:text-white"
+          className="blog-search-clear absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 transition-colors"
           onClick={handleClear}
+          aria-label="清空搜索"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M18 6L6 18M6 6l12 12" />
@@ -134,16 +135,16 @@ export function SearchBar({
 
       {showSuggestions && (filteredTags.length > 0 || filteredTitles.length > 0) && (
         <div
-          className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-950/95 py-2 backdrop-blur-md shadow-[0_14px_36px_rgba(0,0,0,0.45)]"
+          className="blog-search-panel absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl py-2 backdrop-blur-md"
           onMouseDown={(e) => e.preventDefault()}
         >
           {filteredTags.length > 0 && (
             <>
-              <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">标签</div>
+              <div className="blog-search-group px-4 py-2 text-xs font-semibold uppercase tracking-wider">标签</div>
               {filteredTags.map((tag) => (
                 <button
                   key={`tag-${tag}`}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+                  className="blog-search-item flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors"
                   type="button"
                   onClick={() => handleTagClick(tag)}
                 >
@@ -154,11 +155,11 @@ export function SearchBar({
           )}
           {filteredTitles.length > 0 && (
             <>
-              <div className="mt-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">文章</div>
+              <div className="blog-search-group mt-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider">文章</div>
               {filteredTitles.map((title) => (
                 <button
                   key={`title-${title}`}
-                  className="w-full truncate px-4 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+                  className="blog-search-item w-full truncate px-4 py-2 text-left text-sm transition-colors"
                   type="button"
                   onClick={() => handleTitleClick(title)}
                 >
@@ -172,4 +173,3 @@ export function SearchBar({
     </div>
   );
 }
-

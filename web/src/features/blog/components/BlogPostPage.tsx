@@ -22,33 +22,7 @@ import {
 import { resizeImageFile } from "@/utils/image";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import { emitPostMetricsUpdated, POST_METRICS_UPDATED_EVENT, type PostMetricsUpdateDetail } from "../utils/postMetricsSync";
-
-function escapeHtml(content: string) {
-  return content
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function hasMarkdownSyntax(content: string) {
-  const markdownPattern =
-    /(^\s{0,3}(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|~~~)|\[[^\]]+\]\([^)]+\)|!\[[^\]]*]\([^)]+\)|`[^`]+`|^\s*([-*_]\s*){3,}$)/m;
-  return markdownPattern.test(content);
-}
-
-function renderPlainTextHtml(content: string) {
-  const normalized = String(content || "").replace(/\r\n?/g, "\n");
-  if (!normalized.trim()) return "";
-  const paragraphs = normalized
-    .split(/\n{2,}/)
-    .map((chunk) => chunk.replace(/^\n+|\n+$/g, ""))
-    .filter((chunk) => chunk.trim().length > 0);
-  return paragraphs
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
-    .join("");
-}
+import { hasMarkdownSyntax, renderPlainTextHtml } from "../utils/contentFormat";
 
 export default function BlogPostPage() {
   const params = useParams<{ slug: string }>();
@@ -947,16 +921,16 @@ export default function BlogPostPage() {
           )}
         </div>
         <Link className="btn-ghost" href="/">
-          返回讨论区
+          返回主页
         </Link>
       </div>
 
-      {post?.title && <h1 className="text-3xl font-bold mb-4">{post.title}</h1>}
+      {post?.title && <h1 className="post-title text-3xl font-bold mb-4">{post.title}</h1>}
 
       {post && (
-        <div className="flex flex-col gap-4 mb-8 pb-8 border-b border-subtle">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="post-hero flex flex-col gap-4 mb-8 pb-8 border-b border-subtle">
+          <div className="post-hero-main flex items-center justify-between">
+            <div className="post-author-block flex items-center gap-3">
               <UserHoverCard username={post.author}>
                 {post.author_avatar ? (
                   <img
@@ -974,9 +948,9 @@ export default function BlogPostPage() {
               </UserHoverCard>
               <div className="flex flex-col">
                 <UserHoverCard username={post.author} disableHover={true}>
-                  <span className="font-bold text-lg cursor-pointer hover:text-blue-400">{post.author_name || post.author}</span>
+                  <span className="post-author-name font-bold text-lg cursor-pointer">{post.author_name || post.author}</span>
                 </UserHoverCard>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+                <div className="post-author-meta flex flex-wrap items-center gap-3 text-xs text-muted">
                   <span>{new Date(post.created_at).toLocaleString()}</span>
                   <span>浏览 {post.view_count ?? 0}</span>
                   <span>阅读 {readingStats.minutes} 分钟</span>
@@ -985,7 +959,7 @@ export default function BlogPostPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="post-hero-actions flex items-center gap-2">
               <button className="btn-ghost btn-sm" type="button" onClick={handleLike}>
                 <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
               </button>
@@ -1010,13 +984,11 @@ export default function BlogPostPage() {
           </div>
         </div>
       )}
-      {(tagList.length > 0 || post?.category_name) && (
+      {post && (
         <div className="post-meta-stack mb-6">
-          {post?.category_name && (
-            <div className="category-row">
-              <span className="category-chip">{post.category_name}</span>
-            </div>
-          )}
+          <div className="category-row">
+            <span className="category-chip">{post?.category_name || "未分类"}</span>
+          </div>
           {tagList.length > 0 && (
             <div className="tag-list">
               {tagList.map((tag) => (
@@ -1148,7 +1120,7 @@ export default function BlogPostPage() {
         </>
       )}
 
-      <section className="card comments">
+      <section className="card comments post-comments">
         <form className="form" onSubmit={handleComment}>
           <label>
             评论

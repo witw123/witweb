@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -52,31 +52,39 @@ export const PostCard = memo(function PostCard({
   const avatarUrl = getThumbnailUrl(effectiveAvatar || "", 64);
 
   return (
-    <div className="card block no-underline text-inherit">
-      <div className="card-head mb-3 flex items-start justify-between">
+    <article className="card post-card-item post-row-card block text-inherit no-underline">
+      <div className="post-row-meta">
+        <time className="post-row-date" dateTime={post.created_at}>
+          {new Date(post.created_at).toLocaleDateString()}
+        </time>
         <UserHoverCard username={post.author}>
-          <div className="author flex items-center gap-2">
+          <div className="author post-row-author flex items-center gap-2">
             {effectiveAvatar ? (
               <Image
                 src={avatarUrl}
                 alt={post.author_name}
-                width={24}
-                height={24}
+                width={34}
+                height={34}
                 loading="lazy"
-                className="h-6 w-6 rounded-full"
+                className="h-[34px] w-[34px] rounded-full"
                 unoptimized
               />
             ) : (
-              <div className="avatar-fallback h-6 w-6 text-xs">{post.author_name?.[0] || "U"}</div>
+              <div className="avatar-fallback h-[34px] w-[34px] text-sm">{post.author_name?.[0] || "U"}</div>
             )}
-            <span className="text-sm font-medium">{post.author_name || post.author || "未知作者"}</span>
+            <span className="text-base font-semibold leading-none">{post.author_name || post.author || "匿名用户"}</span>
           </div>
         </UserHoverCard>
-        <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
       </div>
 
-      <Link href={`/post/${post.slug}`} className="block no-underline text-inherit">
-        <h2 className="mb-3 text-xl font-bold leading-tight">
+      <div className="post-row-content">
+      <Link href={`/post/${post.slug}`} className="post-card-link post-card-main block text-inherit no-underline">
+        {post.category_name && (
+          <div className="category-row mb-2">
+            <span className="category-chip">{post.category_name}</span>
+          </div>
+        )}
+        <h2 className="post-card-title mb-3 line-clamp-2 text-xl font-bold leading-tight">
           {matchIndex >= 0 ? (
             <>
               {titleText.slice(0, matchIndex)}
@@ -90,27 +98,20 @@ export const PostCard = memo(function PostCard({
           )}
         </h2>
 
-        <p className="excerpt mb-6 line-clamp-2 text-sm leading-relaxed text-muted">{preview}</p>
+        <p className="excerpt post-card-excerpt mb-1 line-clamp-2 text-sm leading-relaxed text-muted">{preview}</p>
       </Link>
 
-      <div className="post-card-footer mt-auto flex items-center justify-between">
-        <div className="post-meta-stack">
-          {post.category_name && (
-            <div className="category-row">
-              <span className="category-chip">{post.category_name}</span>
-            </div>
-          )}
-          {tagList.length > 0 && (
-            <div className="tag-list">
-              {tagList.map((tag) => (
-                <span key={tag} className="tag-pill">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
+      <div className="post-card-footer mt-auto flex items-center justify-between gap-4">
+        {tagList.length > 0 && (
+          <div className="tag-list post-inline-tags">
+            {tagList.slice(0, 3).map((tag) => (
+              <span key={tag} className="tag-pill">
+                #{tag}
+              </span>
+            ))}
+            {tagList.length > 3 && <span className="tag-pill tag-pill-more">+{tagList.length - 3}</span>}
+          </div>
+        )}
         <PostActions
           post={post}
           onLike={() => onLike(post)}
@@ -119,6 +120,7 @@ export const PostCard = memo(function PostCard({
           onComment={() => onCommentClick(post.slug)}
         />
       </div>
-    </div>
+      </div>
+    </article>
   );
 });

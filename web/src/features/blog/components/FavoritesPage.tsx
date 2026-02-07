@@ -1,8 +1,10 @@
-"use client";
+﻿"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PostCard from "@/features/blog/components/PostCard";
+import { Pagination } from "@/features/blog/components/pagination/Pagination";
 import { clearAllCaches, getFavoritesCache, setFavoritesCache } from "@/utils/memoryStore";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import * as blogService from "@/services/blogService";
@@ -14,6 +16,7 @@ export default function FavoritesPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
   const router = useRouter();
+
   const profile = (() => {
     try {
       return JSON.parse(localStorage.getItem("profile") || "");
@@ -21,6 +24,7 @@ export default function FavoritesPage() {
       return null;
     }
   })();
+
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const cacheUserKeys = useMemo(() => [profile?.username, token, "anon"].filter(Boolean), [profile?.username, token]);
   const cacheKeySignature = useMemo(() => cacheUserKeys.join("|"), [cacheUserKeys]);
@@ -35,23 +39,27 @@ export default function FavoritesPage() {
       router.push("/login");
       return;
     }
+
     let cached: any = null;
     for (const key of cacheUserKeys) {
       cached = getFavoritesCache(`${key}:${page}`);
       if (cached) break;
     }
+
     if (!cached) {
       for (const key of localCacheKeys) {
         cached = getCachedJson(key);
         if (cached) break;
       }
     }
+
     if (cached) {
       setItems(Array.isArray(cached.items) ? cached.items : []);
       setTotal(cached.total || 0);
       setStatus("ready");
       return;
     }
+
     setStatus("loading");
     blogService
       .getFavorites(page, pageSize)
@@ -62,12 +70,8 @@ export default function FavoritesPage() {
         };
         setItems(payload.items);
         setTotal(payload.total);
-        cacheUserKeys.forEach((key) => {
-          setFavoritesCache(`${key}:${page}`, payload);
-        });
-        localCacheKeys.forEach((key) => {
-          setCachedJson(key, payload);
-        });
+        cacheUserKeys.forEach((key) => setFavoritesCache(`${key}:${page}`, payload));
+        localCacheKeys.forEach((key) => setCachedJson(key, payload));
         setStatus("ready");
       })
       .catch(() => setStatus("error"));
@@ -86,7 +90,13 @@ export default function FavoritesPage() {
       clearAllCaches();
       try {
         Object.keys(localStorage).forEach((key) => {
-          if (key.startsWith("cache:blog:") || key.startsWith("cache:post:") || key.startsWith("cache:comments:") || key.startsWith("cache:favorites:") || key.startsWith("cache:profile:")) {
+          if (
+            key.startsWith("cache:blog:") ||
+            key.startsWith("cache:post:") ||
+            key.startsWith("cache:comments:") ||
+            key.startsWith("cache:favorites:") ||
+            key.startsWith("cache:profile:")
+          ) {
             localStorage.removeItem(key);
           }
         });
@@ -100,11 +110,11 @@ export default function FavoritesPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="container py-8">
-      <div className="page-header mb-8">
+    <div className="container blog-page-shell">
+      <div className="blog-page-header">
         <div>
-          <h1 className="text-3xl font-bold mb-2">我的收藏</h1>
-          <p className="text-muted">你收藏的文章都在这里</p>
+          <h1 className="blog-page-title">我的收藏</h1>
+          <p className="blog-page-subtitle">你收藏的文章都在这里。</p>
         </div>
         <div className="actions">
           <Link className="btn-ghost" href="/">
@@ -112,36 +122,17 @@ export default function FavoritesPage() {
           </Link>
         </div>
       </div>
+
       {status === "error" && <p>加载失败，请稍后重试。</p>}
       {status === "ready" && items.length === 0 && <p>暂无收藏。</p>}
-      <div className="list grid">
+
+      <div className="list grid gap-4">
         {items.map((post) => (
           <PostCard key={post.slug} post={post} />
         ))}
       </div>
-      {totalPages > 1 && (
-        <div className="pagination flex items-center justify-center gap-4 mt-8">
-          <button
-            className="btn-ghost"
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-          >
-            上一页
-          </button>
-          <span className="text-muted text-sm">
-            第 {page} / {totalPages} 页
-          </span>
-          <button
-            className="btn-ghost"
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-          >
-            下一页
-          </button>
-        </div>
-      )}
+
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

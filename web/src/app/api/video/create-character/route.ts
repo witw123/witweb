@@ -11,7 +11,7 @@ import { successResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
 
 const createCharacterSchema = z.object({
-  pid: z.string().min(1, "PID涓嶈兘涓虹┖"),
+  pid: z.string().min(1, "PID不能为空"),
   timestamps: z.string().default("0,3"),
   webHook: z.string().default("-1"),
   shutProgress: z.boolean().default(false),
@@ -42,4 +42,3 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   return successResponse({ ok: true, task_id: taskId, id: taskId });
 });
-

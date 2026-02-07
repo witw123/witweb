@@ -1,29 +1,29 @@
 .messages-page-wrapper {
-  max-width: 1280px;
-  margin: 24px auto;
-  display: flex !important;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
   gap: 16px;
   align-items: flex-start;
-  min-height: calc(100vh - 120px);
+  min-height: calc(100vh - var(--header-height) - 24px);
   padding: 0 16px;
 }
 
 .messages-sidebar {
   width: 150px;
   flex-shrink: 0;
-  background: #18191c;
+  background: var(--surface-card-muted);
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--blog-panel-border);
   overflow: hidden;
   position: sticky;
-  top: 80px;
+  top: calc(var(--header-height) + 16px);
 }
 
 .sidebar-title {
   padding: 16px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
@@ -49,19 +49,19 @@
 }
 
 .sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #00aeec;
+  background: var(--surface-soft);
+  color: var(--accent-secondary);
 }
 
 .sidebar-item.active {
-  color: #00aeec;
-  background: rgba(0, 174, 236, 0.1);
+  color: var(--accent-secondary);
+  background: rgba(0, 229, 255, 0.12);
   font-weight: 600;
 }
 
 .sidebar-badge {
-  background: #00aeec;
-  color: #fff;
+  background: var(--accent-primary);
+  color: var(--ui-text-on-accent);
   border-radius: 10px;
   padding: 0 6px;
   font-size: 10px;
@@ -72,11 +72,11 @@
 
 .messages-main-view {
   flex: 1;
-  background: #18191c;
+  background: var(--surface-card-muted);
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex !important;
-  height: calc(100vh - 110px);
+  border: 1px solid var(--blog-panel-border);
+  display: flex;
+  height: calc(100vh - var(--header-height) - 16px);
   min-height: 500px;
   overflow: hidden;
 }
@@ -147,7 +147,7 @@
 .chat-name-text {
   font-size: 14px;
   font-weight: 500;
-  color: #fff;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -181,7 +181,7 @@
   justify-content: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .chat-history-scroll {
@@ -232,18 +232,18 @@
 }
 
 .msg-content-bubble {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.08);
   padding: 8px 14px;
   border-radius: 8px;
   font-size: 14px;
   line-height: 1.5;
-  color: #fff;
+  color: var(--text-primary);
   word-break: break-word;
 }
 
 .msg-row.sent .msg-content-bubble {
-  background: #00aeec;
-  color: #fff;
+  background: var(--accent-primary);
+  color: var(--ui-text-on-accent);
 }
 
 .chat-input-placeholder {
@@ -258,7 +258,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   padding: 10px;
-  color: #fff;
+  color: var(--text-primary);
   font-family: inherit;
   resize: none;
   outline: none;
@@ -266,7 +266,7 @@
 }
 
 .chat-input-textarea:focus {
-  border-color: #00aeec;
+  border-color: var(--accent-primary);
 }
 
 .chat-footer-actions {
@@ -276,8 +276,8 @@
 }
 
 .chat-send-action {
-  background: #00aeec;
-  color: #fff;
+  background: var(--accent-primary);
+  color: var(--ui-text-on-accent);
   padding: 6px 24px;
   border-radius: 4px;
   font-weight: 600;
@@ -287,7 +287,7 @@
 }
 
 .chat-send-action:hover {
-  background: #00c0ff;
+  background: #0080ff;
 }
 
 .chat-send-action:disabled {
@@ -300,14 +300,14 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #18191c;
+  background: var(--surface-card-muted);
 }
 
 .notif-header {
   padding: 16px 24px;
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -369,13 +369,13 @@
 }
 
 .sender-name {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
   margin-right: 4px;
 }
 
 .post-link {
-  color: #00aeec;
+  color: var(--accent-secondary);
   text-decoration: none;
 }
 
@@ -389,7 +389,7 @@
   border-radius: 4px;
   font-size: 14px;
   color: rgba(255, 255, 255, 0.9);
-  border-left: 3px solid #00aeec;
+  border-left: 3px solid var(--accent-primary);
 }
 
 .notif-time {

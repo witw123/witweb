@@ -100,7 +100,7 @@ export default function BlogListPage() {
 
       <div id="posts-anchor" className="scroll-mt-20" />
 
-      <div className="container mx-auto w-full pt-16" style={{ minHeight: "calc(100vh - 60px)", paddingBottom: "64px" }}>
+      <div className="blog-list-container container mx-auto w-full pt-16">
         {/* 状态展示 */}
         {isLoading && (
           <div className="py-16">
@@ -127,7 +127,7 @@ export default function BlogListPage() {
                     <div>
                       <div className="tag-atlas-kicker">WITWEB ATLAS</div>
                       <h4 className="tag-atlas-title">标签</h4>
-                      <div className="tag-atlas-sub"></div>
+                      <div className="tag-atlas-sub">按主题筛选本页</div>
                     </div>
 
                     {selectedTag ? (

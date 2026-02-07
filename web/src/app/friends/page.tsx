@@ -39,39 +39,42 @@ export default function FriendsPage() {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <div className="text-center text-muted">加载中...</div>
+      <div className="app-page-shell friends-page">
+        <div className="app-page-container">
+          <div className="app-loading-fallback">加载中...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container py-8">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">友情链接</h1>
-        <p className="text-muted">这里收录了一些优秀的博客和网站</p>
+    <div className="app-page-shell friends-page">
+      <div className="app-page-container">
+      <div className="app-page-header">
+        <h1 className="app-page-title">友情链接</h1>
+        <p className="app-page-subtitle">这里收录了一些优秀的博客和网站</p>
       </div>
 
       {links.length === 0 ? (
         <div className="py-12 text-center text-muted">暂无友情链接</div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="friend-links-list">
           {links.map((link) => (
             <a
               key={link.id}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="card transition-all duration-200 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10"
+              className="friend-link-card"
             >
-              <div className="flex items-start gap-4">
+              <div className="friend-link-content">
                 {link.avatar_url || getFallbackIcon(link.url) ? (
                   <Image
                     src={link.avatar_url || getFallbackIcon(link.url)}
                     alt={link.name}
-                    width={64}
-                    height={64}
-                    className="h-16 w-16 flex-shrink-0 rounded-full object-cover"
+                    width={74}
+                    height={74}
+                    className="friend-link-avatar"
                     unoptimized
                     onError={(e) => {
                       const fallback = getFallbackIcon(link.url);
@@ -83,20 +86,21 @@ export default function FriendsPage() {
                     }}
                   />
                 ) : (
-                  <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-xl font-bold text-white">
+                  <div className="friend-link-avatar friend-link-avatar-fallback">
                     {link.name[0]?.toUpperCase()}
                   </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  <h3 className="mb-1 truncate text-lg font-semibold">{link.name}</h3>
-                  {link.description && <p className="line-clamp-2 text-sm text-muted">{link.description}</p>}
-                  <p className="mt-2 truncate text-xs text-blue-400">{link.url}</p>
+                <div className="friend-link-text">
+                  <h3 className="friend-link-name">{link.name}</h3>
+                  {link.description && <p className="friend-link-desc">{link.description}</p>}
+                  <p className="friend-link-url">{link.url}</p>
                 </div>
               </div>
             </a>
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -134,13 +134,10 @@ export function CategoryFilter({
   }
 
   return (
-    <div ref={rootRef} className="relative isolate w-full">
+    <div ref={rootRef} className="blog-category-filter">
       <button
         type="button"
-        className={`relative h-[42px] w-full rounded-full border px-4 pr-11 text-left text-base text-zinc-100 transition-all ${open
-            ? "z-20 border-blue-500 bg-zinc-900 ring-2 ring-blue-500/60"
-            : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
-          }`}
+        className={`blog-category-filter-trigger ${open ? "is-open" : ""}`}
         onClick={() => (open ? closeDropdown() : openDropdown())}
         onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
@@ -148,8 +145,8 @@ export function CategoryFilter({
         aria-controls={listboxId}
         aria-activedescendant={open && activeIndex >= 0 ? `category-option-${activeIndex}` : undefined}
       >
-        <span className={`${value ? "text-zinc-100" : "text-zinc-300"} font-semibold`}>{selectedLabel}</span>
-        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300">
+        <span className="blog-category-filter-label">{selectedLabel}</span>
+        <span className="blog-category-filter-icon">
           <svg
             width="18"
             height="18"
@@ -168,7 +165,7 @@ export function CategoryFilter({
 
       {mounted && (
         <div
-          className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-3xl border border-blue-500/30 bg-zinc-950/95 p-1 backdrop-blur-md shadow-[0_16px_42px_rgba(0,0,0,0.52)] transition-all duration-150 ${open ? "translate-y-0 scale-100 opacity-100" : "-translate-y-1 scale-[0.99] opacity-0"
+          className={`blog-category-filter-panel ${open ? "translate-y-0 scale-100 opacity-100" : "-translate-y-1 scale-[0.99] opacity-0"
             }`}
           onMouseDown={(event) => event.preventDefault()}
         >
@@ -184,12 +181,7 @@ export function CategoryFilter({
                     }}
                     id={`category-option-${index}`}
                     type="button"
-                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors ${isSelected
-                        ? "border border-blue-500/40 bg-blue-500/15 text-blue-200"
-                        : isActive
-                          ? "bg-zinc-800/90 text-zinc-100"
-                          : "text-zinc-200 hover:bg-zinc-800/70 hover:text-zinc-100"
-                      }`}
+                    className={`blog-category-filter-item ${isSelected ? "is-selected" : ""} ${isActive ? "is-active" : ""}`}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => handleSelect(option.slug)}
                     role="option"

@@ -8,8 +8,10 @@ export default function UserProfilePage() {
   const username = params.username as string;
 
   return (
-    <div className="py-8">
-      <ProfilePage targetUsername={username} />
+    <div className="app-page-shell">
+      <div className="app-page-container">
+        <ProfilePage targetUsername={username} />
+      </div>
     </div>
   );
 }

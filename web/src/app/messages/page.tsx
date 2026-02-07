@@ -3,9 +3,8 @@ import MessagesPageContent from "@/features/messages/components/MessagesPageCont
 
 export default function MessagesPage() {
   return (
-    <Suspense fallback={<div className="p-10 text-center text-zinc-500">加载中...</div>}>
+    <Suspense fallback={<div className="app-loading-fallback">加载中...</div>}>
       <MessagesPageContent />
     </Suspense>
   );
 }
-

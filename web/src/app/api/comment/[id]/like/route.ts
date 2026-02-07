@@ -1,4 +1,4 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { voteComment } from "@/lib/blog";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -13,13 +13,13 @@ export const POST = withErrorHandler(async (req, { params }) => {
   const paramsData = await params;
   initDb();
 
-  // 楠岃瘉鐢ㄦ埛宸茬櫥褰?
+  // 验证用户登录状态
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const { id } = validateParams(paramsData, paramsSchema);
 
-  // 鐐硅禐璇勮
+  // 点赞评论
   voteComment(id, user, 1);
 
   return successResponse({ message: "点赞成功" });

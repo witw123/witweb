@@ -76,82 +76,80 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-primary px-4">
-      <div className="mb-8 text-center">
-        <h1 className="mb-2 text-3xl font-bold">AI Studio</h1>
-        <p className="text-secondary">注册后自动登录</p>
-      </div>
-
-      <form className="card form w-full max-w-md p-8 shadow-lg" onSubmit={handleRegister}>
-        <label className="mb-4 block">
-          <span className="mb-1 block font-medium">账号</span>
-          <input
-            className="input"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder="设置账号"
-          />
-        </label>
-
-        <label className="mb-4 block">
-          <span className="mb-1 block font-medium">昵称</span>
-          <input
-            className="input"
-            value={nickname}
-            onChange={(event) => setNickname(event.target.value)}
-            placeholder="显示昵称（可选）"
-          />
-        </label>
-
-        <label className="mb-4 block">
-          <span className="mb-1 block font-medium">头像</span>
-          <div className="flex items-center gap-4">
-            {avatarUrl && (
-              <Image
-                src={avatarUrl}
-                alt="Avatar preview"
-                width={64}
-                height={64}
-                className="h-16 w-16 rounded-full border-2 border-accent object-cover"
-                unoptimized
-              />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarChange}
-              className="cursor-pointer text-sm text-muted file:mr-4 file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-opacity-90"
-            />
-          </div>
-        </label>
-
-        <label className="mb-6 block">
-          <span className="mb-1 block font-medium">密码</span>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="设置密码（至少 6 位）"
-          />
-        </label>
-
-        {error && (
-          <p className="mb-4 rounded border border-accent/20 bg-accent/10 p-3 text-sm text-accent">
-            {error}
-          </p>
-        )}
-
-        <button className="btn-primary w-full justify-center" type="submit" disabled={loading}>
-          {loading ? "注册中..." : "注册并登录"}
-        </button>
-
-        <div className="mt-4 text-center">
-          <Link className="btn-ghost text-sm" href="/login">
-            已有账号？直接登录
-          </Link>
+    <div className="auth-page">
+      <div className="auth-page-inner">
+        <div className="auth-page-head">
+          <h1 className="blog-page-title">AI Studio</h1>
+          <p className="app-page-subtitle">注册后自动登录</p>
         </div>
-      </form>
+
+        <form className="card auth-page-card form w-full p-8" onSubmit={handleRegister}>
+          <label className="mb-4 block">
+            <span className="mb-1 block font-medium">账号</span>
+            <input
+              className="input"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="设置账号"
+            />
+          </label>
+
+          <label className="mb-4 block">
+            <span className="mb-1 block font-medium">昵称</span>
+            <input
+              className="input"
+              value={nickname}
+              onChange={(event) => setNickname(event.target.value)}
+              placeholder="显示昵称（可选）"
+            />
+          </label>
+
+          <label className="mb-4 block">
+            <span className="mb-1 block font-medium">头像</span>
+            <div className="flex items-center gap-4">
+              {avatarUrl && (
+                <Image
+                  src={avatarUrl}
+                  alt="Avatar preview"
+                  width={64}
+                  height={64}
+                  className="h-16 w-16 rounded-full border-2 border-accent object-cover"
+                  unoptimized
+                />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="cursor-pointer text-sm text-muted file:mr-4 file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-opacity-90"
+              />
+            </div>
+          </label>
+
+          <label className="mb-6 block">
+            <span className="mb-1 block font-medium">密码</span>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="设置密码（至少 6 位）"
+            />
+          </label>
+
+          {error && <p className="mb-4 rounded border border-accent/20 bg-accent/10 p-3 text-sm text-accent">{error}</p>}
+
+          <button className="btn-primary w-full justify-center" type="submit" disabled={loading}>
+            {loading ? "注册中..." : "注册并登录"}
+          </button>
+
+          <div className="mt-4 text-center">
+            <Link className="btn-ghost text-sm" href="/login">
+              已有账号？直接登录
+            </Link>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

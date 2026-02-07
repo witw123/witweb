@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -177,7 +177,7 @@ export default function MessagesPageContent() {
       const payload = await res.json().catch(() => ({}));
       const resData = payload?.data || payload;
       if (!res.ok || payload?.success === false) {
-        setSendError(payload?.error?.message || "发送失败，请稍后重试");
+        setSendError(payload?.error?.message || "发送失败，请稍后重试。");
         return;
       }
       setInputText("");
@@ -265,7 +265,7 @@ export default function MessagesPageContent() {
           >
             <span>我的消息</span>
             {conversations.reduce((acc, c) => acc + c.unread_count, 0) > 0 && (
-              <span className="sidebar-badge">new</span>
+              <span className="sidebar-badge">新</span>
             )}
           </div>
           <div
@@ -291,7 +291,7 @@ export default function MessagesPageContent() {
         {activeSidebarTab === "chat" ? (
           <>
             <div className="chat-list-pane">
-              <div className="chat-list-header">最近消息</div>
+              <div className="chat-list-header">最新消息</div>
               <div className="chat-items-container">
                 {displayConversations.length === 0 && !convLoading && (
                   <div className="p-4 text-center text-sm text-zinc-500">暂无消息</div>
@@ -460,7 +460,7 @@ export default function MessagesPageContent() {
                         {activeSidebarTab === "system" && " 向您发送了 "}
 
                         {activeSidebarTab !== "system" ? (
-                          <Link href={`/p/${notif.post_slug}`} className="post-link">
+                          <Link href={`/post/${notif.post_slug}`} className="post-link">
                             {notif.post_title}
                           </Link>
                         ) : (

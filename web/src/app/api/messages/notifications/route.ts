@@ -15,7 +15,7 @@ const querySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  // 楠岃瘉鐢ㄦ埛璁よ瘉
+  // 验证用户认证
   const user = await getAuthUser();
   if (!user) {
     return errorResponses.unauthorized("请先登录");
@@ -23,7 +23,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { type, page, size } = await validateQuery(req, querySchema);
 
-  // 鑾峰彇瀵瑰簲绫诲瀷鐨勯€氱煡
+  // 获取对应类型通知
   let items: any[] = [];
   let total = 0;
 
@@ -43,4 +43,3 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   return paginatedResponse(items, total, page ?? 1, size ?? 20);
 });
-

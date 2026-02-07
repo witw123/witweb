@@ -18,7 +18,7 @@ export const GET = withErrorHandler(async () => {
   initDb();
   const db = getBlogDb();
 
-  // 鑾峰彇褰撳墠鐢ㄦ埛锛堝彲閫夛級
+  // 获取当前用户（可选）
   const user = await getAuthUser();
   const isAdmin = !!user && isAdminUser(user);
 
@@ -35,12 +35,12 @@ export const GET = withErrorHandler(async () => {
 export const POST = withErrorHandler(async (req) => {
   initDb();
 
-  // 楠岃瘉鐢ㄦ埛宸茬櫥褰曚笖鏄鐞嗗憳
+  // 验证用户已登录且为管理员
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "只有管理员可以添加友链");
 
-  // 楠岃瘉璇锋眰浣?
+  // 验证请求体
   const body = await validateBody(req, friendLinkSchema);
 
   const db = getBlogDb();

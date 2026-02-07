@@ -1,0 +1,316 @@
+﻿.blog-list-page .blog-list-container {
+  max-width: 1200px;
+}
+
+.blog-list-page .home-feed-shell,
+.blog-list-page .tag-atlas-shell {
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  padding: 1px;
+}
+
+.blog-list-page .home-feed,
+.blog-list-page .tag-atlas {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 17px;
+  background: rgba(10, 10, 12, 0.96);
+}
+
+.blog-list-page .tag-atlas {
+  padding: 14px;
+}
+
+.tag-atlas-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tag-atlas-kicker {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.tag-atlas-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: rgba(248, 250, 252, 0.95);
+  letter-spacing: -0.01em;
+}
+
+.tag-atlas-sub {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: rgba(161, 161, 170, 0.9);
+}
+
+.tag-atlas-reset {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: rgba(30, 41, 59, 0.35);
+  color: rgba(226, 232, 240, 0.9);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tag-atlas-reset:hover {
+  border-color: rgba(148, 163, 184, 0.52);
+  background: rgba(51, 65, 85, 0.44);
+}
+
+.tag-atlas-focus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: rgba(30, 64, 175, 0.18);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.tag-atlas-focus-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.95);
+}
+
+.tag-atlas-focus-text {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.86);
+}
+
+.tag-atlas-focus-tag {
+  color: rgba(147, 197, 253, 1);
+  font-weight: 700;
+}
+
+.tag-atlas-empty {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(161, 161, 170, 0.9);
+}
+
+.tag-atlas-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tag-atlas-chip {
+  --tag-strength: 0.4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 116, 139, calc(0.35 + var(--tag-strength) * 0.35));
+  background: rgba(15, 23, 42, calc(0.4 + var(--tag-strength) * 0.25));
+  color: rgba(226, 232, 240, 0.9);
+  padding: 5px 9px;
+  font-size: calc(11px + var(--tag-strength) * 1.5px);
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.tag-atlas-chip:hover {
+  border-color: rgba(148, 163, 184, 0.66);
+  background: rgba(30, 41, 59, 0.56);
+}
+
+.tag-atlas-chip.is-active {
+  border-color: rgba(96, 165, 250, 0.88);
+  background: rgba(37, 99, 235, 0.32);
+}
+
+.tag-atlas-chip-hash {
+  color: rgba(147, 197, 253, 0.95);
+}
+
+.tag-atlas-chip-text {
+  max-width: 124px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-atlas-chip-count {
+  font-size: 10px;
+  color: rgba(203, 213, 225, 0.86);
+}
+
+.tag-atlas-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tag-atlas-foot-line {
+  flex: 0 0 22px;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.4);
+}
+
+.tag-atlas-foot-text {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.blog-list-page .home-feed {
+  padding: 18px;
+}
+
+.blog-list-page .home-feed-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.blog-list-page .home-feed-kicker {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.blog-list-page .home-feed-title {
+  margin-top: 6px;
+  font-size: 1.3rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.blog-list-page .home-feed-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.blog-list-page .home-feed-filter {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.4);
+  color: rgba(226, 232, 240, 0.88);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 4px 9px;
+}
+
+.blog-list-page .home-search-shell {
+  margin-bottom: 14px;
+}
+
+.blog-list-page .home-feed .card {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(10, 10, 12, 0.92);
+  box-shadow: none;
+  transition: border-color 0.16s ease, transform 0.16s ease;
+}
+
+.blog-list-page .home-feed .card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.blog-list-page .home-feed .card .post-card-link,
+.blog-list-page .home-feed .card .post-card-link:hover,
+.blog-list-page .home-feed .card .post-card-link:focus-visible {
+  color: inherit;
+}
+
+.blog-list-page .home-feed .card .post-card-title,
+.blog-list-page .home-feed .card .post-card-link:hover .post-card-title,
+.blog-list-page .home-feed .card .post-card-link:focus-visible .post-card-title,
+.blog-list-page .home-feed .card .excerpt,
+.blog-list-page .home-feed .card .post-card-link:hover .excerpt,
+.blog-list-page .home-feed .card .post-card-link:focus-visible .excerpt {
+  color: inherit;
+}
+
+.blog-list-page .home-feed-foot {
+  margin-top: 10px;
+}
+
+@media (max-width: 1024px) {
+  .blog-list-page .blog-list-container {
+    padding-top: 40px;
+  }
+
+  .blog-list-page .tag-atlas-shell {
+    margin-bottom: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .blog-list-page .blog-list-container {
+    padding-bottom: 34px;
+    min-height: auto;
+  }
+
+  .blog-list-page .tag-atlas-shell,
+  .blog-list-page .home-feed-shell {
+    border-radius: 14px;
+  }
+
+  .blog-list-page .tag-atlas,
+  .blog-list-page .home-feed {
+    border-radius: 13px;
+    padding: 12px;
+  }
+
+  .blog-list-page .home-feed-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .blog-list-page .home-feed-filters {
+    justify-content: flex-start;
+  }
+
+  .blog-list-page .home-feed .list {
+    gap: 12px;
+  }
+
+  .blog-list-page .home-feed .card {
+    padding: 12px;
+  }
+
+  .blog-list-page .home-feed .card .card-head {
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+
+  .blog-list-page .home-feed .card .post-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .blog-list-page .home-feed .card .post-card-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .blog-list-page .home-feed .card .post-card-actions .btn-ghost {
+    min-height: 34px;
+    justify-content: center;
+  }
+}

@@ -47,13 +47,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-primary px-4">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">AI Studio</h1>
-        <p className="text-secondary">登录 · 进入工作区</p>
+    <div className="auth-page">
+      <div className="auth-page-inner">
+      <div className="auth-page-head">
+        <h1 className="blog-page-title">AI Studio</h1>
+        <p className="app-page-subtitle">登录 · 进入工作区</p>
       </div>
 
-      <form className="card form w-full max-w-md p-8 shadow-lg" onSubmit={handleLogin}>
+      <form className="card auth-page-card form w-full p-8" onSubmit={handleLogin}>
         <label className="block mb-4">
           <span className="block mb-1 font-medium">账号</span>
           <input
@@ -92,6 +93,7 @@ export default function LoginPage() {
           </div>
         </div>
       </form>
+      </div>
     </div>
   );
 }

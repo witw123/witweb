@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { PostListItem } from "@/types/blog";
 import { PostCard } from "./PostCard";
@@ -27,14 +27,14 @@ export function PostList({
 }: PostListProps) {
   if (posts.length === 0) {
     return (
-      <div className="text-center py-16">
+      <div className="py-16 text-center">
         <p className="text-zinc-500">暂无文章</p>
       </div>
     );
   }
 
   return (
-    <div className="list grid mt-8 gap-6">
+    <div className="list mt-5 grid gap-4">
       {posts.map((post) => (
         <PostCard
           key={post.slug}

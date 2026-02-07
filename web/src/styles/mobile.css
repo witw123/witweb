@@ -28,11 +28,6 @@
     padding: var(--spacing-md);
   }
 
-  /* Blog List Specifics */
-  .blog-list-page {
-    padding-top: var(--spacing-md) !important;
-  }
-
   .section-header {
     flex-direction: column;
     align-items: flex-start;
@@ -40,7 +35,7 @@
   }
 
   .section-header .search {
-    width: 100% !important;
+    width: 100%;
   }
 
   /* Blog Post Specifics */

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 interface PaginationProps {
   currentPage: number;
@@ -10,20 +10,20 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
   if (totalPages <= 1) return null;
 
   return (
-    <div className="pagination flex items-center justify-center gap-4 mt-8">
+    <div className="pagination blog-pagination mt-8 flex items-center justify-center gap-4">
       <button
-        className="btn-ghost"
+        className="btn-ghost blog-pagination-btn"
         type="button"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
       >
         上一页
       </button>
-      <span className="text-muted text-sm">
+      <span className="blog-pagination-label text-sm">
         第 {currentPage} / {totalPages} 页
       </span>
       <button
-        className="btn-ghost"
+        className="btn-ghost blog-pagination-btn"
         type="button"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}

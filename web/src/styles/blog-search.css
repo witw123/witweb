@@ -1,0 +1,46 @@
+﻿.blog-search-icon {
+  color: rgba(161, 161, 170, 0.9);
+}
+
+.blog-search-input {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 23, 42, 0.66);
+  color: var(--text-primary);
+}
+
+.blog-search-input::placeholder {
+  color: rgba(161, 161, 170, 0.9);
+}
+
+.blog-search-input:focus {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.34);
+}
+
+.blog-search-clear {
+  color: rgba(161, 161, 170, 0.9);
+}
+
+.blog-search-clear:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.blog-search-panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(9, 9, 11, 0.95);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+.blog-search-group {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.blog-search-item {
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.blog-search-item:hover {
+  color: #ffffff;
+  background: rgba(39, 39, 42, 0.95);
+}

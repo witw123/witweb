@@ -21,11 +21,11 @@ export const GET = withErrorHandler(async (req, { params }) => {
   const paramsData = await params;
   initDb();
   void req;
-  
+
   const { slug } = paramsData;
-  
+
   const comments = listComments(slug);
-  
+
   return successResponse(comments);
 });
 
@@ -35,30 +35,30 @@ export const GET = withErrorHandler(async (req, { params }) => {
 export const POST = withErrorHandler(async (req, { params }) => {
   const paramsData = await params;
   initDb();
-  
+
   const { slug } = paramsData;
-  
-  // 楠岃瘉璇锋眰浣?
+
+  // 验证请求体
   const body = await validateBody(req, createCommentSchema);
-  
-  // 鑾峰彇褰撳墠鐢ㄦ埛锛堝彲閫夛級
+
+  // 获取当前用户（可选）
   const user = await getAuthUser();
-  const author = user || body.author || "璁垮";
-  
-  // 鑾峰彇瀹㈡埛绔?IP
+  const author = user || body.author || "访客";
+
+  // 获取客户端 IP
   const ip = req.headers.get("x-forwarded-for") || "";
-  
-  // 澶勭悊 parent_id
-  const parentId = body.parent_id 
-    ? (typeof body.parent_id === 'string' ? parseInt(body.parent_id, 10) : body.parent_id)
+
+  // 处理 parent_id
+  const parentId = body.parent_id
+    ? (typeof body.parent_id === "string" ? parseInt(body.parent_id, 10) : body.parent_id)
     : null;
-  
-  // 娣诲姞璇勮
+
+  // 添加评论
   const result = addComment(slug, author, body.content.trim(), parentId, ip);
-  
+
   if (!result.ok) {
     return errorResponses.notFound("文章不存在");
   }
-  
+
   return createdResponse({ ok: true });
 });
