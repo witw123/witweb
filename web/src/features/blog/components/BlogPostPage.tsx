@@ -247,31 +247,6 @@ export default function BlogPostPage() {
   }, [slug, cacheKeySignature]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !slug) return;
-    const refreshNow = () => {
-      loadPost({ force: true });
-      loadComments({ force: true });
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        refreshNow();
-      }
-    };
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        refreshNow();
-      }
-    }, 15000);
-    window.addEventListener("focus", refreshNow);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", refreshNow);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [slug, cacheKeySignature]);
-
-  useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
       .then((data) => {
