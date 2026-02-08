@@ -1,6 +1,74 @@
-"use client";
-
+import type { Metadata } from "next";
 import BlogPostPage from "@/features/blog/components/BlogPostPage";
+import { initDb } from "@/lib/db-init";
+import { getPost } from "@/lib/blog";
+import { getSiteUrl } from "@/lib/site-url";
+
+function stripMarkdown(source: string): string {
+  return source
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/[#>*_\-\[\]()`]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const siteUrl = getSiteUrl();
+  const slug = params.slug;
+
+  try {
+    initDb();
+    const post = getPost(slug);
+    if (!post) {
+      return {
+        title: "文章不存在",
+        robots: { index: false, follow: false },
+      };
+    }
+
+    const description = stripMarkdown(String(post.content || "")).slice(0, 140) || "查看文章详情";
+    const canonical = `/post/${slug}`;
+    const tags = String(post.tags || "")
+      .split(/[,，]/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    return {
+      title: post.title,
+      description,
+      keywords: tags.length > 0 ? tags : undefined,
+      alternates: {
+        canonical,
+      },
+      openGraph: {
+        type: "article",
+        url: `${siteUrl}${canonical}`,
+        title: post.title,
+        description,
+        publishedTime: post.created_at || undefined,
+        authors: post.author_name ? [post.author_name] : undefined,
+        tags: tags.length > 0 ? tags : undefined,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: post.title,
+        description,
+      },
+    };
+  } catch {
+    return {
+      title: "文章",
+      description: "查看文章详情",
+    };
+  }
+}
 
 export default function PostPage() {
   return <BlogPostPage />;

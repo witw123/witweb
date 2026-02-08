@@ -50,8 +50,8 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="auth-page-inner">
       <div className="auth-page-head">
-        <h1 className="blog-page-title">AI Studio</h1>
-        <p className="app-page-subtitle">登录 · 进入工作区</p>
+        <h1 className="blog-page-title">WITWEB</h1>
+        <p className="app-page-subtitle">登录</p>
       </div>
 
       <form className="card auth-page-card form w-full p-8" onSubmit={handleLogin}>
