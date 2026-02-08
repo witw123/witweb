@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 interface SidebarProps {
   activeTab: string;
@@ -17,10 +17,17 @@ const VideoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const AgentIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 3h6m-6 18h6M5 8h14M5 16h14M7 8v8m10-8v8M9 12h6" />
+  </svg>
+);
+
 export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
   const items = [
     { id: "home", label: "工作台", icon: HomeIcon },
     { id: "video", label: "视频生成", icon: VideoIcon },
+    { id: "agent", label: "AI Agent", icon: AgentIcon },
   ];
 
   return (
@@ -30,7 +37,7 @@ export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
           <h1 className="text-lg font-extrabold tracking-[0.2em] text-white transition-opacity group-hover:opacity-80">
             STUDIO
           </h1>
-          <span className="mt-1 block text-[9px] font-medium tracking-[0.3em] text-[#0070f3]">视频创作</span>
+          <span className="mt-1 block text-[9px] font-medium tracking-[0.3em] text-[#0070f3]">创作中心</span>
         </div>
       </div>
 
@@ -52,3 +59,4 @@ export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
     </aside>
   );
 }
+

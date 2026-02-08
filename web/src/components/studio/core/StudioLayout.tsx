@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { StudioSidebar } from "./StudioSidebar";
 import { StudioDashboard } from "./StudioDashboard";
 import { VideoLayout } from "../modules/video/VideoLayout";
+import { AgentWorkspace } from "../modules/agent/AgentWorkspace";
 
 export default function StudioLayout() {
   const [activeTab, setActiveTab] = useState("home");
@@ -14,6 +15,7 @@ export default function StudioLayout() {
   const getHeaderTitle = () => {
     if (activeTab === "home") return "创作工作台";
     if (isVideoModule) return "视频生成中心";
+    if (activeTab === "agent") return "AI 创作代理";
     return "Studio";
   };
 
@@ -33,9 +35,11 @@ export default function StudioLayout() {
           <div className="h-full animate-in fade-in duration-500">
             {activeTab === "home" && <StudioDashboard setActiveTab={setActiveTab} />}
             {isVideoModule && <VideoLayout initialTab={videoSubTab} />}
+            {activeTab === "agent" && <AgentWorkspace />}
           </div>
         </div>
       </main>
     </div>
   );
 }
+

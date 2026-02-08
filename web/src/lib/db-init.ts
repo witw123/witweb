@@ -266,6 +266,43 @@ function initStudioDb() {
       prompt TEXT,
       start_time INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      agent_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'queued',
+      model TEXT DEFAULT '',
+      error_message TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      step_key TEXT NOT NULL,
+      step_title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'running',
+      input_json TEXT DEFAULT '{}',
+      output_json TEXT DEFAULT '{}',
+      started_at TEXT DEFAULT (datetime('now', 'localtime')),
+      finished_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_artifacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      content TEXT NOT NULL,
+      meta_json TEXT DEFAULT '{}',
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_user_created ON agent_runs(username, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_agent_steps_run ON agent_steps(run_id, id ASC);
+    CREATE INDEX IF NOT EXISTS idx_agent_artifacts_run_kind ON agent_artifacts(run_id, kind, id DESC);
   `);
 }
 

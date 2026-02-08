@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { resizeImageFile } from "@/utils/image";
 
+const AGENT_DRAFT_KEY = "agent_publish_draft_v1";
+
 export default function PublishPage() {
   const { isAuthenticated, token } = useAuth();
   const router = useRouter();
@@ -18,6 +20,23 @@ export default function PublishPage() {
   const [publishing, setPublishing] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("from_agent") !== "1") return;
+    try {
+      const raw = localStorage.getItem(AGENT_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as { title?: string; content?: string; tags?: string };
+      if (draft.title) setTitle(draft.title);
+      if (draft.content) setContent(draft.content);
+      if (draft.tags) setTags(draft.tags);
+      setStatus("已从 AI 创作代理导入草稿。");
+      localStorage.removeItem(AGENT_DRAFT_KEY);
+    } catch {
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/api/categories")
