@@ -4,18 +4,20 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { compressImageFile, resizeImageToDataUrl } from "@/utils/image";
 import { getThumbnailUrl } from "@/utils/url";
 import { clearAllCaches } from "@/utils/memoryStore";
-import PostCard from "@/components/PostCard";
+import { PostCard as HomePostCard } from "@/features/blog/components/post-list/PostCard";
+import { usePostActions } from "@/features/blog/hooks";
+import type { PostListItem } from "@/types/blog";
 
 type PostItem = {
   title: string;
   slug: string;
   content?: string;
   created_at?: string;
-  tags?: string;
+  tags?: string | null;
   like_count?: number;
   comment_count?: number;
   favorite_count?: number;
@@ -44,6 +46,7 @@ function formatDate(value?: string) {
 
 export default function ProfilePage({ targetUsername }: { targetUsername?: string }) {
   const { user: authUser, updateProfile, token } = useAuth();
+  const router = useRouter();
   const [targetProfile, setTargetProfile] = useState<any>(null);
   const [, setLoadingProfile] = useState(false);
 
@@ -341,6 +344,20 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const follower = activeProfile?.follower_count ?? 0;
   const likes = likeSum;
 
+  const updatePostMetrics = (slug: string, updates: Partial<PostListItem>) => {
+    const applyUpdates = (list: PostItem[]) => list.map((item) => (
+      item.slug === slug ? { ...item, ...updates } : item
+    ));
+    setPosts((prev) => applyUpdates(prev));
+    setFavorites((prev) => applyUpdates(prev));
+  };
+
+  const { like, dislike, favorite } = usePostActions({
+    token,
+    onUpdate: updatePostMetrics,
+    onAuthRequired: () => router.push("/login"),
+  });
+
   async function toggleFollow() {
     if (!token) return;
     const isFollowing = activeProfile?.is_following;
@@ -506,15 +523,14 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
                 {activeTab !== "activity" ? (
                   <div className="flex flex-col gap-4">
                     {(activeTab === "posts" ? posts : favorites).map((item: any) => (
-                      <PostCard
+                      <HomePostCard
                         key={item.slug || item.id}
                         post={item}
-                        token={token}
-                        onUpdate={(updated) => {
-                          const updateList = (list: any[]) => list.map(p => (p.slug === updated.slug ? updated : p));
-                          if (activeTab === "posts") setPosts(updateList(posts));
-                          else setFavorites(updateList(favorites));
-                        }}
+                        currentUser={authUser ? { username: authUser.username, avatar_url: authUser.avatar_url } : null}
+                        onLike={like}
+                        onDislike={dislike}
+                        onFavorite={favorite}
+                        onCommentClick={(slug) => router.push(`/post/${slug}#comments`)}
                       />
                     ))}
                     {(activeTab === "posts" ? posts : favorites).length === 0 && (

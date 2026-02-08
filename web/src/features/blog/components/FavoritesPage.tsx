@@ -3,19 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import PostCard from "@/features/blog/components/PostCard";
+import { useAuth } from "@/app/providers";
+import { PostCard } from "@/features/blog/components/post-list/PostCard";
 import { Pagination } from "@/features/blog/components/pagination/Pagination";
+import { usePostActions } from "@/features/blog/hooks";
 import { clearAllCaches, getFavoritesCache, setFavoritesCache } from "@/utils/memoryStore";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import * as blogService from "@/services/blogService";
+import type { PostListItem } from "@/types/blog";
 
 export default function FavoritesPage() {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<PostListItem[]>([]);
   const [status, setStatus] = useState("loading");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 10;
   const router = useRouter();
+  const { user, token } = useAuth();
 
   const profile = (() => {
     try {
@@ -25,7 +29,6 @@ export default function FavoritesPage() {
     }
   })();
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const cacheUserKeys = useMemo(() => [profile?.username, token, "anon"].filter(Boolean), [profile?.username, token]);
   const cacheKeySignature = useMemo(() => cacheUserKeys.join("|"), [cacheUserKeys]);
   const localCacheKeys = useMemo(
@@ -76,6 +79,16 @@ export default function FavoritesPage() {
       })
       .catch(() => setStatus("error"));
   }, [cacheUserKeys, localCacheKeys, page, pageSize, router]);
+
+  const updatePost = useCallback((slug: string, updates: Partial<PostListItem>) => {
+    setItems((prev) => prev.map((item) => (item.slug === slug ? { ...item, ...updates } : item)));
+  }, []);
+
+  const { like, dislike, favorite } = usePostActions({
+    token,
+    onUpdate: updatePost,
+    onAuthRequired: () => router.push("/login"),
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -128,7 +141,15 @@ export default function FavoritesPage() {
 
       <div className="list grid gap-4">
         {items.map((post) => (
-          <PostCard key={post.slug} post={post} />
+          <PostCard
+            key={post.slug}
+            post={post}
+            currentUser={user ? { username: user.username, avatar_url: user.avatar_url } : null}
+            onLike={like}
+            onDislike={dislike}
+            onFavorite={favorite}
+            onCommentClick={(slug) => router.push(`/post/${slug}#comments`)}
+          />
         ))}
       </div>
 

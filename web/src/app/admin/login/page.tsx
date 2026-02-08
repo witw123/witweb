@@ -21,11 +21,14 @@ export default function AdminLoginPage() {
 
     void fetch("/api/admin/stats/overview", {
       headers: { Authorization: `Bearer ${token}` },
-    }).then((res) => {
-      if (res.ok) {
-        router.replace("/admin");
-      }
-    });
+    })
+      .then((res) => {
+        if (res.ok) {
+          router.replace("/admin");
+        }
+      })
+      .catch(() => {
+      });
   }, [loading, isAuthenticated, router]);
 
   async function handleLogin(event: React.FormEvent) {
@@ -50,18 +53,10 @@ export default function AdminLoginPage() {
         return;
       }
 
-      const verifyRes = await fetch("/api/admin/stats/overview", {
-        headers: {
-          Authorization: `Bearer ${data.data.token}`,
-        },
-      });
-      if (!verifyRes.ok) {
-        setError("仅管理员账号可登录管理后台");
-        return;
-      }
-
       login(data.data.token, data.data.profile);
       router.replace("/admin");
+    } catch {
+      setError("网络异常，登录失败，请稍后重试");
     } finally {
       setLoadingSubmit(false);
     }

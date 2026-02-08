@@ -19,12 +19,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     void fetch("/api/admin/stats/overview", {
       headers: { Authorization: `Bearer ${token}` },
-    }).then((res) => {
-      if (!res.ok) {
+    })
+      .then((res) => {
+        if (!res.ok) {
+          logout();
+          router.replace("/admin/login");
+        }
+      })
+      .catch(() => {
         logout();
         router.replace("/admin/login");
-      }
-    });
+      });
   }, [loading, isAuthenticated, token, logout, router, pathname]);
 
   const navItems = [
