@@ -10,6 +10,8 @@ const bodySchema = z.object({
   agent_type: z.enum(["topic", "writing", "publish"]),
   model: z.enum(AGENT_MODELS).default("gemini-3-pro"),
   goal: z.string().trim().min(3, "目标至少 3 个字符"),
+  assistant_name: z.string().trim().max(40).optional(),
+  custom_system_prompt: z.string().trim().max(4000).optional(),
 });
 
 export const POST = withErrorHandler(async (req) => {
@@ -19,7 +21,10 @@ export const POST = withErrorHandler(async (req) => {
 
   const body = await validateBody(req, bodySchema);
   const model = body.model ?? "gemini-3-pro";
-  const result = await createRun(user, body.goal, body.agent_type, model);
+  const result = await createRun(user, body.goal, body.agent_type, model, {
+    assistantName: body.assistant_name,
+    customSystemPrompt: body.custom_system_prompt,
+  });
 
   return successResponse({
     run_id: result.runId,

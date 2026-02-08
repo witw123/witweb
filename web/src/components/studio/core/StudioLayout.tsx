@@ -4,7 +4,7 @@ import { useState } from "react";
 import { StudioSidebar } from "./StudioSidebar";
 import { StudioDashboard } from "./StudioDashboard";
 import { VideoLayout } from "../modules/video/VideoLayout";
-import { AgentWorkspace } from "../modules/agent/AgentWorkspace";
+import { AgentLayout } from "../modules/agent/AgentLayout";
 
 export default function StudioLayout() {
   const [activeTab, setActiveTab] = useState("home");
@@ -35,7 +35,7 @@ export default function StudioLayout() {
           <div className="h-full animate-in fade-in duration-500">
             {activeTab === "home" && <StudioDashboard setActiveTab={setActiveTab} />}
             {isVideoModule && <VideoLayout initialTab={videoSubTab} />}
-            {activeTab === "agent" && <AgentWorkspace />}
+            {activeTab === "agent" && <AgentLayout />}
           </div>
         </div>
       </main>

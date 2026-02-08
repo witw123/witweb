@@ -339,7 +339,12 @@ async function requestModel(
 export async function generateAgentDraft(
   goal: string,
   agentType: AgentType,
-  options: { onChunk?: (chunk: string) => void; model?: AgentModel } = {}
+  options: {
+    onChunk?: (chunk: string) => void;
+    model?: AgentModel;
+    assistantName?: string;
+    customSystemPrompt?: string;
+  } = {}
 ): Promise<AgentDraftBundle> {
   const endpoint = process.env.AGENT_LLM_ENDPOINT?.trim();
   const apiKey = process.env.AGENT_LLM_API_KEY?.trim();
@@ -361,8 +366,13 @@ export async function generateAgentDraft(
 
   const chatCompletionsUrl = resolveChatCompletionsUrl(endpoint);
 
-  const systemPrompt =
-    "你是中文内容创作代理。严格只输出 JSON，不要输出解释文本、不要使用 Markdown 代码块。";
+  const assistantLabel = options.assistantName?.trim() || "中文内容创作代理";
+  const baseSystemPrompt =
+    `你是${assistantLabel}。严格只输出 JSON，不要输出解释文本、不要使用 Markdown 代码块。`;
+  const customPrompt = options.customSystemPrompt?.trim();
+  const systemPrompt = customPrompt
+    ? `${baseSystemPrompt}\n\n以下是必须遵循的自定义系统提示词：\n${customPrompt}`
+    : baseSystemPrompt;
   const userPrompt = `请基于目标生成可直接发布的中文内容包。
 目标：${goal}
 类型：${agentType}

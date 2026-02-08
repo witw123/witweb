@@ -128,10 +128,20 @@ export function markRunFailed(runId: string, message: string) {
     .run(message, nowIso(), runId);
 }
 
-export async function createRun(username: string, goal: string, agentType: AgentType, model: AgentModel) {
+export async function createRun(
+  username: string,
+  goal: string,
+  agentType: AgentType,
+  model: AgentModel,
+  options: { assistantName?: string; customSystemPrompt?: string } = {}
+) {
   const runId = createRunRecord(username, goal, agentType, model);
   try {
-    const draft = await generateAgentDraft(goal, agentType, { model });
+    const draft = await generateAgentDraft(goal, agentType, {
+      model,
+      assistantName: options.assistantName,
+      customSystemPrompt: options.customSystemPrompt,
+    });
     finalizeRunFromDraft(runId, goal, agentType, draft);
   } catch (error) {
     markRunFailed(runId, error instanceof Error ? error.message : "unknown_error");
@@ -202,7 +212,13 @@ export function deleteRun(runId: string, username: string) {
   return { runId, deleted: true };
 }
 
-export async function continueRun(runId: string, username: string, instruction: string, model?: AgentModel) {
+export async function continueRun(
+  runId: string,
+  username: string,
+  instruction: string,
+  model?: AgentModel,
+  options: { assistantName?: string; customSystemPrompt?: string } = {}
+) {
   const run = assertRunOwner(runId, username);
   const db = getStudioDb();
   const latestContent = db
@@ -214,7 +230,11 @@ export async function continueRun(runId: string, username: string, instruction: 
   const generated = await generateAgentDraft(
     `${run.goal}\nAdditional requirement: ${instruction}`,
     run.agent_type,
-    { model: selectedModel }
+    {
+      model: selectedModel,
+      assistantName: options.assistantName,
+      customSystemPrompt: options.customSystemPrompt,
+    }
   );
   const enhanced = generated.content || `${latestContent?.content || ""}\n\n## Refinement\n${instruction}`;
 

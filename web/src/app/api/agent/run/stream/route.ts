@@ -9,6 +9,8 @@ const bodySchema = z.object({
   agent_type: z.enum(["topic", "writing", "publish"]),
   model: z.enum(AGENT_MODELS).default("gemini-3-pro"),
   goal: z.string().trim().min(3, "目标至少 3 个字符"),
+  assistant_name: z.string().trim().max(40).optional(),
+  custom_system_prompt: z.string().trim().max(4000).optional(),
 });
 
 function streamLine(obj: unknown) {
@@ -37,6 +39,8 @@ export const POST = withErrorHandler(async (req) => {
 
         const draft = await generateAgentDraft(body.goal, body.agent_type, {
           model,
+          assistantName: body.assistant_name,
+          customSystemPrompt: body.custom_system_prompt,
           onChunk: (chunk) => {
             chunkCount += 1;
             // Throttle chunk events to avoid flooding the UI.

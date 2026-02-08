@@ -49,7 +49,7 @@ export function StudioDashboard({ setActiveTab }: DashboardProps) {
           <div className="min-w-0">
             <h3 className="text-2xl font-bold tracking-tight text-white">AI 创作代理</h3>
             <p className="mt-2 text-sm text-zinc-400">
-              输入目标后自动生成选题、正文与 SEO 产物，可继续优化并导出到发布页。
+              输入目标后自动生成正文，可继续优化并导出到发布页。
             </p>
           </div>
         </div>
