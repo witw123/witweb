@@ -9,6 +9,12 @@ export type AgentPreset = {
 
 export const AGENT_PRESETS_KEY = "agent_custom_presets_v1";
 export const AGENT_SELECTED_PRESET_KEY = "agent_selected_preset_v1";
+export const AGENT_PRESET_EVENT = "agent-preset-changed";
+
+function notifyPresetChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(AGENT_PRESET_EVENT));
+}
 
 export function readAgentPresets(): AgentPreset[] {
   if (typeof window === "undefined") return [];
@@ -34,6 +40,7 @@ export function readAgentPresets(): AgentPreset[] {
 export function writeAgentPresets(presets: AgentPreset[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(AGENT_PRESETS_KEY, JSON.stringify(presets));
+  notifyPresetChanged();
 }
 
 export function readSelectedPresetId(): string {
@@ -44,6 +51,7 @@ export function readSelectedPresetId(): string {
 export function writeSelectedPresetId(presetId: string) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(AGENT_SELECTED_PRESET_KEY, presetId);
+  notifyPresetChanged();
 }
 
 export function readSelectedPreset(): AgentPreset | null {
@@ -52,4 +60,3 @@ export function readSelectedPreset(): AgentPreset | null {
   const presets = readAgentPresets();
   return presets.find((item) => item.id === presetId) || null;
 }
-

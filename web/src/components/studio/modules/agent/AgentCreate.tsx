@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
-import { readSelectedPreset, type AgentPreset } from "./agent-preset-storage";
+import { AGENT_PRESET_EVENT, readSelectedPreset, type AgentPreset } from "./agent-preset-storage";
 
 type AgentType = "topic" | "writing" | "publish";
 type AgentModel = "gemini-3-pro" | "gemini-2.5-pro" | "gemini-2.5-flash";
@@ -91,7 +91,14 @@ export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
   );
 
   useEffect(() => {
-    setSelectedPreset(readSelectedPreset());
+    const syncPreset = () => setSelectedPreset(readSelectedPreset());
+    syncPreset();
+    window.addEventListener(AGENT_PRESET_EVENT, syncPreset);
+    window.addEventListener("focus", syncPreset);
+    return () => {
+      window.removeEventListener(AGENT_PRESET_EVENT, syncPreset);
+      window.removeEventListener("focus", syncPreset);
+    };
   }, []);
 
   const loadDetail = useCallback(
@@ -280,13 +287,13 @@ export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
       const res = await fetch("/api/agent/ping", { headers: authHeaders });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
-        setPingInfo("诊断失败：接口不可用");
+        setPingInfo("连接检查失败：接口不可用");
       } else {
         const payload = data.data || {};
         setPingInfo(payload.ok ? `连接正常 · ${payload.latency_ms}ms` : `连接异常 · ${payload.message}`);
       }
     } catch {
-      setPingInfo("诊断失败：网络异常");
+      setPingInfo("连接检查失败：网络异常");
     } finally {
       setPinging(false);
     }
@@ -307,165 +314,109 @@ export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
   }
 
   return (
-    <div className="grid h-full min-h-[600px] grid-cols-1 gap-6 lg:grid-cols-2">
-      <section className="studio-panel studio-panel-glass flex flex-col overflow-visible">
-        <div className="studio-section-head">
+    <div className="agent-workspace">
+      <section className="agent-panel-left studio-panel studio-panel-glass">
+        <div className="agent-panel-header">
           <div>
-            <h3 className="studio-section-title">新建创作任务</h3>
-            <p className="studio-section-desc">配置 Agent 并开始创作。</p>
+            <h3 className="agent-panel-title">新建创作任务</h3>
+            <p className="agent-panel-desc">设置目标后开始生成，可持续迭代。</p>
           </div>
           <button
             type="button"
-            className="group flex items-center gap-2 rounded-lg bg-zinc-800/50 px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+            className="agent-ping-btn"
             onClick={pingProvider}
             disabled={pinging}
           >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                pinging ? "animate-pulse bg-amber-400" : "bg-zinc-500 group-hover:bg-blue-400"
-              }`}
-            />
-            {pinging ? "..." : "Ping"}
+            <span className={`agent-ping-dot ${pinging ? "is-pinging" : ""}`} />
+            {pinging ? "检测中" : "Ping"}
           </button>
         </div>
 
-        {pingInfo && <div className="mb-4 rounded bg-zinc-900/50 p-2 text-xs text-zinc-400">{pingInfo}</div>}
+        {pingInfo && <div className="agent-inline-info">{pingInfo}</div>}
 
-        <div className="studio-form-section flex flex-1 flex-col border-zinc-800/30 bg-zinc-900/35">
-          <div className="mb-5 grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div>
-              <label className="studio-label">Agent 类型</label>
-              <div className="relative">
-                <select
-                  className="studio-input appearance-none pr-10 text-[15px]"
-                  value={agentType}
-                  onChange={(e) => setAgentType(e.target.value as AgentType)}
-                >
-                  <option value="topic">选题助手</option>
-                  <option value="writing">写作助手</option>
-                  <option value="publish">发布助手</option>
-                </select>
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="studio-label">模型选择</label>
-              <div className="relative">
-                <select
-                  className="studio-input appearance-none pr-12 text-[13px] leading-6"
-                  value={agentModel}
-                  onChange={(e) => setAgentModel(e.target.value as AgentModel)}
-                  title={agentModel}
-                >
-                  <option value="gemini-3-pro">gemini-3-pro</option>
-                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                </select>
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-            </div>
+        <div className="agent-form-grid">
+          <div>
+            <label className="studio-label">Agent 类型</label>
+            <select className="studio-input" value={agentType} onChange={(e) => setAgentType(e.target.value as AgentType)}>
+              <option value="topic">选题助手</option>
+              <option value="writing">写作助手</option>
+              <option value="publish">发布助手</option>
+            </select>
           </div>
-
-          <div className="mb-4 rounded-xl border border-zinc-800/70 bg-zinc-950/40 p-3 text-sm text-zinc-300">
-            当前助手:
-            <span className="ml-2 font-medium text-zinc-100">
-              {selectedPreset ? selectedPreset.name : "默认系统助手"}
-            </span>
-          </div>
-
-          <div className="flex flex-1 flex-col">
-            <label className="studio-label">创作目标</label>
-            <textarea
-              className="studio-input studio-textarea min-h-[140px] flex-1 resize-none"
-              placeholder="在此输入您的创作目标..."
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-            />
+          <div>
+            <label className="studio-label">模型选择</label>
+            <select className="studio-input" value={agentModel} onChange={(e) => setAgentModel(e.target.value as AgentModel)}>
+              <option value="gemini-3-pro">gemini-3-pro</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            </select>
           </div>
         </div>
 
-        <div className="mt-4">
-          <button
-            type="button"
-            className="studio-btn studio-btn-primary w-full py-3 text-base"
-            onClick={createRun}
-            disabled={creating}
-          >
-            {creating ? "正在创建..." : "开始创作"}
-          </button>
+        <div className="agent-assistant-banner">
+          <span className="label">当前助手</span>
+          <span className="value">{selectedPreset ? selectedPreset.name : "默认系统助手"}</span>
         </div>
+
+        <div className="agent-field-block">
+          <label className="studio-label">创作目标</label>
+          <textarea
+            className="studio-input studio-textarea"
+            placeholder="描述你要生成的文章目标、受众和风格..."
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+          />
+        </div>
+
+        <button type="button" className="studio-btn studio-btn-primary agent-cta" onClick={createRun} disabled={creating}>
+          {creating ? "正在创建..." : "开始创作"}
+        </button>
 
         {activeRunId && (
-          <div className="mt-8 border-t border-zinc-800 pt-8">
-            <h4 className="studio-title-3 mb-4">后续优化</h4>
-            <div className="studio-form-section border-zinc-800/30 bg-zinc-900/35">
-              <label className="studio-label">优化指令</label>
-              <textarea
-                className="studio-input min-h-[80px]"
-                placeholder="输入优化建议..."
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-              />
-            </div>
-            <div className="mt-4 flex gap-3">
-              <button
-                className="studio-btn studio-btn-secondary flex-1"
-                onClick={continueRun}
-                disabled={continuing}
-              >
+          <div className="agent-followup">
+            <h4 className="studio-title-3">后续优化</h4>
+            <textarea
+              className="studio-input"
+              placeholder="输入优化方向：例如更专业、增加案例、加强结论..."
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+            />
+            <div className="agent-followup-actions">
+              <button className="studio-btn studio-btn-secondary" onClick={continueRun} disabled={continuing}>
                 {continuing ? "优化中..." : "继续优化"}
               </button>
-              <button
-                className="studio-btn studio-btn-secondary flex-1"
-                onClick={exportToPublish}
-                disabled={exporting}
-              >
+              <button className="studio-btn studio-btn-secondary" onClick={exportToPublish} disabled={exporting}>
                 {exporting ? "导出中..." : "导出结果"}
               </button>
             </div>
           </div>
         )}
 
-        {error && <div className="studio-status studio-status-error mt-4">{error}</div>}
+        {error && <div className="studio-status studio-status-error">{error}</div>}
       </section>
 
-      <section className="studio-panel studio-panel-glass flex flex-col">
-        <div className="studio-section-head">
-          <h3 className="studio-section-title">内容预览</h3>
-          <div className="flex gap-4 text-xs text-zinc-500">
-            <span>
-              状态: <span className={summaryStatus === "running" ? "text-amber-400" : "text-zinc-300"}>{statusLabel(summaryStatus)}</span>
-            </span>
+      <section className="agent-panel-right studio-panel studio-panel-glass">
+        <div className="agent-preview-head">
+          <h3 className="agent-panel-title agent-preview-title">内容预览</h3>
+          <div className="agent-preview-meta">
+            <span>状态: {statusLabel(summaryStatus)}</span>
             <span>更新时间: {formatDateTime(summaryUpdatedAt)}</span>
             <span>产物: {summaryArtifactCount}</span>
           </div>
         </div>
 
-        <div className="custom-scrollbar flex-1 overflow-y-auto p-1">
+        <div className="agent-preview-body custom-scrollbar">
           {articleArtifact ? (
-            <div className="prose prose-invert max-w-none">
-              <div className="whitespace-pre-wrap text-[15px] leading-8 text-zinc-300">{articleArtifact.content}</div>
-            </div>
+            <article className="prose prose-invert max-w-none">
+              <div className="whitespace-pre-wrap leading-8 text-zinc-200">{articleArtifact.content}</div>
+            </article>
           ) : (
-            <div className="flex h-full items-center justify-center rounded-2xl border border-zinc-800/40 bg-zinc-900/30">
-              <p>暂无内容生成</p>
-            </div>
+            <div className="agent-empty-state">暂无内容生成</div>
           )}
         </div>
 
         {isStreaming && streamText && (
-          <div className="custom-scrollbar mt-4 max-h-32 overflow-y-auto rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 font-mono text-xs text-amber-200/80">
-            {streamText}
-          </div>
+          <div className="agent-stream-log custom-scrollbar">{streamText}</div>
         )}
       </section>
     </div>

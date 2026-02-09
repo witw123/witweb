@@ -135,13 +135,16 @@
 
 .studio-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(120, 145, 190, 0.2);
-  background: rgba(15, 17, 22, 0.9);
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 145, 190, 0.18);
+  background: linear-gradient(180deg, rgba(14, 17, 24, 0.92), rgba(11, 13, 18, 0.92));
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .studio-panel::before {
@@ -187,29 +190,40 @@
 
 /* ============== Studio Tabs ============== */
 .studio-tab {
+  position: relative;
   padding: 10px 20px;
-  border-radius: 999px;
-  font-size: 13px;
+  border-radius: 11px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
   background: transparent;
-  border: none;
-  cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.25s ease;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  white-space: nowrap;
 }
 
 .studio-tab:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(180, 190, 210, 0.24);
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(160, 180, 220, 0.2);
 }
 
 .studio-tab.active {
   color: white;
-  background: linear-gradient(135deg, #0070f3, #1da1ff);
-  box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3);
-  border-color: rgba(112, 191, 255, 0.6);
+  background: rgba(0, 112, 243, 0.22);
+  border-color: rgba(80, 165, 255, 0.5);
+}
+
+.studio-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: #3aa0ff;
 }
 
 /* ============== Studio Forms ============== */
@@ -581,5 +595,469 @@
 @media (min-width: 768px) {
   .studio-field-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ============== Agent Console (Redesign) ============== */
+.agent-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.agent-title {
+  font-size: clamp(28px, 3vw, 34px);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #f5f7ff;
+}
+
+.agent-subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #98a4bb;
+}
+
+.agent-tabbar {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.agent-content-shell {
+  padding: 16px;
+  border-radius: 20px;
+}
+
+.agent-workspace {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.agent-panel-left,
+.agent-panel-right {
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.agent-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.agent-panel-title {
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 800;
+  color: #f6f8ff;
+}
+
+.agent-panel-desc {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #96a2ba;
+}
+
+.agent-ping-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(132, 155, 198, 0.22);
+  background: rgba(15, 18, 25, 0.7);
+  color: #c2c9d8;
+  font-size: 12px;
+}
+
+.agent-ping-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #7f8798;
+}
+
+.agent-ping-dot.is-pinging {
+  background: #f0b43a;
+  animation: pulse 1.2s infinite;
+}
+
+.agent-inline-info {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(108, 128, 166, 0.25);
+  background: rgba(11, 14, 21, 0.65);
+  font-size: 12px;
+  color: #9fb2d2;
+}
+
+.agent-form-grid {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.agent-assistant-banner {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 146, 183, 0.24);
+  border-radius: 12px;
+  background: rgba(10, 13, 20, 0.7);
+}
+
+.agent-assistant-banner .label {
+  font-size: 12px;
+  color: #8f9cb5;
+}
+
+.agent-assistant-banner .value {
+  font-size: 13px;
+  color: #e8ecf8;
+  font-weight: 600;
+}
+
+.agent-field-block {
+  margin-top: 10px;
+}
+
+.agent-cta {
+  margin-top: 12px;
+  height: 48px;
+  font-size: 16px;
+}
+
+.agent-followup {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(135, 155, 194, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-followup-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.agent-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.agent-preview-title {
+  font-size: 24px;
+  line-height: 1.1;
+  white-space: nowrap;
+  letter-spacing: -0.015em;
+}
+
+.agent-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 14px;
+  font-size: 12px;
+  color: #8f9cb2;
+}
+
+.agent-preview-body {
+  margin-top: 10px;
+  min-height: 520px;
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid rgba(119, 141, 182, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(12, 15, 22, 0.8), rgba(8, 10, 15, 0.8));
+  padding: 18px;
+}
+
+.agent-empty-state {
+  height: 100%;
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #d6dced;
+}
+
+.agent-stream-log {
+  margin-top: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(116, 134, 171, 0.3);
+  background: rgba(8, 12, 20, 0.6);
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #a5c6f7;
+}
+
+.agent-assistants-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+
+.agent-assistant-tools {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-assistant-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.agent-list-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-task-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  border: 1px solid rgba(123, 147, 188, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(17, 21, 30, 0.8), rgba(10, 13, 18, 0.8));
+  padding: 16px;
+}
+
+.agent-task-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-task-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-task-top h4 {
+  font-size: 18px;
+  line-height: 1.35;
+  color: #f2f5fe;
+  font-weight: 700;
+}
+
+.agent-task-meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #96a4bc;
+}
+
+.agent-task-id {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #7d8ba4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-task-id button {
+  color: #4da2ff;
+}
+
+.agent-gallery-page {
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.agent-gallery-card {
+  border: 1px solid rgba(123, 147, 188, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(17, 21, 30, 0.8), rgba(10, 13, 18, 0.8));
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-gallery-card h4 {
+  font-size: 18px;
+  line-height: 1.35;
+  color: #f2f5fe;
+  font-weight: 700;
+}
+
+.agent-gallery-card p {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #9fadC4;
+  min-height: 76px;
+}
+
+.agent-gallery-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: #8796af;
+}
+
+.agent-gallery-tags {
+  font-size: 12px;
+  color: #9bc9ff;
+  border: 1px solid rgba(96, 154, 224, 0.35);
+  background: rgba(16, 30, 54, 0.45);
+  padding: 7px 10px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.agent-gallery-empty {
+  width: min(720px, 100%);
+  border: 1px solid rgba(121, 143, 184, 0.25);
+  border-radius: 18px;
+  background: linear-gradient(170deg, rgba(14, 17, 25, 0.86), rgba(8, 10, 15, 0.8));
+  padding: 36px;
+  text-align: center;
+}
+
+.agent-gallery-empty .icon-wrap {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 16px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(132, 152, 190, 0.2);
+  background: rgba(16, 20, 28, 0.9);
+}
+
+.agent-gallery-empty h3 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #f2f6ff;
+}
+
+.agent-gallery-empty p {
+  margin-top: 10px;
+  color: #96a5be;
+  font-size: 14px;
+}
+
+.agent-gallery-empty span {
+  margin-top: 14px;
+  display: inline-block;
+  font-size: 12px;
+  color: #88b9ff;
+  border: 1px solid rgba(88, 143, 217, 0.35);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+@media (min-width: 1024px) {
+  .agent-workspace {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  }
+
+  .agent-assistants-grid {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  }
+
+  .agent-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .agent-content-shell {
+    padding: 12px;
+  }
+
+  .agent-panel-left,
+  .agent-panel-right {
+    padding: 14px;
+  }
+
+  .agent-title {
+    font-size: 24px;
+  }
+
+  .agent-panel-title {
+    font-size: 22px;
+  }
+
+  .agent-preview-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .agent-preview-title {
+    font-size: 22px;
+    white-space: normal;
+  }
+
+  .agent-preview-meta {
+    justify-content: flex-start;
+  }
+
+  .agent-empty-state {
+    min-height: 260px;
+    font-size: 18px;
+  }
+
+  .agent-followup-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-assistant-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .agent-preview-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .agent-preview-title {
+    font-size: 20px;
+    white-space: normal;
+  }
+
+  .agent-preview-meta {
+    justify-content: flex-start;
   }
 }
