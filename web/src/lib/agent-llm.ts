@@ -19,6 +19,23 @@ export type AgentDraftBundle = {
   coverPrompt: string;
 };
 
+export type RadarAnalysisInput = {
+  title: string;
+  summary: string;
+  sourceName: string;
+  url: string;
+  score: number;
+  publishedAt: string;
+};
+
+export type RadarAnalysisResult = {
+  summary: string;
+  keywords: string[];
+  angles: string[];
+  risks: string[];
+  markdown: string;
+};
+
 function resolveChatCompletionsUrl(rawEndpoint: string): string {
   const input = rawEndpoint.trim();
   if (!input) return "";
@@ -418,4 +435,101 @@ export async function generateAgentDraft(
     });
   }
   return normalizeBundle(parsed, goal);
+}
+
+function parseRadarAnalysis(raw: string): RadarAnalysisResult {
+  const cleaned = stripThinkBlocks(raw);
+  const jsonText = extractJsonString(cleaned);
+
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<RadarAnalysisResult>;
+    const summary = String(parsed.summary || "").trim();
+    const keywords = Array.isArray(parsed.keywords) ? parsed.keywords.map(String).map((v) => v.trim()).filter(Boolean).slice(0, 12) : [];
+    const angles = Array.isArray(parsed.angles) ? parsed.angles.map(String).map((v) => v.trim()).filter(Boolean).slice(0, 8) : [];
+    const risks = Array.isArray(parsed.risks) ? parsed.risks.map(String).map((v) => v.trim()).filter(Boolean).slice(0, 8) : [];
+    const markdown = String(parsed.markdown || "").trim();
+
+    return {
+      summary: summary || "暂无总结",
+      keywords,
+      angles,
+      risks,
+      markdown: markdown || cleaned,
+    };
+  } catch {
+    return {
+      summary: "模型未返回结构化 JSON，已回退为原文输出。",
+      keywords: [],
+      angles: [],
+      risks: [],
+      markdown: cleaned,
+    };
+  }
+}
+
+export async function generateRadarAnalysis(
+  items: RadarAnalysisInput[],
+  options: {
+    focus?: string;
+    model?: AgentModel;
+  } = {}
+): Promise<RadarAnalysisResult> {
+  const endpoint = process.env.AGENT_LLM_ENDPOINT?.trim();
+  const apiKey = process.env.AGENT_LLM_API_KEY?.trim();
+  const envModel = process.env.AGENT_LLM_MODEL?.trim() || "gemini-3-pro";
+  const model = (options.model || envModel) as AgentModel;
+
+  if (!endpoint) {
+    throw new ApiError(ErrorCode.BAD_REQUEST, "未配置 AGENT_LLM_ENDPOINT");
+  }
+  if (!apiKey) {
+    throw new ApiError(ErrorCode.BAD_REQUEST, "未配置 AGENT_LLM_API_KEY");
+  }
+  if (!AGENT_MODELS.includes(model)) {
+    throw new ApiError(
+      ErrorCode.BAD_REQUEST,
+      `不支持的模型：${model}。仅支持 ${AGENT_MODELS.join(", ")}`
+    );
+  }
+
+  if (items.length === 0) {
+    throw new ApiError(ErrorCode.BAD_REQUEST, "暂无可分析的热点内容，请先抓取来源");
+  }
+
+  const chatCompletionsUrl = resolveChatCompletionsUrl(endpoint);
+  const focusText = options.focus?.trim() || "不限";
+  const compactItems = items.map((item, index) => ({
+    index: index + 1,
+    title: item.title,
+    summary: item.summary,
+    source: item.sourceName,
+    url: item.url,
+    score: item.score,
+    publishedAt: item.publishedAt,
+  }));
+
+  const systemPrompt = "你是中文内容策略分析师。必须只输出 JSON，不要输出解释文本。";
+  const userPrompt = `请分析以下热点，并生成可执行选题建议。
+分析重点：${focusText}
+
+热点列表(JSON)：
+${JSON.stringify(compactItems)}
+
+必须返回合法 JSON，格式如下：
+{
+  "summary": "总体趋势总结（中文）",
+  "keywords": ["关键词1", "关键词2"],
+  "angles": ["可写角度1", "可写角度2"],
+  "risks": ["风险点1", "风险点2"],
+  "markdown": "# 选题分析报告\\n..."
+}`;
+
+  const content = await requestModel(
+    chatCompletionsUrl,
+    apiKey,
+    model,
+    systemPrompt,
+    userPrompt
+  );
+  return parseRadarAnalysis(content);
 }

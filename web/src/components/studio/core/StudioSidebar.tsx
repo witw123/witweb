@@ -23,11 +23,19 @@ const AgentIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const RadarIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v4m0 8v4m8-8h-4M8 12H4m13.657-5.657l-2.828 2.828M9.17 14.83l-2.827 2.827m0-11.314L9.17 9.17m5.657 5.657l2.828 2.828" />
+    <circle cx="12" cy="12" r="3.5" strokeWidth="1.5" />
+  </svg>
+);
+
 export function StudioSidebar({ activeTab, setActiveTab }: SidebarProps) {
   const items = [
     { id: "home", label: "工作台", icon: HomeIcon },
     { id: "video", label: "视频生成", icon: VideoIcon },
     { id: "agent", label: "AI Agent", icon: AgentIcon },
+    { id: "radar", label: "选题雷达", icon: RadarIcon },
   ];
 
   return (

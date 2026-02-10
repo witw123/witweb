@@ -303,7 +303,116 @@ function initStudioDb() {
     CREATE INDEX IF NOT EXISTS idx_agent_runs_user_created ON agent_runs(username, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_agent_steps_run ON agent_steps(run_id, id ASC);
     CREATE INDEX IF NOT EXISTS idx_agent_artifacts_run_kind ON agent_artifacts(run_id, kind, id DESC);
+
+    CREATE TABLE IF NOT EXISTS topic_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'rss',
+      parser_config_json TEXT DEFAULT '{}',
+      enabled INTEGER DEFAULT 1,
+      last_fetch_status TEXT DEFAULT 'idle',
+      last_fetch_error TEXT DEFAULT '',
+      last_fetched_at TEXT,
+      last_fetch_count INTEGER DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS topic_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      summary TEXT DEFAULT '',
+      published_at TEXT DEFAULT (datetime('now', 'localtime')),
+      score REAL DEFAULT 0,
+      raw_json TEXT DEFAULT '{}',
+      fetched_at TEXT DEFAULT (datetime('now', 'localtime')),
+      UNIQUE(source_id, url)
+    );
+
+    CREATE TABLE IF NOT EXISTS topic_keywords (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      keyword TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 10,
+      enabled INTEGER DEFAULT 1,
+      created_by TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+      UNIQUE(created_by, keyword)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_topic_sources_user ON topic_sources(created_by, enabled, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_topic_items_source ON topic_items(source_id, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_topic_items_score ON topic_items(score DESC, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_topic_keywords_user ON topic_keywords(created_by, enabled, id DESC);
+
+    CREATE TABLE IF NOT EXISTS radar_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_by TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'webhook',
+      name TEXT NOT NULL,
+      webhook_url TEXT NOT NULL,
+      secret TEXT DEFAULT '',
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS radar_alert_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_by TEXT NOT NULL,
+      name TEXT NOT NULL,
+      rule_type TEXT NOT NULL,
+      keyword TEXT DEFAULT '',
+      source_id INTEGER,
+      min_score REAL DEFAULT 0,
+      channel_id INTEGER NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS radar_alert_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_by TEXT NOT NULL,
+      item_id INTEGER NOT NULL,
+      channel_id INTEGER NOT NULL,
+      rule_id INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      response_text TEXT DEFAULT '',
+      error_text TEXT DEFAULT '',
+      sent_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS radar_topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_by TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'item',
+      title TEXT NOT NULL,
+      summary TEXT DEFAULT '',
+      content TEXT DEFAULT '',
+      source_name TEXT DEFAULT '',
+      source_url TEXT DEFAULT '',
+      score REAL DEFAULT 0,
+      tags_json TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_radar_notifications_user ON radar_notifications(created_by, enabled, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_radar_alert_rules_user ON radar_alert_rules(created_by, enabled, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_radar_alert_logs_user ON radar_alert_logs(created_by, sent_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_radar_topics_user ON radar_topics(created_by, id DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_radar_alert_once ON radar_alert_logs(item_id, channel_id, rule_id);
   `);
+
+  ensureColumn(db, "topic_sources", "last_fetch_status", "last_fetch_status TEXT DEFAULT 'idle'");
+  ensureColumn(db, "topic_sources", "last_fetch_error", "last_fetch_error TEXT DEFAULT ''");
+  ensureColumn(db, "topic_sources", "last_fetched_at", "last_fetched_at TEXT");
+  ensureColumn(db, "topic_sources", "last_fetch_count", "last_fetch_count INTEGER DEFAULT 0");
 }
 
 function initMessagesDb() {

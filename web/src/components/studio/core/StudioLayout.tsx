@@ -5,6 +5,7 @@ import { StudioSidebar } from "./StudioSidebar";
 import { StudioDashboard } from "./StudioDashboard";
 import { VideoLayout } from "../modules/video/VideoLayout";
 import { AgentLayout } from "../modules/agent/AgentLayout";
+import { RadarLayout } from "../modules/radar/RadarLayout";
 
 export default function StudioLayout() {
   const [activeTab, setActiveTab] = useState("home");
@@ -16,6 +17,7 @@ export default function StudioLayout() {
     if (activeTab === "home") return "创作工作台";
     if (isVideoModule) return "视频生成中心";
     if (activeTab === "agent") return "AI 创作代理";
+    if (activeTab === "radar") return "选题雷达";
     return "Studio";
   };
 
@@ -36,10 +38,10 @@ export default function StudioLayout() {
             {activeTab === "home" && <StudioDashboard setActiveTab={setActiveTab} />}
             {isVideoModule && <VideoLayout initialTab={videoSubTab} />}
             {activeTab === "agent" && <AgentLayout />}
+            {activeTab === "radar" && <RadarLayout />}
           </div>
         </div>
       </main>
     </div>
   );
 }
-
