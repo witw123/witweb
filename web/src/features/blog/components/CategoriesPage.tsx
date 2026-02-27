@@ -2,16 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { Category } from "@/types/blog";
+
+type CategoryWithCount = Category & { post_count?: number };
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
       .then((response) => {
-        setCategories(Array.isArray(response.data?.items) ? response.data.items : []);
+        const data = readSuccessData<{ items: CategoryWithCount[] }>(response);
+        setCategories(Array.isArray(data?.items) ? data.items : []);
       })
       .finally(() => setLoading(false));
   }, []);

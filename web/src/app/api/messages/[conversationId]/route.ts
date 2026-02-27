@@ -2,7 +2,8 @@
  */
 
 import { NextRequest } from "next/server";
-import { getMessages } from "@/lib/messages";
+import { messageRepository } from "@/lib/repositories";
+import { ApiError, ErrorCode } from "@/lib/api-error";
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -16,7 +17,7 @@ export const GET = withErrorHandler(async (
   req: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> }
 ) => {
-  // 验证用户登录状态
+  void req;
   const user = await getAuthUser();
   if (!user) {
     return errorResponses.unauthorized("请先登录");
@@ -24,7 +25,13 @@ export const GET = withErrorHandler(async (
 
   const { conversationId } = validateParams(await params, paramsSchema);
 
-  const messages = getMessages(parseInt(conversationId), user);
-
-  return successResponse(messages);
+  try {
+    const messages = messageRepository.getMessagesAndMarkAsRead(parseInt(conversationId, 10), user);
+    return successResponse(messages);
+  } catch (error) {
+    if (error instanceof ApiError && error.code === ErrorCode.FORBIDDEN) {
+      return errorResponses.forbidden("Access denied");
+    }
+    throw error;
+  }
 });

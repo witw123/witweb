@@ -9,9 +9,14 @@ const DATA_DIR = path.resolve(process.cwd(), "..", "data");
 const LEGACY_DB = path.join(DATA_DIR, "blog.db");
 const MIGRATION_MARKER = path.join(DATA_DIR, ".multi_db_migrated");
 
-function ensureColumn(db: any, table: string, column: string, ddl: string) {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all();
-  const existing = new Set(rows.map((r: any) => r.name));
+type SqliteDb = ReturnType<typeof getUsersDb>;
+type TableInfoRow = { name: string };
+type CountRow = { cnt?: number };
+type GenericRow = Record<string, unknown>;
+
+function ensureColumn(db: SqliteDb, table: string, column: string, ddl: string) {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as TableInfoRow[];
+  const existing = new Set(rows.map((r) => r.name));
   if (!existing.has(column)) {
     db.prepare(`ALTER TABLE ${table} ADD COLUMN ${ddl}`).run();
   }
@@ -446,28 +451,30 @@ function initMessagesDb() {
   `);
 }
 
-function tableExists(db: any, table: string) {
-  const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+function tableExists(db: SqliteDb, table: string) {
+  const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table) as
+    | { name?: string }
+    | undefined;
   return !!row;
 }
 
-function tableCount(db: any, table: string) {
+function tableCount(db: SqliteDb, table: string) {
   if (!tableExists(db, table)) return 0;
-  const row = db.prepare(`SELECT COUNT(*) AS cnt FROM ${table}`).get() as any;
+  const row = db.prepare(`SELECT COUNT(*) AS cnt FROM ${table}`).get() as CountRow | undefined;
   return row?.cnt || 0;
 }
 
-function copyTable(src: any, dest: any, table: string) {
+function copyTable(src: SqliteDb, dest: SqliteDb, table: string) {
   if (!tableExists(src, table) || !tableExists(dest, table)) return;
-  const columns = (src.prepare(`PRAGMA table_info(${table})`).all() as any[]).map((c) => c.name);
+  const columns = (src.prepare(`PRAGMA table_info(${table})`).all() as TableInfoRow[]).map((c) => c.name);
   if (columns.length === 0) return;
   const placeholders = columns.map(() => "?").join(",");
   const stmt = dest.prepare(`INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders})`);
-  const rows = src.prepare(`SELECT ${columns.join(",")} FROM ${table}`).all() as any[];
-  const insertMany = dest.transaction((items: any[]) => {
-    items.forEach((row) => stmt.run(...columns.map((c) => row[c])));
+  const rows = src.prepare(`SELECT ${columns.join(",")} FROM ${table}`).all() as GenericRow[];
+  const insertMany = dest.transaction(() => {
+    rows.forEach((row) => stmt.run(...columns.map((c) => row[c])));
   });
-  insertMany(rows);
+  insertMany();
 }
 
 function migrateLegacyDbIfNeeded() {

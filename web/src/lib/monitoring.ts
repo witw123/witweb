@@ -10,6 +10,15 @@
 const errorBuffer: ErrorReport[] = [];
 const MAX_BUFFER_SIZE = 10;
 
+type MonitoredFunction = (...args: unknown[]) => unknown;
+type BrowserMemoryInfo = {
+  usedJSHeapSize: number;
+  jsHeapSizeLimit: number;
+};
+type PerformanceWithMemory = Performance & {
+  memory?: BrowserMemoryInfo;
+};
+
 export function initErrorMonitoring(): void {
   if (typeof window === "undefined") return;
 
@@ -66,7 +75,7 @@ export function clearErrorBuffer(): void {
   errorBuffer.length = 0;
 }
 
-export function withMonitoring<T extends (...args: any[]) => any>(
+export function withMonitoring<T extends MonitoredFunction>(
   fn: T,
   name: string
 ): (...args: Parameters<T>) => ReturnType<T> {
@@ -86,7 +95,7 @@ export function withMonitoring<T extends (...args: any[]) => any>(
           }) as ReturnType<T>;
       }
       logPerformance(name, performance.now() - start, true);
-      return result;
+      return result as ReturnType<T>;
     } catch (error) {
       logPerformance(name, performance.now() - start, false);
       throw error;
@@ -116,10 +125,11 @@ export async function healthCheck(): Promise<{
 }
 
 function checkMemory(): boolean {
-  if (typeof performance === "undefined" || !(performance as any).memory) {
+  if (typeof performance === "undefined") {
     return true;
   }
-  const memory = (performance as any).memory;
+  const memory = (performance as PerformanceWithMemory).memory;
+  if (!memory) return true;
   const usedRatio = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
   return usedRatio < 0.9;
 }

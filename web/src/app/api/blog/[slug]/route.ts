@@ -1,6 +1,6 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
-import { getPost, updatePost, deletePost } from "@/lib/blog";
+import { postRepository, userRepository } from "@/lib/repositories";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, validateParams, z } from "@/lib/validate";
@@ -21,10 +21,16 @@ export const GET = withErrorHandler(async (_: Request, { params }: { params: Pro
 
   const user = await getAuthUser();
   const { slug } = validateParams(await params, paramsSchema);
-  const post = getPost(slug, user || "");
+  const post = postRepository.getPostDetail(slug, user || undefined);
   if (!post) return errorResponses.notFound("Post not found");
 
-  return successResponse(post);
+  const authorRow = userRepository.findByUsername(post.author);
+  return successResponse({
+    ...post,
+    author_name: authorRow?.nickname || post.author,
+    author_avatar: authorRow?.avatar_url || "",
+    tags: post.tags || "",
+  });
 });
 
 export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ slug: string }> }) => {
@@ -42,17 +48,16 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
       ? Number(body.category_id)
       : null;
 
-  const res = updatePost(
-    slug,
-    body.title,
-    body.content,
-    body.tags || "",
-    user,
-    Number.isFinite(categoryId as number) ? categoryId : null,
-  );
+  const existing = postRepository.findBySlug(slug);
+  if (!existing) return errorResponses.notFound("Post not found");
+  if (existing.author !== user) return errorResponses.forbidden("Forbidden");
 
-  if (!res.ok && res.error === "not_found") return errorResponses.notFound("Post not found");
-  if (!res.ok) return errorResponses.forbidden("Forbidden");
+  postRepository.updateBySlug(slug, {
+    title: body.title,
+    content: body.content,
+    tags: body.tags || "",
+    category_id: Number.isFinite(categoryId as number) ? categoryId : null,
+  });
 
   return successResponse({ ok: true });
 });
@@ -64,9 +69,10 @@ export const DELETE = withErrorHandler(async (_: Request, { params }: { params: 
   assertAuthenticated(user);
 
   const { slug } = validateParams(await params, paramsSchema);
-  const res = deletePost(slug, user, isAdminUser(user));
-  if (!res.ok && res.error === "not_found") return errorResponses.notFound("Post not found");
-  if (!res.ok) return errorResponses.forbidden("Forbidden");
+  const existing = postRepository.findBySlug(slug);
+  if (!existing) return errorResponses.notFound("Post not found");
+  if (existing.author !== user && !isAdminUser(user)) return errorResponses.forbidden("Forbidden");
 
+  postRepository.hardDelete(slug);
   return successResponse({ ok: true });
 });

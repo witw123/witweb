@@ -1,6 +1,6 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
-import { updateComment, deleteComment } from "@/lib/blog";
+import { commentRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { validateBody, validateParams, z } from "@/lib/validate";
@@ -21,12 +21,12 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
 
   const { id } = validateParams(await params, paramsSchema);
   const body = await validateBody(req, updateSchema);
-  const res = updateComment(id, body.content, isAdminUser(user));
 
-  if (!res.ok && res.error === "not_found") return errorResponses.notFound("Comment not found");
-  if (!res.ok && res.error === "forbidden") return errorResponses.forbidden("Forbidden");
-  if (!res.ok) return errorResponses.internal("Update failed");
+  const comment = commentRepository.findById(id);
+  if (!comment) return errorResponses.notFound("Comment not found");
+  if (!isAdminUser(user)) return errorResponses.forbidden("Forbidden");
 
+  commentRepository.updateContent(id, body.content);
   return successResponse({ ok: true });
 });
 
@@ -37,11 +37,11 @@ export const DELETE = withErrorHandler(async (_: Request, { params }: { params: 
   assertAuthenticated(user);
 
   const { id } = validateParams(await params, paramsSchema);
-  const res = deleteComment(id, isAdminUser(user));
 
-  if (!res.ok && res.error === "not_found") return errorResponses.notFound("Comment not found");
-  if (!res.ok && res.error === "forbidden") return errorResponses.forbidden("Forbidden");
-  if (!res.ok) return errorResponses.internal("Delete failed");
+  const comment = commentRepository.findById(id);
+  if (!comment) return errorResponses.notFound("Comment not found");
+  if (!isAdminUser(user)) return errorResponses.forbidden("Forbidden");
 
+  commentRepository.delete(id);
   return successResponse({ ok: true });
 });

@@ -1,5 +1,6 @@
 ﻿import { NextRequest } from "next/server";
-import { sendMessage } from "@/lib/messages";
+import { messageRepository } from "@/lib/repositories";
+import { ApiError, ErrorCode } from "@/lib/api-error";
 import { verifyAuth } from "@/lib/auth";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -19,13 +20,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { receiver, content } = await validateBody(req, sendMessageSchema);
 
   try {
-    const result = sendMessage(auth.username, receiver, content);
-    return successResponse(result);
+    const result = messageRepository.sendMessage({ sender: auth.username, receiver, content });
+    return successResponse({ conversation_id: result.conversationId });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "发送消息失败";
-    if (message === "Receiver not found") {
+    if (error instanceof ApiError && error.code === ErrorCode.USER_NOT_FOUND) {
       return errorResponses.notFound("接收方不存在");
     }
+    const message = error instanceof Error ? error.message : "发送消息失败";
     return errorResponses.badRequest(message);
   }
 });

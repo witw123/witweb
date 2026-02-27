@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { verifyToken } from "./auth";
 import { authConfig } from "./config";
 import { AUTH_COOKIE_NAME } from "./auth-constants";
-import { getUsersDb } from "./db";
+import { userRepository } from "./repositories";
 
 function getTokenFromCookie(cookieHeader: string): string | null {
   const cookies = cookieHeader.split(";");
@@ -40,8 +40,7 @@ export function isAdminUser(username: string | null | undefined): boolean {
   if (!username) return false;
 
   try {
-    const db = getUsersDb();
-    const row = db.prepare("SELECT role FROM users WHERE username = ?").get(username) as { role?: string } | undefined;
+    const row = userRepository.findByUsername(username);
     if (row?.role === "admin") return true;
   } catch {
   }

@@ -23,23 +23,47 @@ import { resizeImageFile } from "@/utils/image";
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import { emitPostMetricsUpdated, POST_METRICS_UPDATED_EVENT, type PostMetricsUpdateDetail } from "../utils/postMetricsSync";
 import { hasMarkdownSyntax, renderPlainTextHtml } from "../utils/contentFormat";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { Category, CommentListItem, PostDetail } from "@/types";
+
+type PostMetricsData = {
+  like_count?: number;
+  dislike_count?: number;
+  favorite_count?: number;
+  comment_count?: number;
+  favorited?: boolean;
+};
+
+type CommentNode = CommentListItem & {
+  children: CommentNode[];
+  reply_to?: string;
+  reply_to_id?: number;
+  root_id?: number;
+};
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
 
 export default function BlogPostPage() {
   const params = useParams<{ slug: string }>();
   const slugParam = params?.slug;
   const slug = Array.isArray(slugParam) ? slugParam[0] : slugParam;
   const router = useRouter();
-  const [post, setPost] = useState<any>(null);
+  const [post, setPost] = useState<PostDetail | null>(null);
   const [status, setStatus] = useState("loading");
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<CommentListItem[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentStatus, setCommentStatus] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentListStatus, setCommentListStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [replyTo, setReplyTo] = useState<any>(null);
+  const [replyTo, setReplyTo] = useState<CommentNode | null>(null);
   const [commentPage, setCommentPage] = useState(1);
   const commentsPerPage = 5;
-  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editingCommentContent, setEditingCommentContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -48,15 +72,8 @@ export default function BlogPostPage() {
   const [editTags, setEditTags] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editStatus, setEditStatus] = useState("");
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [imageWidth, setImageWidth] = useState("");
-  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
-  const [pendingPreviewUrl, setPendingPreviewUrl] = useState("");
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [imageSizePercent, setImageSizePercent] = useState(100);
-  const [showSizeModal, setShowSizeModal] = useState(false);
-  const editPreviewRef = useRef<HTMLDivElement | null>(null);
-  const imageReplaceInputRef = useRef<HTMLInputElement | null>(null);
   const refreshCommentsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const purifier = useMemo(
     () => (typeof window !== "undefined" ? createDOMPurify(window) : null),
@@ -69,10 +86,16 @@ export default function BlogPostPage() {
   const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
   const isAdmin = !!profile?.username && (profile?.role === "admin" || profile.username === adminUsername);
 
-  const cacheUserKeys = [profile?.username || "anon"];
+  const cacheUserKeys = useMemo(() => [profile?.username || "anon"], [profile?.username]);
   const cacheKeySignature = `${cacheUserKeys.join("|")}:${slug}`;
-  const localPostKeys = cacheUserKeys.map((key) => `cache:post:${key}:${slug}`);
-  const localCommentKeys = cacheUserKeys.map((key) => `cache:comments:${key}:${slug}`);
+  const localPostKeys = useMemo(
+    () => cacheUserKeys.map((key) => `cache:post:${key}:${slug}`),
+    [cacheUserKeys, slug]
+  );
+  const localCommentKeys = useMemo(
+    () => cacheUserKeys.map((key) => `cache:comments:${key}:${slug}`),
+    [cacheUserKeys, slug]
+  );
 
   function slugify(text: string) {
     return String(text || "")
@@ -90,7 +113,7 @@ export default function BlogPostPage() {
     });
   }, [purifier]);
 
-  function loadPost(options: { force?: boolean } = {}) {
+  const loadPost = useCallback((options: { force?: boolean } = {}) => {
     const { force = false } = options;
     if (!slug) return;
     let hasCached = false;
@@ -98,7 +121,7 @@ export default function BlogPostPage() {
       for (const key of cacheUserKeys) {
         const cached = getPostCache(`${key}:${slug}`);
         if (cached) {
-          setPost(cached);
+          setPost(cached as PostDetail);
           setStatus("ready");
           hasCached = true;
           break;
@@ -108,7 +131,7 @@ export default function BlogPostPage() {
         for (const key of localPostKeys) {
           const cached = getCachedJson(key);
           if (cached) {
-            setPost(cached);
+            setPost(cached as PostDetail);
             setStatus("ready");
             hasCached = true;
             break;
@@ -125,8 +148,8 @@ export default function BlogPostPage() {
     })
       .then((res) => res.json())
       .then((payload) => {
-        const data = payload?.data ?? payload;
-        if (!data || payload?.success === false) {
+        const data = readSuccessData<PostDetail>(payload);
+        if (!data) {
           setStatus("error");
           return;
         }
@@ -140,9 +163,9 @@ export default function BlogPostPage() {
           setStatus("error");
         }
       });
-  }
+  }, [cacheUserKeys, localPostKeys, slug, token]);
 
-  function loadComments(options: { force?: boolean } = {}) {
+  const loadComments = useCallback((options: { force?: boolean } = {}) => {
     const { force = false } = options;
     if (!slug) return;
     let hasCached = false;
@@ -174,11 +197,7 @@ export default function BlogPostPage() {
     fetch(`/api/blog/${slug}/comments`)
       .then((res) => res.json())
       .then((payload) => {
-        const list = Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload)
-            ? payload
-            : [];
+        const list = readSuccessData<CommentListItem[]>(payload) || [];
         setComments(list);
         cacheUserKeys.forEach((key) => setCommentsCache(`${key}:${slug}`, list));
         localCommentKeys.forEach((key) => setCachedJson(key, list));
@@ -190,7 +209,7 @@ export default function BlogPostPage() {
           setCommentListStatus("error");
         }
       });
-  }
+  }, [cacheUserKeys, localCommentKeys, slug]);
 
 
   useEffect(() => {
@@ -213,7 +232,7 @@ export default function BlogPostPage() {
       window.removeEventListener("profile-updated", handler as EventListener);
       window.removeEventListener("blog-updated", handler as EventListener);
     };
-  }, [slug, cacheKeySignature]);
+  }, [cacheKeySignature, loadComments, loadPost, slug]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -222,7 +241,7 @@ export default function BlogPostPage() {
       loadPost({ force: true });
       loadComments({ force: true });
     }
-  }, []);
+  }, [loadComments, loadPost]);
 
   useEffect(() => {
     if (!slug || typeof window === "undefined") return;
@@ -230,11 +249,12 @@ export default function BlogPostPage() {
     if (sessionStorage.getItem(viewedKey)) return;
     fetch(`/api/blog/${slug}/view`, { method: "POST" })
       .then((res) => res.json())
-      .then((data) => {
+      .then((payload) => {
         sessionStorage.setItem(viewedKey, "1");
-        const viewCount = data?.data?.view_count ?? data?.view_count;
+        const data = readSuccessData<{ view_count: number }>(payload);
+        const viewCount = data?.view_count;
         if (typeof viewCount === "number") {
-          setPost((prev: any) => (prev ? { ...prev, view_count: viewCount } : prev));
+          setPost((prev) => (prev ? { ...prev, view_count: viewCount } : prev));
         }
       })
       .catch(() => { });
@@ -244,13 +264,14 @@ export default function BlogPostPage() {
     if (!slug) return;
     loadPost();
     loadComments();
-  }, [slug, cacheKeySignature]);
+  }, [cacheKeySignature, loadComments, loadPost, slug]);
 
   useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
-      .then((data) => {
-        setCategories(Array.isArray(data?.data?.items) ? data.data.items : []);
+      .then((payload) => {
+        const data = readSuccessData<{ items: Category[] }>(payload);
+        setCategories(Array.isArray(data?.items) ? data.items : []);
       })
       .catch(() => {
         setCategories([]);
@@ -262,9 +283,9 @@ export default function BlogPostPage() {
     const onMetricsUpdated = (event: Event) => {
       const detail = (event as CustomEvent<PostMetricsUpdateDetail>).detail;
       if (!detail?.slug || !slug || detail.slug !== slug) return;
-      setPost((prev: any) => {
+      setPost((prev) => {
         if (!prev) return prev;
-        const next = {
+        const next: PostDetail = {
           ...prev,
           ...(detail.like_count !== undefined ? { like_count: detail.like_count } : {}),
           ...(detail.dislike_count !== undefined ? { dislike_count: detail.dislike_count } : {}),
@@ -279,7 +300,7 @@ export default function BlogPostPage() {
     };
     window.addEventListener(POST_METRICS_UPDATED_EVENT, onMetricsUpdated as EventListener);
     return () => window.removeEventListener(POST_METRICS_UPDATED_EVENT, onMetricsUpdated as EventListener);
-  }, [slug, cacheKeySignature]);
+  }, [cacheKeySignature, cacheUserKeys, localPostKeys, loadPost, slug]);
 
   useEffect(() => {
     if (post) {
@@ -304,15 +325,16 @@ export default function BlogPostPage() {
       return;
     }
     const payload = await res.json().catch(() => ({}));
-    const data = payload?.data || payload;
+    const data = readSuccessData<PostMetricsData>(payload);
+    if (!data) return;
     const next = {
-      like_count: data?.like_count ?? post?.like_count,
-      dislike_count: data?.dislike_count ?? post?.dislike_count,
-      favorite_count: data?.favorite_count ?? post?.favorite_count,
-      comment_count: data?.comment_count ?? post?.comment_count,
-      favorited_by_me: data?.favorited ?? post?.favorited_by_me,
+      like_count: data.like_count ?? post?.like_count ?? 0,
+      dislike_count: data.dislike_count ?? post?.dislike_count ?? 0,
+      favorite_count: data.favorite_count ?? post?.favorite_count ?? 0,
+      comment_count: data.comment_count ?? post?.comment_count ?? 0,
+      favorited_by_me: data.favorited ?? post?.favorited_by_me ?? false,
     };
-    setPost((prev: any) => (prev ? { ...prev, ...next } : prev));
+    setPost((prev) => (prev ? { ...prev, ...next } : prev));
     emitPostMetricsUpdated({ slug, ...next });
   }
 
@@ -330,15 +352,16 @@ export default function BlogPostPage() {
       return;
     }
     const payload = await res.json().catch(() => ({}));
-    const data = payload?.data || payload;
+    const data = readSuccessData<PostMetricsData>(payload);
+    if (!data) return;
     const next = {
-      like_count: data?.like_count ?? post?.like_count,
-      dislike_count: data?.dislike_count ?? post?.dislike_count,
-      favorite_count: data?.favorite_count ?? post?.favorite_count,
-      comment_count: data?.comment_count ?? post?.comment_count,
-      favorited_by_me: data?.favorited ?? post?.favorited_by_me,
+      like_count: data.like_count ?? post?.like_count ?? 0,
+      dislike_count: data.dislike_count ?? post?.dislike_count ?? 0,
+      favorite_count: data.favorite_count ?? post?.favorite_count ?? 0,
+      comment_count: data.comment_count ?? post?.comment_count ?? 0,
+      favorited_by_me: data.favorited ?? post?.favorited_by_me ?? false,
     };
-    setPost((prev: any) => (prev ? { ...prev, ...next } : prev));
+    setPost((prev) => (prev ? { ...prev, ...next } : prev));
     emitPostMetricsUpdated({ slug, ...next });
   }
 
@@ -356,15 +379,16 @@ export default function BlogPostPage() {
       return;
     }
     const payload = await res.json().catch(() => ({}));
-    const data = payload?.data || payload;
+    const data = readSuccessData<PostMetricsData>(payload);
+    if (!data) return;
     const next = {
-      like_count: data?.like_count ?? post?.like_count,
-      dislike_count: data?.dislike_count ?? post?.dislike_count,
-      favorite_count: data?.favorite_count ?? post?.favorite_count,
-      comment_count: data?.comment_count ?? post?.comment_count,
-      favorited_by_me: data?.favorited ?? post?.favorited_by_me,
+      like_count: data.like_count ?? post?.like_count ?? 0,
+      dislike_count: data.dislike_count ?? post?.dislike_count ?? 0,
+      favorite_count: data.favorite_count ?? post?.favorite_count ?? 0,
+      comment_count: data.comment_count ?? post?.comment_count ?? 0,
+      favorited_by_me: data.favorited ?? post?.favorited_by_me ?? false,
     };
-    setPost((prev: any) => (prev ? { ...prev, ...next } : prev));
+    setPost((prev) => (prev ? { ...prev, ...next } : prev));
     emitPostMetricsUpdated({ slug, ...next });
   }
 
@@ -533,16 +557,19 @@ export default function BlogPostPage() {
     setEditContent((prev) => `${prev}\n\n${markup}\n`);
   }
 
-  function handleImageSelect(file: File | undefined, replaceSrc: string | null = null) {
+  async function handleImageSelect(file: File | undefined, replaceSrc: string | null = null) {
     if (!file) return;
-    if (pendingPreviewUrl) {
-      URL.revokeObjectURL(pendingPreviewUrl);
+    const widthValue = imageWidth.trim();
+    setEditStatus("图片上传中...");
+    const uploaded = await uploadImage(file);
+    if (!uploaded) return;
+
+    if (replaceSrc) {
+      replaceImageSrc(replaceSrc, uploaded, widthValue);
+    } else {
+      insertImageMarkup(uploaded, widthValue);
     }
-    const preview = URL.createObjectURL(file);
-    setPendingImageFile(file);
-    setPendingPreviewUrl(preview);
-    setSelectedImage(replaceSrc || null);
-    setShowSizeModal(true);
+    setEditStatus("图片已插入。");
   }
 
   async function uploadImage(file: File) {
@@ -567,45 +594,6 @@ export default function BlogPostPage() {
     return data?.data?.url || data?.url || null;
   }
 
-  function removeSelectedImage() {
-    if (!selectedImage) return;
-    const escaped = selectedImage.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)`, "g");
-    const htmlPattern = new RegExp(`<img[^>]*src=["']${escaped}["'][^>]*>`, "g");
-    setEditContent((prev) => prev.replace(markdownPattern, "").replace(htmlPattern, ""));
-    setSelectedImage(null);
-    setShowSizeModal(false);
-    if (pendingPreviewUrl) {
-      URL.revokeObjectURL(pendingPreviewUrl);
-      setPendingPreviewUrl("");
-    }
-    setPendingImageFile(null);
-  }
-
-  function getImageWidthFromContent(src: string | null) {
-    if (!src) return null;
-    const escaped = src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const htmlPattern = new RegExp(`<img[^>]*src=["']${escaped}["'][^>]*>`, "g");
-    const match = editContent.match(htmlPattern);
-    if (!match) return null;
-    const tag = match[0];
-    const widthMatch = tag.match(/width:\s*([^;"]+)/i);
-    if (!widthMatch) return null;
-    return widthMatch[1].trim();
-  }
-
-  function applyImageSize(widthValue: string) {
-    if (!selectedImage) return;
-    const escaped = selectedImage.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const htmlPattern = new RegExp(`<img[^>]*src=["']${escaped}["'][^>]*>`, "g");
-    const markdownPattern = new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)`, "g");
-    const replacement = `<img src="${selectedImage}" style="max-width: 100%; width: ${widthValue};" />`;
-    const updated = editContent
-      .replace(htmlPattern, replacement)
-      .replace(markdownPattern, replacement);
-    setEditContent(updated);
-  }
-
   function replaceImageSrc(oldSrc: string, newSrc: string, widthValue: string) {
     const escaped = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const htmlPattern = new RegExp(`<img[^>]*src=["']${escaped}["'][^>]*>`, "g");
@@ -615,7 +603,6 @@ export default function BlogPostPage() {
       .replace(htmlPattern, replacement)
       .replace(markdownPattern, replacement);
     setEditContent(updated);
-    setSelectedImage(newSrc);
   }
 
   const tagList: string[] = (post?.tags || "")
@@ -663,30 +650,16 @@ export default function BlogPostPage() {
     return { html: sanitizeHtml(String(html)), toc: items };
   }, [post?.content, sanitizeHtml]);
 
-  const editPreviewHtml = useMemo(() => {
-    const source = String(editContent || "");
-    if (!hasMarkdownSyntax(source)) {
-      return sanitizeHtml(renderPlainTextHtml(source));
-    }
-    const renderer = new marked.Renderer();
-    renderer.image = (href: string | null, title: string | null, text: string) => {
-      const safeTitle = title ? ` title="${title}"` : "";
-      const alt = text || "";
-      return `<img src="${href}" alt="${alt}" loading="lazy" decoding="async"${safeTitle} style="max-width: 100%; height: auto;" />`;
-    };
-    const html = marked.parse(source, { renderer, gfm: true, breaks: true });
-    return sanitizeHtml(String(html));
-  }, [editContent, sanitizeHtml]);
-
-  function buildCommentTree(list: any[]) {
-    const nodes = new Map<string, any>();
-    const roots: any[] = [];
+  function buildCommentTree(list: CommentListItem[]) {
+    const nodes = new Map<number, CommentNode>();
+    const roots: CommentNode[] = [];
     list.forEach((item) => {
       nodes.set(item.id, { ...item, children: [] });
     });
     nodes.forEach((node) => {
       if (node.parent_id && nodes.has(node.parent_id)) {
         const parent = nodes.get(node.parent_id);
+        if (!parent) return;
         node.reply_to = parent.author_name || parent.author || "访客";
         node.reply_to_id = parent.id;
         node.root_id = parent.root_id || parent.id;
@@ -696,9 +669,9 @@ export default function BlogPostPage() {
         roots.push(node);
       }
     });
-    const sortByDate = (a: any, b: any) =>
+    const sortByDate = (a: CommentNode, b: CommentNode) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    const sortTree = (items: any[]) => {
+    const sortTree = (items: CommentNode[]) => {
       items.sort(sortByDate);
       items.forEach((child) => sortTree(child.children));
     };
@@ -713,14 +686,14 @@ export default function BlogPostPage() {
     commentPage * commentsPerPage,
   );
 
-  function handleReplyClick(comment: any) {
+  function handleReplyClick(comment: CommentNode) {
     const name = comment.author_name || comment.author || "访客";
     const prefix = `@${name} `;
     setReplyTo(comment);
     setCommentText((value) => (value.startsWith(prefix) ? value : prefix));
   }
 
-  function renderComment(node: any, depth = 0) {
+  function renderComment(node: CommentNode, depth = 0) {
     const isReply = depth > 0;
     const isExpanded = !!expandedReplies[node.id];
     const replySlice = isExpanded ? node.children : node.children.slice(0, 5);
@@ -733,6 +706,7 @@ export default function BlogPostPage() {
         <div className="flex gap-4">
           <UserHoverCard username={node.author}>
             {node.author_avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={getThumbnailUrl(node.author_avatar, 64)}
                 alt={node.author_name}
@@ -857,7 +831,7 @@ export default function BlogPostPage() {
 
             {depth === 0 && node.children.length > 0 && (
               <div className="mt-4 space-y-4">
-                {replySlice.map((child: any) => renderComment(child, depth + 1))}
+                {replySlice.map((child) => renderComment(child, depth + 1))}
                 {node.children.length > 5 && (
                   <button
                     className="text-xs text-accent hover:underline mt-2"
@@ -908,6 +882,7 @@ export default function BlogPostPage() {
             <div className="post-author-block flex items-center gap-3">
               <UserHoverCard username={post.author}>
                 {post.author_avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={getThumbnailUrl(post.author_avatar, 96)}
                     alt={post.author_name}
@@ -1031,7 +1006,7 @@ export default function BlogPostPage() {
                     style={{ display: "none" }}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      handleImageSelect(file);
+                      void handleImageSelect(file);
                       event.target.value = "";
                     }}
                   />
@@ -1046,19 +1021,6 @@ export default function BlogPostPage() {
               placeholder="写下内容..."
             />
           </label>
-          <input
-            ref={imageReplaceInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file && selectedImage) {
-                handleImageSelect(file, selectedImage);
-              }
-              event.target.value = "";
-            }}
-          />
           {editStatus && <p className="text-accent mb-4">{editStatus}</p>}
           <div className="flex gap-2">
             <button className="btn-primary" type="button" onClick={handleSaveEdit}>

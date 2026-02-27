@@ -30,6 +30,10 @@ type FormData = {
   shutProgress: boolean;
 };
 
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
 interface CreateFormProps {
   onTaskCreated?: (taskId: string) => void;
 }
@@ -89,8 +93,8 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
       if (!data.success) throw new Error(data.error?.message || "参考图上传失败");
       setFormData((prev) => ({ ...prev, url: data.data?.url || "" }));
       setStatus({ type: "success", msg: "参考图已上传，可直接提交任务。" });
-    } catch (err: any) {
-      setStatus({ type: "error", msg: err.message || "参考图上传失败" });
+    } catch (err: unknown) {
+      setStatus({ type: "error", msg: errorMessage(err, "参考图上传失败") });
     } finally {
       setUploadingImage(false);
     }
@@ -130,8 +134,8 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
       setStatus({ type: "success", msg: `任务创建成功：${taskId}` });
       onTaskCreated?.(taskId);
       setFormData((prev) => ({ ...prev, prompt: "", remixTargetId: "" }));
-    } catch (err: any) {
-      setStatus({ type: "error", msg: err.message || "任务提交失败" });
+    } catch (err: unknown) {
+      setStatus({ type: "error", msg: errorMessage(err, "任务提交失败") });
     } finally {
       setLoading(false);
     }

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
+import type { UserProfile as AuthUserProfile } from "@/app/providers";
 import { useRouter, useSearchParams } from "next/navigation";
 import { compressImageFile, resizeImageToDataUrl } from "@/utils/image";
 import { getThumbnailUrl } from "@/utils/url";
@@ -11,21 +12,8 @@ import { clearAllCaches } from "@/utils/memoryStore";
 import { PostCard as HomePostCard } from "@/features/blog/components/post-list/PostCard";
 import { usePostActions } from "@/features/blog/hooks";
 import type { PostListItem } from "@/types/blog";
-
-type PostItem = {
-  title: string;
-  slug: string;
-  content?: string;
-  created_at?: string;
-  tags?: string | null;
-  like_count?: number;
-  comment_count?: number;
-  favorite_count?: number;
-  author?: string;
-  author_name?: string;
-  author_avatar?: string;
-  favorited_by_me?: boolean;
-};
+import type { UserProfile as ApiUserProfile } from "@/types/user";
+import type { SuccessResponse } from "@/lib/api-response";
 
 type ActivityItem = {
   type: 'post' | 'like' | 'comment';
@@ -37,6 +25,34 @@ type ActivityItem = {
   id?: string;
 };
 
+type ProfileViewUser = ApiUserProfile & {
+  is_following?: boolean;
+};
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
+
+function toAuthProfile(profile: ProfileViewUser): AuthUserProfile {
+  return {
+    username: profile.username,
+    role: profile.role,
+    nickname: profile.nickname ?? undefined,
+    avatar_url: profile.avatar_url ?? undefined,
+    cover_url: profile.cover_url ?? undefined,
+    bio: profile.bio ?? undefined,
+    created_at: profile.created_at,
+    following_count: profile.following_count,
+    follower_count: profile.follower_count,
+    post_count: profile.post_count,
+    activity_count: profile.activity_count,
+    balance: profile.balance,
+  };
+}
+
 function formatDate(value?: string) {
   if (!value) return "--";
   const date = new Date(value);
@@ -47,7 +63,7 @@ function formatDate(value?: string) {
 export default function ProfilePage({ targetUsername }: { targetUsername?: string }) {
   const { user: authUser, updateProfile, token } = useAuth();
   const router = useRouter();
-  const [targetProfile, setTargetProfile] = useState<any>(null);
+  const [targetProfile, setTargetProfile] = useState<ProfileViewUser | null>(null);
   const [, setLoadingProfile] = useState(false);
 
   const isOwnProfile = !targetUsername || targetUsername === authUser?.username;
@@ -63,8 +79,8 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const [status, setStatus] = useState<"" | "saving" | "success" | "error">("");
   const [activeTab, setActiveTab] = useState<"posts" | "activity" | "favorites">("posts");
 
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [favorites, setFavorites] = useState<PostItem[]>([]);
+  const [posts, setPosts] = useState<PostListItem[]>([]);
+  const [favorites, setFavorites] = useState<PostListItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
 
@@ -78,7 +94,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
 
   useEffect(() => {
     if (initialTab === "activity" || initialTab === "favorites" || initialTab === "posts") {
-      setActiveTab(initialTab as any);
+      setActiveTab(initialTab);
     }
   }, [initialTab]);
 
@@ -86,7 +102,25 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   // Determine which profile data to use
-  const activeProfile = isOwnProfile ? authUser : targetProfile;
+  const ownProfile = useMemo<ProfileViewUser | null>(() => {
+    if (!authUser?.username) return null;
+    return {
+      username: authUser.username,
+      role: authUser.role,
+      nickname: authUser.nickname ?? null,
+      avatar_url: authUser.avatar_url ?? null,
+      cover_url: authUser.cover_url ?? null,
+      bio: authUser.bio ?? null,
+      created_at: authUser.created_at || "",
+      following_count: authUser.following_count ?? 0,
+      follower_count: authUser.follower_count ?? 0,
+      post_count: authUser.post_count ?? 0,
+      activity_count: authUser.activity_count ?? 0,
+      like_received_count: 0,
+      balance: authUser.balance,
+    };
+  }, [authUser]);
+  const activeProfile = isOwnProfile ? ownProfile : targetProfile;
 
   const avatarBase = isOwnProfile ? (previewAvatar || authUser?.avatar_url || "") : (targetProfile?.avatar_url || "");
   const avatarSrc = avatarBase
@@ -106,7 +140,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       setPreviewAvatar(authUser.avatar_url || "");
       setCoverUrl(authUser.cover_url || "");
       setCoverPreview(authUser.cover_url || "");
-      setBio((authUser as any)?.bio || "");
+      setBio(authUser?.bio || "");
     } else if (!isOwnProfile && username) {
       fetchProfile();
     }
@@ -119,9 +153,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      const data = await res.json();
-      // 閺€顖涘瘮閺傛壆娈?API 閺嶇厧绱?{ success: true, data: {...} }
-      const profile = data.data || data;
+      const data = await res.json().catch(() => ({}));
+      const profile = readSuccessData<ProfileViewUser>(data);
+      if (!profile) return;
       setTargetProfile(profile);
       setNickname(profile.nickname || profile.username || "");
       setBio(profile.bio || "");
@@ -157,10 +191,11 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
-    const data = await res.json().catch(() => ({}));
-    const url = data?.data?.url || data?.url;
-    if (!res.ok || !url) throw new Error("upload_failed");
-    return url as string;
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ url: string }>(data);
+      const url = payload?.url;
+      if (!res.ok || !url) throw new Error("upload_failed");
+      return url;
   }
 
   async function handleCoverChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -203,15 +238,16 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
         if (!silent) setStatus("error");
         return;
       }
-      const data = await res.json();
-      if (data.data?.profile) {
-        updateProfile(data.data.profile);
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ profile: ProfileViewUser }>(data);
+      if (payload?.profile) {
+        updateProfile(toAuthProfile(payload.profile));
       }
       clearAllCaches();
       try {
         const ts = Date.now().toString();
         localStorage.setItem("profile_updated_at", ts);
-        window.dispatchEvent(new CustomEvent("profile-updated", { detail: { ...data.data?.profile, updated_at: ts } }));
+        window.dispatchEvent(new CustomEvent("profile-updated", { detail: { ...payload?.profile, updated_at: ts } }));
       } catch { }
       setStatus("success");
       setTimeout(() => setStatus(""), 2000);
@@ -245,31 +281,21 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     }, 800);
   }, [nickname, username, isOwnProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const safeJson = async (res: Response) => {
-    if (!res.ok) throw new Error("http_error");
-    const text = await res.text();
-    if (!text) return {} as any;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return {} as any;
-    }
-  };
-
   const loadPosts = async (silent = false) => {
-    if (!username) return [] as PostItem[];
+    if (!username) return [] as PostListItem[];
     if (!silent) setTabLoading(true);
     try {
       const res = await fetch(`/api/blog?author=${encodeURIComponent(username)}&page=${page}&size=${pageSize}`);
-      const data = await safeJson(res);
-      const items = data.data?.items || [];
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ items: PostListItem[]; total: number }>(data);
+      const items = payload?.items || [];
       setPosts(items);
-      setTotalCount(data.data?.total || 0);
-      return items as PostItem[];
+      setTotalCount(payload?.total || 0);
+      return items;
     } catch {
       setPosts([]);
       setTotalCount(0);
-      return [] as PostItem[];
+      return [] as PostListItem[];
     } finally {
       if (!silent) setTabLoading(false);
     }
@@ -281,9 +307,10 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       const res = await fetch(`/api/favorites?page=${page}&size=${pageSize}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const data = await safeJson(res);
-      setFavorites(data.data?.items || []);
-      setTotalCount(data.data?.total || 0);
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ items: PostListItem[]; total: number }>(data);
+      setFavorites(payload?.items || []);
+      setTotalCount(payload?.total || 0);
     } catch {
       setFavorites([]);
       setTotalCount(0);
@@ -297,10 +324,11 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     if (!silent) setTabLoading(true);
     try {
       const res = await fetch(`/api/users/${encodeURIComponent(username)}/activity?page=${page}&size=${pageSize}`);
-      const data = await safeJson(res);
-      const items = data.data?.items || data.items || [];
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ items: ActivityItem[]; total: number }>(data);
+      const items = payload?.items || [];
       setActivity(items);
-      setTotalCount(data.data?.total || data.total || 0);
+      setTotalCount(payload?.total || 0);
     } finally {
       if (!silent) setTabLoading(false);
     }
@@ -324,14 +352,13 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      const data = await safeJson(res);
-      // 閺€顖涘瘮閺傛壆娈?API 閺嶇厧绱?{ success: true, data: {...} }
-      const profile = data.data || data;
-      if (profile && !profile.__error) {
+      const data = await res.json().catch(() => ({}));
+      const profile = readSuccessData<ProfileViewUser>(data);
+      if (profile) {
         if (isOwnProfile) {
-          updateProfile({ ...(authUser || {}), ...profile });
+          updateProfile(toAuthProfile(profile));
         } else {
-          setTargetProfile((prev: any) => ({ ...prev, ...profile }));
+          setTargetProfile((prev) => ({ ...(prev || {}), ...profile }));
         }
       }
     } catch {
@@ -345,7 +372,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const likes = likeSum;
 
   const updatePostMetrics = (slug: string, updates: Partial<PostListItem>) => {
-    const applyUpdates = (list: PostItem[]) => list.map((item) => (
+    const applyUpdates = (list: PostListItem[]) => list.map((item) => (
       item.slug === slug ? { ...item, ...updates } : item
     ));
     setPosts((prev) => applyUpdates(prev));
@@ -522,9 +549,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
               <>
                 {activeTab !== "activity" ? (
                   <div className="flex flex-col gap-4">
-                    {(activeTab === "posts" ? posts : favorites).map((item: any) => (
+                    {(activeTab === "posts" ? posts : favorites).map((item) => (
                       <HomePostCard
-                        key={item.slug || item.id}
+                        key={item.slug}
                         post={item}
                         currentUser={authUser ? { username: authUser.username, avatar_url: authUser.avatar_url } : null}
                         onLike={like}

@@ -1,48 +1,72 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { resizeImageFile } from "@/utils/image";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { Category } from "@/types/blog";
 
 const AGENT_DRAFT_KEY = "agent_publish_draft_v1";
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
+
+function readImportedDraft(): { title: string; content: string; tags: string; imported: boolean } {
+  if (typeof window === "undefined") {
+    return { title: "", content: "", tags: "", imported: false };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("from_agent") !== "1") {
+    return { title: "", content: "", tags: "", imported: false };
+  }
+
+  try {
+    const raw = localStorage.getItem(AGENT_DRAFT_KEY);
+    if (!raw) return { title: "", content: "", tags: "", imported: false };
+    const draft = JSON.parse(raw) as { title?: string; content?: string; tags?: string };
+    return {
+      title: draft.title || "",
+      content: draft.content || "",
+      tags: draft.tags || "",
+      imported: true,
+    };
+  } catch {
+    return { title: "", content: "", tags: "", imported: false };
+  }
+}
 
 export default function PublishPage() {
   const { isAuthenticated, token } = useAuth();
   const router = useRouter();
   const contentRef = useRef<HTMLTextAreaElement | null>(null);
-  const [title, setTitle] = useState("");
-  const [tags, setTags] = useState("");
-  const [content, setContent] = useState("");
-  const [status, setStatus] = useState("");
+  const initialDraft = useMemo(() => readImportedDraft(), []);
+  const [title, setTitle] = useState(initialDraft.title);
+  const [tags, setTags] = useState(initialDraft.tags);
+  const [content, setContent] = useState(initialDraft.content);
+  const [status, setStatus] = useState(initialDraft.imported ? "已从 AI 创作代理导入草稿。" : "");
   const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("from_agent") !== "1") return;
-    try {
-      const raw = localStorage.getItem(AGENT_DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as { title?: string; content?: string; tags?: string };
-      if (draft.title) setTitle(draft.title);
-      if (draft.content) setContent(draft.content);
-      if (draft.tags) setTags(draft.tags);
-      setStatus("已从 AI 创作代理导入草稿。");
-      localStorage.removeItem(AGENT_DRAFT_KEY);
-    } catch {
-    }
-  }, []);
+    if (!initialDraft.imported || typeof window === "undefined") return;
+    localStorage.removeItem(AGENT_DRAFT_KEY);
+  }, [initialDraft.imported]);
 
   useEffect(() => {
     fetch("/api/categories")
       .then((res) => res.json())
       .then((response) => {
-        setCategories(Array.isArray(response.data?.items) ? response.data.items : []);
+        const data = readSuccessData<{ items: Category[] }>(response);
+        setCategories(Array.isArray(data?.items) ? data.items : []);
       })
       .catch(() => {
         setCategories([]);
@@ -112,7 +136,8 @@ export default function PublishPage() {
     setUploading(false);
 
     const payload = await res.json().catch(() => ({}));
-    const imageUrl = payload?.data?.url || payload?.url;
+    const data = readSuccessData<{ url: string }>(payload);
+    const imageUrl = data?.url;
     if (!res.ok || !imageUrl) {
       setStatus(payload?.error?.message || "图片上传失败。");
       return;

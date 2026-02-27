@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { useSearchParams } from "next/navigation";
 import { getThumbnailUrl } from "@/utils/url";
+import type { SuccessResponse } from "@/lib/api-response";
 
 interface Conversation {
   id: number;
@@ -39,6 +40,19 @@ interface Notification {
 
 type TabType = "chat" | "replies" | "at" | "likes" | "system";
 
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
+
+type PublicProfile = {
+  username: string;
+  nickname?: string;
+  avatar_url?: string;
+};
+
 export default function MessagesPageContent() {
   const { token, user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
@@ -67,26 +81,22 @@ export default function MessagesPageContent() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const payload = await res.json().catch(() => ({}));
-      const list = Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload)
-          ? payload
-          : [];
+      const list = readSuccessData<Conversation[]>(payload) || [];
       if (!Array.isArray(list)) {
         setConversations([]);
         return;
       }
 
       if (autoSelectUsername && !pendingConv) {
-        const found = list.find((c: any) => c.other_user.username === autoSelectUsername);
+        const found = list.find((c) => c.other_user.username === autoSelectUsername);
         if (found) {
           setSelectedConvId(found.id);
         } else {
           try {
             const profileRes = await fetch(`/api/users/${encodeURIComponent(autoSelectUsername)}/profile`);
-            const profileData = await profileRes.json();
-            const profile = profileData.data || profileData;
-            if (profile && !profile.detail && profile.username) {
+            const profileData = await profileRes.json().catch(() => ({}));
+            const profile = readSuccessData<PublicProfile>(profileData);
+            if (profile?.username) {
               const tempConv: Conversation = {
                 id: -1,
                 last_message: "点击此处开始发送第一条消息吧",
@@ -118,13 +128,8 @@ export default function MessagesPageContent() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const payload = await res.json().catch(() => ({}));
-      const list = Array.isArray(payload?.data?.items)
-        ? payload.data.items
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload)
-            ? payload
-            : [];
+      const data = readSuccessData<{ items: Notification[] }>(payload);
+      const list = data?.items || [];
       setNotifications(list);
     } catch {
       setNotifications([]);
@@ -144,11 +149,7 @@ export default function MessagesPageContent() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const payload = await res.json().catch(() => ({}));
-      const list = Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload)
-          ? payload
-          : [];
+      const list = readSuccessData<PrivateMessage[]>(payload) || [];
       setMessages(list);
     } catch {
       setMessages([]);
@@ -175,9 +176,10 @@ export default function MessagesPageContent() {
         })
       });
       const payload = await res.json().catch(() => ({}));
-      const resData = payload?.data || payload;
-      if (!res.ok || payload?.success === false) {
-        setSendError(payload?.error?.message || "发送失败，请稍后重试。");
+      const resData = readSuccessData<{ conversation_id: number }>(payload);
+      if (!res.ok || !resData) {
+        const err = payload as { error?: { message?: string } };
+        setSendError(err?.error?.message || "发送失败，请稍后重试。");
         return;
       }
       setInputText("");

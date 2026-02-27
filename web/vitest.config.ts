@@ -11,12 +11,17 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{js,ts,jsx,tsx}"],
     coverage: {
       provider: "v8",
+      all: false,
       reporter: ["text", "json", "html"],
+      include: ["src/**/*.{ts,tsx}"],
       exclude: [
+        ".next/**",
+        "coverage/**",
         "node_modules/",
         "src/__tests__/",
         "**/*.d.ts",
         "**/*.config.*",
+        "**/*.map",
       ],
     },
   },

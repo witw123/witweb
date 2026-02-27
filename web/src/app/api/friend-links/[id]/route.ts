@@ -1,7 +1,7 @@
-import { getBlogDb } from "@/lib/db";
-import { getAuthUser, isAdminUser } from "@/lib/http";
+﻿import { getAuthUser, isAdminUser } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
 import { initDb } from "@/lib/db-init";
+import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 import { validateBody, validateParams, z } from "@/lib/validate";
@@ -32,26 +32,19 @@ export const PUT = withErrorHandler(async (
   const { id } = validateParams(await params, paramsSchema);
   const body = await validateBody(request, updateSchema);
 
-  const db = getBlogDb();
   let finalAvatarUrl = body.avatar_url || null;
   if (!finalAvatarUrl && body.url) {
     finalAvatarUrl = await detectFriendLinkIcon(body.url);
   }
 
-  db.prepare(`
-    UPDATE friend_links
-    SET name = ?, url = ?, description = ?, avatar_url = ?,
-        sort_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(
-    body.name,
-    body.url,
-    body.description || null,
-    finalAvatarUrl,
-    body.sort_order ?? 0,
-    body.is_active ?? 1,
-    id
-  );
+  postRepository.updateFriendLink(id, {
+    name: body.name,
+    url: body.url,
+    description: body.description || "",
+    avatar_url: finalAvatarUrl || "",
+    sort_order: body.sort_order ?? 0,
+    is_active: body.is_active ?? 1,
+  });
 
   return successResponse({ message: "Friend link updated successfully" });
 });
@@ -67,8 +60,7 @@ export const DELETE = withErrorHandler(async (
   assertAuthorized(isAdminUser(user), "Admin access required");
 
   const { id } = validateParams(await params, paramsSchema);
-  const db = getBlogDb();
-  db.prepare("DELETE FROM friend_links WHERE id = ?").run(id);
+  postRepository.deleteFriendLink(id);
 
   return successResponse({ message: "Friend link deleted successfully" });
 });

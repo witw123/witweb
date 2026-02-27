@@ -143,11 +143,16 @@ export class ApiError extends Error {
 }
 
 export function isApiError(error: unknown): error is ApiError {
+  const maybeError = error as {
+    code?: unknown;
+    statusCode?: unknown;
+    constructor?: { name?: unknown };
+  } | null;
   return error instanceof ApiError || (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
     "statusCode" in error &&
-    (error as any).constructor?.name === "ApiError"
+    maybeError?.constructor?.name === "ApiError"
   );
 }

@@ -36,7 +36,7 @@ describe("Auth Library", () => {
       const hash2 = hashPassword(password);
       
       expect(hash1).not.toBe(hash2);
-      // 浣嗕袱鑰呴兘搴旇鑳介獙璇侀€氳繃
+      // Both hashes should still pass verification.
       expect(verifyPassword(password, hash1)).toBe(true);
       expect(verifyPassword(password, hash2)).toBe(true);
     });

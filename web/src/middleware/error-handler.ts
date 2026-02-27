@@ -10,17 +10,19 @@ import {
   handleError,
 } from "@/lib/api-response";
 
-export type ApiHandler<T = unknown> = (
+export type ApiHandler = (
   req: NextRequest,
   context?: { params: Promise<Record<string, string | string[]>> }
 ) => Promise<Response> | Response;
 
-export type FlexibleApiHandler<TParams = any> = (
+export type FlexibleApiHandler<TParams = Record<string, string>> = (
   req: NextRequest,
   context: { params: Promise<TParams> }
 ) => Promise<Response> | Response;
 
-export function withErrorHandler(handler: FlexibleApiHandler): FlexibleApiHandler {
+export function withErrorHandler<TParams = Record<string, string>>(
+  handler: FlexibleApiHandler<TParams>
+): FlexibleApiHandler<TParams> {
   return async (req, context) => {
     try {
       return await handler(req, context);
@@ -30,26 +32,20 @@ export function withErrorHandler(handler: FlexibleApiHandler): FlexibleApiHandle
   };
 }
 
-export function createApiRoute(handlers: {
-  GET?: FlexibleApiHandler;
-  POST?: FlexibleApiHandler;
-  PUT?: FlexibleApiHandler;
-  PATCH?: FlexibleApiHandler;
-  DELETE?: FlexibleApiHandler;
-}) {
-  const wrappedHandlers: Record<string, FlexibleApiHandler> = {};
+type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+type FlexibleHandlerMap = Partial<Record<ApiMethod, FlexibleApiHandler>>;
+
+export function createApiRoute<THandlers extends FlexibleHandlerMap>(
+  handlers: THandlers
+): THandlers {
+  const wrappedHandlers: FlexibleHandlerMap = {};
   for (const [method, handler] of Object.entries(handlers)) {
     if (handler) {
-      wrappedHandlers[method] = withErrorHandler(handler as FlexibleApiHandler);
+      const apiMethod = method as ApiMethod;
+      wrappedHandlers[apiMethod] = withErrorHandler(handler as FlexibleApiHandler);
     }
   }
-  return wrappedHandlers as {
-    GET?: FlexibleApiHandler;
-    POST?: FlexibleApiHandler;
-    PUT?: FlexibleApiHandler;
-    PATCH?: FlexibleApiHandler;
-    DELETE?: FlexibleApiHandler;
-  };
+  return wrappedHandlers as THandlers;
 }
 
 export function assertCondition(

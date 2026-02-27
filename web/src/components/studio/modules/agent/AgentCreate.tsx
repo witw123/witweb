@@ -34,6 +34,20 @@ type LiveArtifact = {
   content: string;
 };
 
+type StreamEvent = {
+  type?: string;
+  run_id?: string;
+  text?: string;
+  kind?: string;
+  content?: string;
+  message?: string;
+};
+
+function toStreamEvent(input: unknown): StreamEvent | null {
+  if (!input || typeof input !== "object") return null;
+  return input as StreamEvent;
+}
+
 function statusLabel(status?: string) {
   switch (status) {
     case "running":
@@ -194,12 +208,13 @@ export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
           const trimmed = line.trim();
           if (!trimmed) continue;
 
-          let evt: any;
+          let evt: StreamEvent | null = null;
           try {
-            evt = JSON.parse(trimmed);
+            evt = toStreamEvent(JSON.parse(trimmed));
           } catch {
             continue;
           }
+          if (!evt) continue;
 
           setStreamUpdatedAt(new Date().toISOString());
 
@@ -289,7 +304,7 @@ export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
       if (!res.ok || !data?.success) {
         setPingInfo("连接检查失败：接口不可用");
       } else {
-        const payload = data.data || {};
+        const payload = (data?.data || {}) as { ok?: boolean; latency_ms?: number; message?: string };
         setPingInfo(payload.ok ? `连接正常 · ${payload.latency_ms}ms` : `连接异常 · ${payload.message}`);
       }
     } catch {
@@ -307,7 +322,7 @@ export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
     ? liveArtifacts.map((item, idx) => ({ id: idx + 1, kind: item.kind, content: item.content }))
     : detail?.artifacts || [];
 
-  const articleArtifact = [...artifactSource].find((item: any) => item.kind === "content");
+  const articleArtifact = [...artifactSource].find((item) => item.kind === "content");
 
   if (!token) {
     return <div className="studio-empty">请先登录后使用。</div>;

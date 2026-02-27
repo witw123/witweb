@@ -31,7 +31,8 @@ function getClientIp(req: NextRequest): string {
     return realIp;
   }
   
-  return (req as any).ip || "unknown";
+  const requestWithIp = req as NextRequest & { ip?: string };
+  return requestWithIp.ip || "unknown";
 }
 
 /**
@@ -155,7 +156,7 @@ export function loginRateLimit(req: NextRequest): Response | null {
 
 /**
  */
-export function validateRequestMiddleware<T extends Record<string, any>>(
+export function validateRequestMiddleware<T extends Record<string, unknown>>(
   body: unknown,
   rules: Parameters<typeof validateRequest<T>>[1]
 ): 
@@ -247,7 +248,7 @@ export async function createSecurityContext(req: NextRequest): Promise<SecurityC
 export function securityLog(
   event: string,
   context: SecurityContext,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ): void {
   const timestamp = new Date().toISOString();
   const logEntry = {

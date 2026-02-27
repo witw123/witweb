@@ -1,10 +1,11 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { createVideoTask } from "@/lib/studio";
-import { createTask, updateTaskStatus } from "@/lib/video";
+import { videoTaskRepository } from "@/lib/repositories";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
+import type { VideoTaskType } from "@/types";
 
 const generateSchema = z.object({
   model: z.string().trim().optional(),
@@ -38,10 +39,16 @@ export const POST = withErrorHandler(async (req: Request) => {
   };
 
   const taskId = await createVideoTask(payload);
-  createTask(
-    user,
-    "generate",
+  const taskType: VideoTaskType = payload.remixTargetId
+    ? "remix"
+    : payload.url
+      ? "image2video"
+      : "text2video";
+  videoTaskRepository.create(
     {
+      id: taskId,
+      username: user,
+      task_type: taskType,
       prompt: payload.prompt,
       model: payload.model,
       url: payload.url,
@@ -49,10 +56,9 @@ export const POST = withErrorHandler(async (req: Request) => {
       duration: payload.duration,
       remix_target_id: payload.remixTargetId,
       size: payload.size,
-    },
-    taskId
+    }
   );
-  updateTaskStatus(taskId, "running", 0);
+  videoTaskRepository.updateStatus(taskId, { status: "running", progress: 0 });
 
   return successResponse({ ok: true, task_id: taskId, id: taskId });
 });

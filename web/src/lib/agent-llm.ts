@@ -36,6 +36,20 @@ export type RadarAnalysisResult = {
   markdown: string;
 };
 
+type ChunkShape = {
+  choices?: Array<{
+    delta?: { content?: unknown };
+    message?: { content?: unknown };
+  }>;
+  output_text?: unknown;
+  data?: { content?: unknown };
+};
+
+type ErrorWithCause = {
+  message?: unknown;
+  cause?: { code?: unknown };
+};
+
 function resolveChatCompletionsUrl(rawEndpoint: string): string {
   const input = rawEndpoint.trim();
   if (!input) return "";
@@ -113,17 +127,18 @@ function collectContentValue(value: unknown): string {
     .join("");
 }
 
-function pullContentFromChunk(chunk: any): string {
-  const delta = collectContentValue(chunk?.choices?.[0]?.delta?.content);
+function pullContentFromChunk(chunk: unknown): string {
+  const typedChunk = chunk as ChunkShape;
+  const delta = collectContentValue(typedChunk?.choices?.[0]?.delta?.content);
   if (delta) return delta;
 
-  const message = collectContentValue(chunk?.choices?.[0]?.message?.content);
+  const message = collectContentValue(typedChunk?.choices?.[0]?.message?.content);
   if (message) return message;
 
-  const outputText = collectContentValue(chunk?.output_text);
+  const outputText = collectContentValue(typedChunk?.output_text);
   if (outputText) return outputText;
 
-  const dataContent = collectContentValue(chunk?.data?.content);
+  const dataContent = collectContentValue(typedChunk?.data?.content);
   if (dataContent) return dataContent;
 
   return "";
@@ -176,11 +191,20 @@ function normalizeBundle(bundle: AgentDraftBundle, goal: string): AgentDraftBund
   };
 }
 
-function toErrorText(payload: any): string {
+function toErrorText(payload: unknown): string {
   if (!payload) return "";
   if (typeof payload === "string") return payload;
-  if (typeof payload?.error?.message === "string") return payload.error.message;
-  if (typeof payload?.message === "string") return payload.message;
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "error" in payload &&
+    typeof (payload as { error?: { message?: unknown } }).error?.message === "string"
+  ) {
+    return (payload as { error: { message: string } }).error.message;
+  }
+  if (typeof (payload as { message?: unknown }).message === "string") {
+    return (payload as { message: string }).message;
+  }
   return "";
 }
 
@@ -332,10 +356,10 @@ async function requestModel(
       throw new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型返回为空：请检查上游服务状态");
     }
     return content;
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof ApiError) throw error;
 
-    const causeCode = error?.cause?.code || "";
+    const causeCode = (error as ErrorWithCause)?.cause?.code;
     if (causeCode === "UND_ERR_CONNECT_TIMEOUT" || causeCode === "ETIMEDOUT") {
       throw new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型连接超时：无法连接到上游接口");
     }
@@ -348,7 +372,7 @@ async function requestModel(
 
     throw new ApiError(
       ErrorCode.EXTERNAL_SERVICE_ERROR,
-      `模型调用失败：${error?.message || "未知网络错误"}`
+      `模型调用失败：${typeof (error as ErrorWithCause)?.message === "string" ? (error as ErrorWithCause).message : "未知网络错误"}`
     );
   }
 }

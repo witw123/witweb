@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { usePosts, usePostActions } from "../hooks";
@@ -21,16 +21,10 @@ export default function BlogListPage() {
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [allTags, setAllTags] = useState<Array<{ tag: string; count: number }>>([]);
+  const selectedCategory = searchParams.get("category") || "";
   const hasCategoryFilter = Boolean(selectedCategory);
-
-  useEffect(() => {
-    const categoryFromUrl = searchParams.get("category") || "";
-    setSelectedCategory(categoryFromUrl);
-    setPage(1);
-  }, [searchParams]);
 
   // 获取所有标签
   useEffect(() => {
@@ -161,13 +155,14 @@ export default function BlogListPage() {
                       {tags.map(([tag, count]) => {
                         const active = selectedTag === tag;
                         const strength = Math.min(1, Math.max(0.15, count / maxTagCount));
+                        const chipStyle = { "--tag-strength": strength } as CSSProperties & Record<"--tag-strength", number>;
                         return (
                           <button
                             key={tag}
                             type="button"
                             role="listitem"
                             className={`tag-atlas-chip ${active ? "is-active" : ""}`}
-                            style={{ ["--tag-strength" as any]: strength } as React.CSSProperties}
+                            style={chipStyle}
                             onClick={() => {
                               setSelectedTag(active ? "" : tag);
                               setPage(1);

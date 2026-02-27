@@ -26,7 +26,7 @@ export const POST = withErrorHandler(async (req) => {
 
   const body = await validateBody(req, queryDefaultsSchema);
 
-  setQueryDefaults((body.data ?? {}) as Record<string, any>);
+  setQueryDefaults((body.data ?? {}) as Record<string, unknown>);
 
   return successResponse({ ok: true });
 });

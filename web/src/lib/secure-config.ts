@@ -3,37 +3,22 @@
  */
 
 import "server-only";
-import { getStudioDb } from "./db";
 import { apiConfig, appConfig } from "./config";
 import { encryptToString, decryptFromString, maskSensitiveValue } from "./security";
+import { secureConfigRepository } from "./repositories";
 
 export type SensitiveConfigKey = "api_key" | "token" | "webhook_secret" | "oauth_client_secret";
 
 interface ConfigEntry {
-  key: string;
   value: string;
-  updated_at: string;
 }
 
 const configCache = new Map<SensitiveConfigKey, string>();
 
 /**
  */
-function getDb() {
-  return getStudioDb();
-}
-
-/**
- */
 export function initSecureConfigTable(): void {
-  const db = getDb();
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS secure_config (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  `);
+  secureConfigRepository.initTable();
 }
 
 /**
@@ -48,18 +33,11 @@ export function setSecureConfig(key: SensitiveConfigKey, value: string): void {
   }
   
   initSecureConfigTable();
-  const db = getDb();
   
   const encrypted = encryptToString(value);
   const now = new Date().toISOString();
-  
-  db.prepare(`
-    INSERT INTO secure_config (key, value, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET
-      value = excluded.value,
-      updated_at = excluded.updated_at
-  `).run(key, encrypted, now);
+
+  secureConfigRepository.upsert(key, encrypted, now);
   
   configCache.set(key, value);
   
@@ -74,10 +52,7 @@ export function getSecureConfig(key: SensitiveConfigKey): string | null {
   }
   
   initSecureConfigTable();
-  const db = getDb();
-  
-  const row = db.prepare("SELECT value FROM secure_config WHERE key = ?")
-    .get(key) as ConfigEntry | undefined;
+  const row = secureConfigRepository.getByKey(key) as ConfigEntry | null;
   
   if (!row) {
     return null;
@@ -99,9 +74,7 @@ export function getSecureConfig(key: SensitiveConfigKey): string | null {
  */
 export function deleteSecureConfig(key: SensitiveConfigKey): void {
   initSecureConfigTable();
-  const db = getDb();
-  
-  db.prepare("DELETE FROM secure_config WHERE key = ?").run(key);
+  secureConfigRepository.deleteByKey(key);
   
   configCache.delete(key);
   
@@ -119,12 +92,7 @@ export function clearSecureConfigCache(): void {
  */
 export function listSecureConfigKeys(): Array<{ key: string; updated_at: string }> {
   initSecureConfigTable();
-  const db = getDb();
-  
-  const rows = db.prepare("SELECT key, updated_at FROM secure_config ORDER BY key")
-    .all() as ConfigEntry[];
-  
-  return rows.map(r => ({ key: r.key, updated_at: r.updated_at }));
+  return secureConfigRepository.listKeys();
 }
 
 /**

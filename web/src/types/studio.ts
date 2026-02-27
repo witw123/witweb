@@ -1,23 +1,19 @@
 ﻿/**
- * Studio 瑙嗛鐢熸垚鐩稿叧绫诲瀷瀹氫箟
  * Studio video generation type definitions
  */
 
 
 /**
- * 瑙嗛浠诲姟鐘舵€?
  * Video task status
  */
 export type VideoTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'completed';
 
 /**
- * 瑙嗛浠诲姟绫诲瀷
  * Video task type
  */
 export type VideoTaskType = 'text2video' | 'image2video' | 'remix' | 'character' | 'upload_character' | 'create_character';
 
 /**
- * 瑙嗛浠诲姟瀹炰綋
  * Video task entity
  */
 export interface VideoTask {
@@ -63,7 +59,6 @@ export interface VideoTaskWithResults extends VideoTask {
 }
 
 /**
- * 瑙掕壊瀹炰綋
  * Character entity
  */
 export interface Character {
@@ -76,7 +71,6 @@ export interface Character {
 }
 
 /**
- * Studio 閰嶇疆瀹炰綋
  * Studio config entity
  */
 export interface StudioConfig {
@@ -87,7 +81,6 @@ export interface StudioConfig {
 }
 
 /**
- * Studio 閰嶇疆琛?
  * Studio config row
  */
 export interface StudioConfigRow {
@@ -96,7 +89,6 @@ export interface StudioConfigRow {
 }
 
 /**
- * Studio 鍘嗗彶璁板綍
  * Studio history entry
  */
 export interface StudioHistory {
@@ -111,7 +103,6 @@ export interface StudioHistory {
 }
 
 /**
- * Studio 浠诲姟鏃堕棿
  * Studio task time
  */
 export interface StudioTaskTime {
@@ -120,7 +111,6 @@ export interface StudioTaskTime {
 }
 
 /**
- * Studio 娲昏穬浠诲姟
  * Studio active task
  */
 export interface StudioActiveTask {
@@ -191,7 +181,6 @@ export interface FinalizeVideoResponse {
 }
 
 /**
- * 涓婁紶瑙掕壊璇锋眰
  * Upload character request
  */
 export interface UploadCharacterRequest {
@@ -208,7 +197,6 @@ export interface CreateCharacterRequest {
 }
 
 /**
- * 鏇存柊 Studio 閰嶇疆璇锋眰
  * Update studio config request
  */
 export interface UpdateStudioConfigRequest {
@@ -218,10 +206,8 @@ export interface UpdateStudioConfigRequest {
   query_defaults?: Record<string, unknown>;
 }
 
-// ============ 鏈湴瑙嗛绫诲瀷 ============
 
 /**
- * 鏈湴瑙嗛椤?
  * Local video item
  */
 export interface LocalVideo {
@@ -236,7 +222,6 @@ export interface LocalVideo {
 
 
 /**
- * 瑙嗛浠诲姟椤圭粍浠?Props
  * Video task item component props
  */
 export interface VideoTaskItemProps {
@@ -246,7 +231,6 @@ export interface VideoTaskItemProps {
 }
 
 /**
- * 瑙嗛鐢诲粖椤?
  * Video gallery item
  */
 export interface VideoGalleryItemProps {
@@ -265,7 +249,6 @@ export interface CreateFormProps {
 }
 
 /**
- * 瑙掕壊瀹為獙瀹?Props
  * Character lab props
  */
 export interface CharacterLabProps {
@@ -299,10 +282,8 @@ export interface VideoPlayerProps {
   className?: string;
 }
 
-// ============ 澶栭儴 API 绫诲瀷 ============
 
 /**
- * 澶栭儴瑙嗛 API 涓绘満閰嶇疆
  * External video API host configuration
  */
 export interface VideoAPIHosts {
@@ -311,7 +292,6 @@ export interface VideoAPIHosts {
 }
 
 /**
- * API 璇锋眰 Payload
  * API request payload
  */
 export interface VideoAPIPayload {

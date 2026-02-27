@@ -1,6 +1,6 @@
-import { initDb } from "@/lib/db-init";
-import { getUsersDb } from "@/lib/db";
+﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
+import { userRepository } from "@/lib/repositories";
 import { publicProfile } from "@/lib/user";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
@@ -30,16 +30,13 @@ export const POST = withErrorHandler(async (req: Request) => {
   assertAuthenticated(user);
 
   const body = await validateBody(req, profileSchema);
-  const db = getUsersDb();
 
-  db.prepare("UPDATE users SET nickname = ?, avatar_url = ?, cover_url = ?, bio = ? WHERE username = ?")
-    .run(
-      body.nickname || user,
-      body.avatar_url || "",
-      body.cover_url || "",
-      body.bio || "",
-      user
-    );
+  userRepository.update(user, {
+    nickname: body.nickname || user,
+    avatar_url: body.avatar_url || "",
+    cover_url: body.cover_url || "",
+    bio: body.bio || "",
+  });
 
   const profile = publicProfile(user, user);
   return successResponse({ profile });

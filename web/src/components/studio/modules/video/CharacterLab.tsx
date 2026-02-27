@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useAuth } from "@/app/providers";
 
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
 export function CharacterLab() {
   const { token } = useAuth();
   const [mode, setMode] = useState<"upload" | "create">("upload");
@@ -33,8 +37,8 @@ export function CharacterLab() {
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "提交失败");
       setStatus({ type: "success", msg: `角色任务已提交，任务 ID：${data.data?.task_id || data.data?.id}` });
-    } catch (err: any) {
-      setStatus({ type: "error", msg: err.message || "提交失败" });
+    } catch (err: unknown) {
+      setStatus({ type: "error", msg: errorMessage(err, "提交失败") });
     } finally {
       setLoading(false);
     }

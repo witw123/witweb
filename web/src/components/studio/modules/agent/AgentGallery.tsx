@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
 
 type RunListItem = {
@@ -54,7 +54,7 @@ export function AgentGallery() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadGallery() {
+  const loadGallery = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError("");
@@ -99,11 +99,11 @@ export function AgentGallery() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     void loadGallery();
-  }, [token]);
+  }, [loadGallery]);
 
   const hasItems = useMemo(() => items.length > 0, [items]);
 

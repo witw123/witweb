@@ -3,7 +3,7 @@
 
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
-import { createCategory, listCategories } from "@/lib/admin";
+import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { errorResponses, paginatedResponse, createdResponse } from "@/lib/api-response";
 import { validateQuery, validateBody, z } from "@/lib/validate";
@@ -32,44 +32,44 @@ function slugify(text: string) {
 
 export const GET = withErrorHandler(async (req: Request) => {
   initDb();
-  
+
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "需要管理员权限");
-  
+
   const { page, limit, search } = await validateQuery(req, querySchema);
-  
-  const result = listCategories(page, limit, search);
-  
-  // listCategories 杩斿洖 { categories, total, page, limit }
-  return paginatedResponse(result.categories, result.total, page ?? 1, limit ?? 100);
+
+  const result = postRepository.listAdminCategories(page, limit, search);
+
+  return paginatedResponse(result.items, result.total, page ?? 1, limit ?? 100);
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
   initDb();
-  
+
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "需要管理员权限");
-  
+
   const body = await validateBody(req, createCategorySchema);
-  
+
   const slug = body.slug?.trim() || slugify(body.name);
-  
+
   if (!slug) {
     return errorResponses.badRequest("分类别名不能为空");
   }
-  
+
   try {
-    const id = createCategory({
+    const id = postRepository.createCategory({
       name: body.name.trim(),
       slug,
       description: body.description,
-      is_active: body.is_active === 0 || body.is_active === false ? 0 : 1,
+      sort_order: postRepository.getNextCategorySortOrder(),
+      is_active: !(body.is_active === 0 || body.is_active === false),
     });
     return createdResponse({ id });
-  } catch (error: any) {
-    if (String(error?.message || "").includes("UNIQUE")) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
       return errorResponses.conflict("分类名称或别名已存在");
     }
     throw error;

@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { uploadCharacterTask } from "@/lib/studio";
-import { createTask, updateTaskStatus } from "@/lib/video";
+import { videoTaskRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
@@ -32,13 +32,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     shutProgress: body.shutProgress,
   });
 
-  createTask(
-    user,
-    "upload_character",
-    { url: body.url, timestamps: body.timestamps },
-    taskId
-  );
-  updateTaskStatus(taskId, "running", 0);
+  videoTaskRepository.create({
+    id: taskId,
+    username: user,
+    task_type: "upload_character",
+    url: body.url,
+    timestamps: body.timestamps,
+  });
+  videoTaskRepository.updateStatus(taskId, { status: "running", progress: 0 });
 
   return successResponse({ ok: true, task_id: taskId, id: taskId });
 });

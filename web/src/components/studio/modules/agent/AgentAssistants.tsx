@@ -10,17 +10,12 @@ import {
 } from "./agent-preset-storage";
 
 export function AgentAssistants() {
-  const [presets, setPresets] = useState<AgentPreset[]>([]);
-  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [presets, setPresets] = useState<AgentPreset[]>(() => readAgentPresets());
+  const [selectedPresetId, setSelectedPresetId] = useState(() => readSelectedPresetId());
   const [name, setName] = useState("");
   const [assistantName, setAssistantName] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    setPresets(readAgentPresets());
-    setSelectedPresetId(readSelectedPresetId());
-  }, []);
 
   useEffect(() => {
     writeAgentPresets(presets);

@@ -1,11 +1,9 @@
 ﻿/**
- * 绉佷俊鐩稿叧绫诲瀷瀹氫箟
  * Private message type definitions
  */
 
 
 /**
- * 瀵硅瘽瀹炰綋
  * Conversation entity
  */
 export interface Conversation {
@@ -19,7 +17,6 @@ export interface Conversation {
 }
 
 /**
- * 绉佷俊瀹炰綋
  * Private message entity
  */
 export interface PrivateMessage {
@@ -32,10 +29,8 @@ export interface PrivateMessage {
   created_at: string;
 }
 
-// ============ 灞曠ず绫诲瀷 ============
 
 /**
- * 瀵规柟鐢ㄦ埛淇℃伅
  * Other user info in conversation
  */
 export interface ConversationOtherUser {

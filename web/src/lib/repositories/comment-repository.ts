@@ -274,6 +274,18 @@ export class CommentRepository extends BaseRepository<Comment, number> {
     
     return { total, today, week };
   }
+
+  deleteByAuthor(author: string, options?: QueryOptions): number {
+    const sql = `DELETE FROM comments WHERE author = ?`;
+    const result = this.run(sql, [author], options);
+    return result.changes;
+  }
+
+  deleteVotesByUsername(username: string, options?: QueryOptions): number {
+    const sql = `DELETE FROM comment_votes WHERE username = ?`;
+    const result = this.run(sql, [username], options);
+    return result.changes;
+  }
 }
 
 export const commentRepository = new CommentRepository();

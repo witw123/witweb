@@ -5,6 +5,8 @@ import { ReactNode, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { getThumbnailUrl } from "@/utils/url";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { UserProfile } from "@/types/user";
 
 interface UserHoverCardProps {
   username: string;
@@ -13,9 +15,21 @@ interface UserHoverCardProps {
   disableHover?: boolean;
 }
 
+type HoverUserProfile = UserProfile & {
+  like_received_count?: number;
+  is_following?: boolean;
+};
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
+
 export default function UserHoverCard({ username, children, className = "", disableHover = false }: UserHoverCardProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<HoverUserProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const { token, user: authUser } = useAuth();
   const hoverTimer = useRef<NodeJS.Timeout | null>(null);
@@ -28,8 +42,8 @@ export default function UserHoverCard({ username, children, className = "", disa
       const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const data = await res.json();
-      setProfile(data.data || data);
+      const payload = await res.json().catch(() => ({}));
+      setProfile(readSuccessData<HoverUserProfile>(payload));
     } finally {
       setLoading(false);
     }
@@ -65,8 +79,8 @@ export default function UserHoverCard({ username, children, className = "", disa
     const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json();
-    setProfile(data.data || data);
+    const payload = await res.json().catch(() => ({}));
+    setProfile(readSuccessData<HoverUserProfile>(payload));
   };
 
   const isOwnProfile = authUser?.username === username;
@@ -117,7 +131,7 @@ export default function UserHoverCard({ username, children, className = "", disa
                   </div>
                 </div>
 
-                <div className="hover-card-bio" title={profile.bio}>
+                <div className="hover-card-bio" title={profile.bio ?? undefined}>
                   {profile.bio || "这个人很懒，什么都没有写"}
                 </div>
 

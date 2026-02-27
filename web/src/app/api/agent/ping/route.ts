@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/http";
+﻿import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 
@@ -35,14 +35,14 @@ export const GET = withErrorHandler(async () => {
     return successResponse({
       ok: false,
       reason: "missing_endpoint",
-      message: "未配置 AGENT_LLM_ENDPOINT",
+      message: "AGENT_LLM_ENDPOINT is not configured",
     });
   }
   if (!apiKey) {
     return successResponse({
       ok: false,
       reason: "missing_api_key",
-      message: "未配置 AGENT_LLM_API_KEY",
+      message: "AGENT_LLM_API_KEY is not configured",
     });
   }
 
@@ -77,13 +77,11 @@ export const GET = withErrorHandler(async () => {
       provider_status: res.status,
       provider_body_preview: text.slice(0, 300),
     });
-  } catch (error: any) {
-    const code = error?.cause?.code || error?.code || "";
-    const name = error?.name || "Error";
-    const message =
-      name === "AbortError"
-        ? "连接超时（15s）"
-        : error?.message || "请求失败";
+  } catch (error: unknown) {
+    const err = error as { cause?: { code?: string }; code?: string; name?: string; message?: string } | null;
+    const code = err?.cause?.code || err?.code || "";
+    const name = err?.name || "Error";
+    const message = name === "AbortError" ? "Connection timed out (15s)" : err?.message || "Request failed";
 
     return successResponse({
       ok: false,
@@ -96,4 +94,3 @@ export const GET = withErrorHandler(async () => {
     });
   }
 });
-

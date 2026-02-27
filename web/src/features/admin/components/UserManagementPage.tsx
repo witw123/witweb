@@ -80,8 +80,9 @@ export default function UserManagementPage() {
 
       const data = await response.json().catch(() => ({}));
       setMessage(data.error?.message || "删除失败");
-    } catch (error: any) {
-      setMessage(`删除失败: ${error.message || "未知错误"}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      setMessage(`删除失败: ${message}`);
     }
   };
 

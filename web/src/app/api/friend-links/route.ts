@@ -1,7 +1,7 @@
 ﻿import { initDb } from "@/lib/db-init";
-import { getBlogDb } from "@/lib/db";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
+import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, createdResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
@@ -16,18 +16,11 @@ const friendLinkSchema = z.object({
 
 export const GET = withErrorHandler(async () => {
   initDb();
-  const db = getBlogDb();
 
-  // 获取当前用户（可选）
   const user = await getAuthUser();
   const isAdmin = !!user && isAdminUser(user);
 
-  const links = db.prepare(`
-    SELECT id, name, url, description, avatar_url, sort_order, is_active
-    FROM friend_links
-    ${isAdmin ? "" : "WHERE is_active = 1"}
-    ORDER BY sort_order ASC, created_at DESC
-  `).all();
+  const links = postRepository.listFriendLinks(isAdmin);
 
   return successResponse({ links });
 });
@@ -35,34 +28,28 @@ export const GET = withErrorHandler(async () => {
 export const POST = withErrorHandler(async (req) => {
   initDb();
 
-  // 验证用户已登录且为管理员
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "只有管理员可以添加友链");
 
-  // 验证请求体
   const body = await validateBody(req, friendLinkSchema);
-
-  const db = getBlogDb();
 
   let finalAvatarUrl = body.avatar_url || null;
   if (!finalAvatarUrl) {
     finalAvatarUrl = await detectFriendLinkIcon(body.url);
   }
 
-  const result = db.prepare(`
-    INSERT INTO friend_links (name, url, description, avatar_url, sort_order)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(
-    body.name,
-    body.url,
-    body.description || null,
-    finalAvatarUrl,
-    body.sort_order
-  );
+  const id = postRepository.createFriendLink({
+    name: body.name,
+    url: body.url,
+    description: body.description || "",
+    avatar_url: finalAvatarUrl || "",
+    sort_order: body.sort_order,
+    is_active: true,
+  });
 
   return createdResponse({
-    id: result.lastInsertRowid,
+    id,
     message: "友链添加成功",
   });
 });

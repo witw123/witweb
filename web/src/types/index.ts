@@ -7,7 +7,6 @@
  * ```
  */
 
-// ============ 鐢ㄦ埛鐩稿叧 ============
 export type {
   User,
   UserProfile,
@@ -65,7 +64,6 @@ export type {
   PostFilters,
 } from './blog';
 
-// ============ Studio 瑙嗛鐩稿叧 ============
 export type {
   VideoTaskStatus,
   VideoTaskType,
@@ -97,7 +95,6 @@ export type {
   VideoAPIPayload,
 } from './studio';
 
-// ============ 绉佷俊鐩稿叧 ============
 export type {
   Conversation,
   PrivateMessage,
@@ -115,7 +112,6 @@ export type {
   MessagesPageProps,
 } from './message';
 
-// ============ API 閫氱敤绫诲瀷 ============
 export type {
   APIErrorResponse,
   APISuccessResponse,
@@ -143,5 +139,4 @@ export type {
   APIResponse,
 } from './api';
 
-// ============ 閲嶆柊瀵煎嚭宸叉湁绫诲瀷澹版槑 ============
 

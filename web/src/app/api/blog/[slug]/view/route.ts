@@ -1,5 +1,5 @@
-import { initDb } from "@/lib/db-init";
-import { incrementPostView } from "@/lib/blog";
+﻿import { initDb } from "@/lib/db-init";
+import { postRepository } from "@/lib/repositories";
 import { successResponse } from "@/lib/api-response";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { validateParams, z } from "@/lib/validate";
@@ -12,6 +12,6 @@ export const POST = withErrorHandler(async (_: Request, { params }: { params: Pr
   initDb();
 
   const { slug } = validateParams(await params, paramsSchema);
-  const viewCount = incrementPostView(slug);
+  const viewCount = postRepository.incrementViewCount(slug);
   return successResponse({ ok: true, view_count: viewCount });
 });

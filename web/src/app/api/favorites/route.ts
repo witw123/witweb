@@ -4,7 +4,7 @@
 import { NextRequest } from "next/server";
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
-import { listFavorites } from "@/lib/blog";
+import { postRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { paginatedResponse } from "@/lib/api-response";
 import { validateQuery, z } from "@/lib/validate";
@@ -17,14 +17,24 @@ const querySchema = z.object({
 export const GET = withErrorHandler(async (req: NextRequest) => {
   initDb();
 
-  // 鑾峰彇褰撳墠鐢ㄦ埛
   const user = await getAuthUser();
   assertAuthenticated(user, "请先登录");
 
   const { page, size } = await validateQuery(req, querySchema);
 
-  const data = listFavorites(user, page, size);
+  const data = postRepository.listFavorites(user, page, size);
+  const rows = userRepository.listBasicByUsernames(data.items.map((item) => item.author));
+  const userMap = new Map(rows.map((row) => [row.username, row]));
 
-  return paginatedResponse(data.items, data.total, page ?? 1, size ?? 10);
+  const items = data.items.map((item) => {
+    const author = userMap.get(item.author);
+    return {
+      ...item,
+      author_name: author?.nickname || item.author,
+      author_avatar: author?.avatar_url || "",
+      tags: item.tags || "",
+    };
+  });
+
+  return paginatedResponse(items, data.total, page ?? 1, size ?? 10);
 });
-

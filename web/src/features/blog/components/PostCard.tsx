@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getThumbnailUrl } from "@/utils/url";
 import { ThumbsUpIcon, MessageCircleIcon, BookmarkIcon, ThumbsDownIcon } from "@/components/Icons";
 import UserHoverCard from "@/features/blog/components/UserHoverCard";
+import type { PostListItem } from "@/types/blog";
 
 export default function PostCard({
   post,
@@ -15,12 +16,12 @@ export default function PostCard({
   onDelete,
   canEdit = false,
 }: {
-  post: any;
+  post: PostListItem;
   showActions?: boolean;
-  onLike?: (post: any) => void;
-  onDislike?: (post: any) => void;
-  onFavorite?: (post: any) => void;
-  onDelete?: (post: any) => void;
+  onLike?: (post: PostListItem) => void;
+  onDislike?: (post: PostListItem) => void;
+  onFavorite?: (post: PostListItem) => void;
+  onDelete?: (post: PostListItem) => void;
   canEdit?: boolean;
 }) {
   const tagList = (post.tags || "")

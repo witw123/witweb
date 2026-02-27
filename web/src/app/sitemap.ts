@@ -1,9 +1,7 @@
 import type { MetadataRoute } from "next";
 import { initDb } from "@/lib/db-init";
-import { getBlogDb } from "@/lib/db";
+import { postRepository } from "@/lib/repositories";
 import { getSiteUrl } from "@/lib/site-url";
-
-type PostSitemapRow = { slug: string; updated_at?: string | null; created_at?: string | null };
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = getSiteUrl();
@@ -17,20 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   try {
     initDb();
-    const db = getBlogDb();
-
-    const posts = db
-      .prepare(
-        `
-          SELECT slug, updated_at, created_at
-          FROM posts
-          WHERE slug IS NOT NULL
-            AND trim(slug) <> ''
-            AND (status IS NULL OR status <> 'deleted')
-          ORDER BY id DESC
-        `
-      )
-      .all() as PostSitemapRow[];
+    const posts = postRepository.listSitemapPosts();
 
     const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
       url: `${base}/post/${post.slug}`,

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
 import { useRouter } from "next/navigation";
 
@@ -112,22 +112,22 @@ export function RadarLayout() {
     () => sourceList.find((item) => item.id === selectedSourceId) || null,
     [sourceList, selectedSourceId]
   );
-  function handleUnauthorized() {
+  const handleUnauthorized = useCallback(() => {
     setError("登录已失效，请重新登录");
     logout();
     router.push("/login");
-  }
+  }, [logout, router]);
 
-  function resetSourceForm() {
+  const resetSourceForm = useCallback(() => {
     setSelectedSourceId(null);
     setSourceName("");
     setSourceUrl("");
     setSourceType("rss");
     setSourceParser("");
     setSourceEnabled(true);
-  }
+  }, []);
 
-  async function loadSources() {
+  const loadSources = useCallback(async () => {
     const res = await fetch("/api/radar/sources", { headers: authHeaders });
     if (res.status === 401) return handleUnauthorized();
     const data = await res.json().catch(() => ({}));
@@ -139,9 +139,9 @@ export function RadarLayout() {
       }
       if (list.length === 0) resetSourceForm();
     }
-  }
+  }, [authHeaders, handleUnauthorized, resetSourceForm, selectedSourceId]);
 
-  async function loadItems(keyword = q) {
+  const loadItems = useCallback(async (keyword = q) => {
     const params = new URLSearchParams();
     params.set("limit", "120");
     if (keyword.trim()) params.set("q", keyword.trim());
@@ -150,9 +150,9 @@ export function RadarLayout() {
     if (res.status === 401) return handleUnauthorized();
     const data = await res.json().catch(() => ({}));
     if (res.ok && data?.success) setItems(data.data.items || []);
-  }
+  }, [authHeaders, handleUnauthorized, q]);
 
-  async function loadTopics(keyword = topicQ) {
+  const loadTopics = useCallback(async (keyword = topicQ) => {
     const params = new URLSearchParams();
     params.set("limit", "120");
     if (keyword.trim()) params.set("q", keyword.trim());
@@ -161,9 +161,9 @@ export function RadarLayout() {
     if (res.status === 401) return handleUnauthorized();
     const data = await res.json().catch(() => ({}));
     if (res.ok && data?.success) setTopics(data.data.items || []);
-  }
+  }, [authHeaders, handleUnauthorized, topicQ]);
 
-  async function initialize() {
+  const initialize = useCallback(async () => {
     if (authLoading || !token) return;
     setLoading(true);
     setError("");
@@ -174,11 +174,11 @@ export function RadarLayout() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [authLoading, loadItems, loadSources, loadTopics, token]);
 
   useEffect(() => {
     void initialize();
-  }, [token, authLoading]);
+  }, [initialize]);
 
   useEffect(() => {
     if (!selectedSource) return;

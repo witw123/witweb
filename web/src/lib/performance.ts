@@ -14,6 +14,11 @@ interface PerformanceMetrics {
   apiResponseTime?: Record<string, number[]>;
 }
 
+type LayoutShiftEntry = PerformanceEntry & {
+  hadRecentInput?: boolean;
+  value: number;
+};
+
 const metrics: PerformanceMetrics = {
   apiResponseTime: {},
 };
@@ -39,8 +44,9 @@ export function initWebVitalsMonitoring(): void {
       let clsValue = 0;
       const clsObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          if (!(entry as any).hadRecentInput) {
-            clsValue += (entry as any).value;
+          const layoutShift = entry as LayoutShiftEntry;
+          if (!layoutShift.hadRecentInput) {
+            clsValue += layoutShift.value;
           }
         }
         metrics.cls = clsValue;
@@ -142,7 +148,7 @@ function logMetric(name: string, value: number | undefined): void {
 
 /**
  */
-export function debounce<T extends (...args: any[]) => void>(
+export function debounce<T extends (...args: unknown[]) => void>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -155,7 +161,7 @@ export function debounce<T extends (...args: any[]) => void>(
 
 /**
  */
-export function throttle<T extends (...args: any[]) => void>(
+export function throttle<T extends (...args: unknown[]) => void>(
   func: T,
   limit: number
 ): (...args: Parameters<T>) => void {

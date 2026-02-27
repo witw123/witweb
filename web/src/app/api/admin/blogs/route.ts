@@ -3,7 +3,7 @@
 
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
-import { listBlogs } from "@/lib/admin";
+import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { paginatedResponse } from "@/lib/api-response";
 import { validateQuery, z } from "@/lib/validate";
@@ -20,16 +20,21 @@ const querySchema = z.object({
 
 export const GET = withErrorHandler(async (req: Request) => {
   initDb();
-  
+
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "需要管理员权限");
-  
-  const { page, limit, search, status, username, sort } = await validateQuery(req, querySchema);
-  
-  const result = listBlogs(page, limit, search, status, username, sort);
-  
-  // listBlogs 杩斿洖 { blogs, total, page, limit }
-  return paginatedResponse(result.blogs, result.total, page ?? 1, limit ?? 20);
-});
 
+  const { page, limit, search, status, username, sort } = await validateQuery(req, querySchema);
+
+  const result = postRepository.listAdminBlogs({
+    page,
+    size: limit,
+    search,
+    status,
+    username,
+    sort,
+  });
+
+  return paginatedResponse(result.items, result.total, page ?? 1, limit ?? 20);
+});

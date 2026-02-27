@@ -1,6 +1,6 @@
 ﻿import { initDb } from "@/lib/db-init";
 import { createToken, hashPassword } from "@/lib/auth";
-import { getUsersDb } from "@/lib/db";
+import { userRepository } from "@/lib/repositories";
 import { getUserByUsername, publicProfile } from "@/lib/user";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { createdResponse, errorResponses } from "@/lib/api-response";
@@ -27,23 +27,19 @@ export const POST = withErrorHandler(async (req) => {
   const body = await validateBody(req, registerSchema);
   const { username, password, nickname, avatar_url, cover_url, bio } = body;
 
-  const db = getUsersDb();
-  const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
-  if (existing) {
+  if (userRepository.existsByUsername(username)) {
     return errorResponses.conflict("用户名已存在");
   }
 
   const normalizedNickname = nickname || username;
-  db.prepare(
-    "INSERT INTO users (username, password, nickname, avatar_url, cover_url, bio) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(
+  userRepository.create({
     username,
-    hashPassword(password),
-    normalizedNickname,
-    avatar_url || "",
-    cover_url || "",
-    bio || ""
-  );
+    password: hashPassword(password),
+    nickname: normalizedNickname,
+    avatar_url: avatar_url || "",
+    cover_url: cover_url || "",
+    bio: bio || "",
+  });
 
   const row = getUserByUsername(username);
   const token = await createToken(username, row?.role || "user");

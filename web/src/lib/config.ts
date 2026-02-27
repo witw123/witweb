@@ -48,6 +48,13 @@ export const dbConfig = {
   messages: {
     path: getEnv("SORA_MESSAGES_DB_PATH", ""),
   },
+  postgres: {
+    url: getEnv("DATABASE_URL", ""),
+    poolMax: getEnvInt("PG_POOL_MAX", 10),
+    idleTimeoutMs: getEnvInt("PG_IDLE_TIMEOUT_MS", 30000),
+    connectionTimeoutMs: getEnvInt("PG_CONNECTION_TIMEOUT_MS", 5000),
+    ssl: getEnvBool("PG_SSL", false),
+  },
 } as const;
 
 // ============================================================================
@@ -303,6 +310,9 @@ export function validateConfig(): ConfigValidationResult {
     if (!apiConfig.grsai.token) {
       warnings.push("GRSAI_TOKEN not set");
     }
+    if (!dbConfig.postgres.url) {
+      warnings.push("DATABASE_URL not set (PostgreSQL disabled)");
+    }
   }
   
   if (appConfig.isDev) {
@@ -378,6 +388,11 @@ export interface SafeConfigSnapshot {
     corsEnabled: boolean;
     cspEnabled: boolean;
   };
+  database: {
+    postgresEnabled: boolean;
+    poolMax: number;
+    ssl: boolean;
+  };
 }
 
 /**
@@ -416,6 +431,11 @@ export function getSafeConfig(): SafeConfigSnapshot {
       rateLimitWindow: securityConfig.rateLimitWindow,
       corsEnabled: securityConfig.corsEnabled,
       cspEnabled: securityConfig.cspEnabled,
+    },
+    database: {
+      postgresEnabled: !!dbConfig.postgres.url,
+      poolMax: dbConfig.postgres.poolMax,
+      ssl: dbConfig.postgres.ssl,
     },
   };
 }

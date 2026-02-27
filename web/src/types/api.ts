@@ -1,5 +1,4 @@
 ﻿/**
- * API 閫氱敤绫诲瀷瀹氫箟
  * API common type definitions
  */
 
@@ -76,7 +75,6 @@ export interface SearchParams extends PaginationParams {
   query?: string;
 }
 
-// ============ 涓婁紶鐩稿叧 ============
 
 /**
  * Upload response
@@ -88,7 +86,6 @@ export interface UploadResponse {
 }
 
 /**
- * 涓婁紶閿欒
  * Upload error
  */
 export interface UploadError {
@@ -127,16 +124,13 @@ export interface AdminStats {
   }[];
 }
 
-// ============ HTTP 鐩稿叧 ============
 
 /**
- * HTTP 鏂规硶
  * HTTP methods
  */
 export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
 
 /**
- * Fetch 閫夐」
  * Fetch options
  */
 export interface FetchOptions extends Omit<RequestInit, 'method' | 'body'> {
@@ -146,7 +140,6 @@ export interface FetchOptions extends Omit<RequestInit, 'method' | 'body'> {
 }
 
 /**
- * API 瀹㈡埛绔厤缃?
  * API client config
  */
 export interface APIClientConfig {
@@ -184,7 +177,6 @@ export interface IdParams {
   };
 }
 
-// ============ Socket/WebSocket 鐩稿叧 ============
 
 /**
  * WebSocket message
@@ -196,7 +188,6 @@ export interface WebSocketMessage<T = unknown> {
 }
 
 /**
- * 瀹炴椂閫氱煡
  * Real-time notification
  */
 export interface RealtimeNotification {
@@ -207,7 +198,6 @@ export interface RealtimeNotification {
   created_at: string;
 }
 
-// ============ 閫氱敤宸ュ叿绫诲瀷 ============
 
 /**
  * Nullable type
@@ -220,7 +210,6 @@ export type Nullable<T> = T | null;
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 /**
- * 蹇呴渶瀛楁绫诲瀷
  * Required fields type
  */
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;

@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
+import { getThumbnailUrl } from "@/utils/url";
+import type { SuccessResponse } from "@/lib/api-response";
 
 type Conversation = {
   id: number;
@@ -14,6 +16,13 @@ type Conversation = {
     avatar_url: string;
   };
 };
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
 
 export default function PersonalSidebar() {
   const [activeItem, setActiveItem] = useState("friends");
@@ -30,12 +39,8 @@ export default function PersonalSidebar() {
         return res.json();
       })
       .then((payload) => {
-        const items = Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.data?.items)
-            ? payload.data.items
-            : [];
-        setConversations(Array.isArray(items) ? items : []);
+        const items = readSuccessData<Conversation[]>(payload) || [];
+        setConversations(items);
       })
       .catch((err) => console.error("Failed to load conversations", err));
   }, [token]);
@@ -94,13 +99,20 @@ export default function PersonalSidebar() {
   );
 }
 
-function DMItem({ username, activity, avatarUrl, unreadCount }: any) {
+type DMItemProps = {
+  username: string;
+  activity?: string;
+  avatarUrl?: string;
+  unreadCount: number;
+};
+
+function DMItem({ username, activity, avatarUrl, unreadCount }: DMItemProps) {
   return (
     <div className="group flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 transition-all duration-200 hover:bg-[#111]">
       <div className="relative shrink-0">
         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#333] bg-[#111] font-medium text-[#a1a1a1]">
           {avatarUrl ? (
-            <Image src={avatarUrl} alt={username} width={36} height={36} className="h-full w-full object-cover" unoptimized />
+            <Image src={getThumbnailUrl(avatarUrl, 64)} alt={username} width={36} height={36} className="h-full w-full object-cover" unoptimized />
           ) : (
             username[0].toUpperCase()
           )}

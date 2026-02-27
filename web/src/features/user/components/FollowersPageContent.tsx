@@ -5,13 +5,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { FollowerItem } from "@/types/user";
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
 
 export default function FollowersPageContent() {
   const { token } = useAuth();
   const searchParams = useSearchParams();
   const username = searchParams.get("username");
 
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<FollowerItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadItems = useCallback(async () => {
@@ -21,8 +30,9 @@ export default function FollowersPageContent() {
         ? `/api/followers?username=${encodeURIComponent(username)}&page=1&size=50`
         : `/api/followers?page=1&size=50`;
       const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      const data = await res.json();
-      setItems(data.data?.items || []);
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ items: FollowerItem[] }>(data);
+      setItems(payload?.items || []);
     } finally {
       setLoading(false);
     }
@@ -97,7 +107,7 @@ export default function FollowersPageContent() {
                 <div className="flex-shrink-0">
                   {user.is_following ? (
                     <button disabled className="btn-ghost user-rel-btn cursor-default opacity-70">
-                      {user.is_mutual ? "已互相关注" : "已关注"}
+                      已回关
                     </button>
                   ) : (
                     <button onClick={() => void handleFollow(user.username)} className="btn-primary user-rel-btn justify-center">

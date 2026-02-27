@@ -1,11 +1,18 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
+type DashboardStats = {
+  total_users?: number;
+  total_blogs?: number;
+  total_published_blogs?: number;
+  total_draft_blogs?: number;
+};
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void loadStats();
@@ -28,8 +35,8 @@ export default function DashboardPage() {
 
       setStats(data.data || {});
       setError("");
-    } catch (err: any) {
-      setError(err.message || "请求失败");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "请求失败");
     } finally {
       setLoading(false);
     }

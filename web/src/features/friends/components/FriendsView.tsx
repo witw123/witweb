@@ -3,16 +3,25 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { FollowerItem, FollowingItem } from "@/types/user";
 
 type Friend = {
   id: number;
   username: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
   status: "online" | "idle" | "dnd" | "offline";
-  activity?: string;
+  activity?: string | null;
   type: "incoming" | "outgoing" | "friend" | "blocked";
   discriminator?: string;
 };
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
 
 export default function FriendsView() {
   const [activeTab, setActiveTab] = useState<"online" | "all" | "pending" | "blocked" | "add">("all");
@@ -31,15 +40,15 @@ export default function FriendsView() {
 
         if (!followingRes.ok || !followersRes.ok) return;
 
-        const followingResponse = await followingRes.json();
-        const followersResponse = await followersRes.json();
-        const followingData = followingResponse.data || {};
-        const followersData = followersResponse.data || {};
+        const followingResponse = await followingRes.json().catch(() => ({}));
+        const followersResponse = await followersRes.json().catch(() => ({}));
+        const followingData = readSuccessData<{ items: FollowingItem[] }>(followingResponse) || { items: [] };
+        const followersData = readSuccessData<{ items: FollowerItem[] }>(followersResponse) || { items: [] };
 
         const map = new Map<string, Friend>();
         let idx = 1;
 
-        (followingData.items || []).forEach((u: any) => {
+        (followingData.items || []).forEach((u) => {
           map.set(u.username, {
             id: idx++,
             username: u.username,
@@ -51,7 +60,7 @@ export default function FriendsView() {
           });
         });
 
-        (followersData.items || []).forEach((u: any) => {
+        (followersData.items || []).forEach((u) => {
           if (map.has(u.username)) {
             const existing = map.get(u.username)!;
             if (u.is_following) existing.type = "friend";

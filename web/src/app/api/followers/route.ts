@@ -4,7 +4,7 @@
 import { NextRequest } from "next/server";
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
-import { listFollowers } from "@/lib/follow";
+import { userRepository } from "@/lib/repositories";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { validateQuery, z } from "@/lib/validate";
@@ -19,7 +19,6 @@ const querySchema = z.object({
 export const GET = withErrorHandler(async (req: NextRequest) => {
   initDb();
 
-  // 楠岃瘉鐢ㄦ埛璁よ瘉
   const user = await getAuthUser();
   if (!user) {
     return errorResponses.unauthorized("请先登录");
@@ -28,9 +27,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { username, page, size, q } = await validateQuery(req, querySchema);
 
   const targetUsername = username || user;
-
-  const result = listFollowers(targetUsername, page, size, q);
+  const result = userRepository.listFollowers(targetUsername, page, size, q, user);
 
   return successResponse(result);
 });
-

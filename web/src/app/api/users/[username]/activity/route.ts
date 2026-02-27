@@ -1,4 +1,4 @@
-import { getActivities } from "@/lib/blog";
+﻿import { postRepository } from "@/lib/repositories";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { validateParams, validateQuery, z } from "@/lib/validate";
@@ -20,6 +20,6 @@ export const GET = withErrorHandler(async (
   if (!username) return errorResponses.badRequest("Invalid username");
 
   const { page, size } = await validateQuery(request, querySchema);
-  const data = getActivities(username, page, size);
-  return successResponse(data);
+  const data = postRepository.getActivities(username, page, size);
+  return successResponse({ items: data.items, total: data.total });
 });

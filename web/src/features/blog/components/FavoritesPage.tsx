@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
+import type { UserProfile as AuthUserProfile } from "@/app/providers";
 import { PostCard } from "@/features/blog/components/post-list/PostCard";
 import { Pagination } from "@/features/blog/components/pagination/Pagination";
 import { usePostActions } from "@/features/blog/hooks";
@@ -11,6 +12,11 @@ import { clearAllCaches, getFavoritesCache, setFavoritesCache } from "@/utils/me
 import { getCachedJson, setCachedJson } from "@/utils/cache";
 import * as blogService from "@/services/blogService";
 import type { PostListItem } from "@/types/blog";
+
+type FavoritesCachePayload = {
+  items: PostListItem[];
+  total: number;
+};
 
 export default function FavoritesPage() {
   const [items, setItems] = useState<PostListItem[]>([]);
@@ -23,7 +29,7 @@ export default function FavoritesPage() {
 
   const profile = (() => {
     try {
-      return JSON.parse(localStorage.getItem("profile") || "");
+      return JSON.parse(localStorage.getItem("profile") || "") as AuthUserProfile;
     } catch {
       return null;
     }
@@ -43,15 +49,15 @@ export default function FavoritesPage() {
       return;
     }
 
-    let cached: any = null;
+    let cached: FavoritesCachePayload | null = null;
     for (const key of cacheUserKeys) {
-      cached = getFavoritesCache(`${key}:${page}`);
+      cached = (getFavoritesCache(`${key}:${page}`) as FavoritesCachePayload | null) || null;
       if (cached) break;
     }
 
     if (!cached) {
       for (const key of localCacheKeys) {
-        cached = getCachedJson(key);
+        cached = (getCachedJson(key) as FavoritesCachePayload | null) || null;
         if (cached) break;
       }
     }
@@ -66,11 +72,11 @@ export default function FavoritesPage() {
     setStatus("loading");
     blogService
       .getFavorites(page, pageSize)
-      .then((data: any) => {
+      .then((data) => {
         const payload = {
           items: Array.isArray(data.items) ? data.items : [],
           total: data.total || 0,
-        };
+        } satisfies FavoritesCachePayload;
         setItems(payload.items);
         setTotal(payload.total);
         cacheUserKeys.forEach((key) => setFavoritesCache(`${key}:${page}`, payload));

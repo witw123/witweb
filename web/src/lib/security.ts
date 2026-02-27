@@ -262,7 +262,7 @@ export interface ValidationError {
 
 /**
  */
-export function validateRequest<T extends Record<string, any>>(
+export function validateRequest<T extends Record<string, unknown>>(
   body: unknown,
   rules: {
     [K in keyof T]: {
@@ -271,7 +271,7 @@ export function validateRequest<T extends Record<string, any>>(
       minLength?: number;
       maxLength?: number;
       pattern?: RegExp;
-      validator?: (value: any) => boolean | string;
+      validator?: (value: unknown) => boolean | string;
     };
   }
 ): { valid: boolean; data?: T; errors?: ValidationError[] } {
@@ -280,10 +280,10 @@ export function validateRequest<T extends Record<string, any>>(
   }
   
   const errors: ValidationError[] = [];
-  const data = {} as T;
+  const data: Partial<T> = {};
   
   for (const [field, rule] of Object.entries(rules)) {
-    const value = (body as Record<string, any>)[field];
+    const value = (body as Record<string, unknown>)[field];
     
     if (rule.required && (value === undefined || value === null || value === "")) {
       errors.push({ field, message: `${String(field)} is required` });
@@ -325,14 +325,14 @@ export function validateRequest<T extends Record<string, any>>(
       }
     }
     
-    (data as any)[field] = value;
+    (data as Record<string, unknown>)[field] = value;
   }
   
   if (errors.length > 0) {
     return { valid: false, errors };
   }
   
-  return { valid: true, data };
+  return { valid: true, data: data as T };
 }
 
 // ============================================================================
@@ -422,15 +422,15 @@ export function maskSensitiveValue(
 
 /**
  */
-export function sanitizeForLogging<T extends Record<string, any>>(
+export function sanitizeForLogging<T extends Record<string, unknown>>(
   obj: T,
   sensitiveFields: string[] = ["password", "token", "api_key", "secret", "authorization"]
 ): Partial<T> {
-  const result = { ...obj };
+  const result: Partial<T> = { ...obj };
   
   for (const field of sensitiveFields) {
     if (field in result) {
-      (result as any)[field] = "[REDACTED]";
+      (result as Record<string, unknown>)[field] = "[REDACTED]";
     }
   }
   

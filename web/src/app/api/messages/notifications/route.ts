@@ -2,7 +2,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { getRepliesToUser, getLikesToUser, getMentionsToUser, getSystemNotifications } from "@/lib/blog";
+import { commentRepository, postRepository, userRepository } from "@/lib/repositories";
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { errorResponses, paginatedResponse } from "@/lib/api-response";
@@ -14,8 +14,33 @@ const querySchema = z.object({
   size: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+type SenderActivity = {
+  sender: string;
+  content?: string;
+  created_at: string;
+  post_title: string;
+  post_slug: string;
+};
+
+type SenderActivityWithProfile = SenderActivity & {
+  sender_nickname: string;
+  sender_avatar: string;
+};
+
+function enrichSender<T extends { sender: string }>(items: T[]) {
+  const rows = userRepository.listBasicByUsernames(items.map((item) => item.sender));
+  const userMap = new Map(rows.map((row) => [row.username, row]));
+  return items.map((item) => {
+    const user = userMap.get(item.sender);
+    return {
+      ...item,
+      sender_nickname: user?.nickname || item.sender,
+      sender_avatar: user?.avatar_url || "",
+    };
+  });
+}
+
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  // 验证用户认证
   const user = await getAuthUser();
   if (!user) {
     return errorResponses.unauthorized("请先登录");
@@ -23,21 +48,31 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { type, page, size } = await validateQuery(req, querySchema);
 
-  // 获取对应类型通知
-  let items: any[] = [];
+  let items: SenderActivityWithProfile[] = [];
   let total = 0;
 
   if (type === "replies") {
-    items = getRepliesToUser(user, page, size);
+    items = enrichSender(commentRepository.getRepliesToUser(user, page, size));
     total = items.length;
   } else if (type === "likes") {
-    items = getLikesToUser(user, page, size);
+    items = enrichSender(postRepository.getLikesToUser(user, page, size));
     total = items.length;
   } else if (type === "at") {
-    items = getMentionsToUser(user, page, size);
+    items = enrichSender(commentRepository.getMentionsToUser(user, page, size));
     total = items.length;
   } else if (type === "system") {
-    items = getSystemNotifications(user);
+    const now = new Date().toISOString();
+    items = [
+      {
+        sender: "system",
+        sender_nickname: "系统通知",
+        sender_avatar: "",
+        content: `欢迎来到 witweb，${user}！在这里你可以分享你的故事。`,
+        created_at: now,
+        post_title: "站点公告",
+        post_slug: "#",
+      },
+    ];
     total = items.length;
   }
 

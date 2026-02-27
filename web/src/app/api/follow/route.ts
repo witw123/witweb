@@ -1,6 +1,6 @@
-import { initDb } from "@/lib/db-init";
+﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
-import { followUser } from "@/lib/follow";
+import { userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
@@ -16,7 +16,9 @@ export const POST = withErrorHandler(async (req: Request) => {
   assertAuthenticated(user);
 
   const body = await validateBody(req, followSchema);
-  followUser(user, body.username);
+  if (user !== body.username) {
+    userRepository.follow(user, body.username);
+  }
 
   return successResponse({ ok: true });
 });

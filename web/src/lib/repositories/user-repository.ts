@@ -183,6 +183,59 @@ export class UserRepository extends BaseRepository<User, number> {
     return { items, total, page: validPage, size: validSize };
   }
 
+  listAdmin(
+    page = 1,
+    size = 20,
+    search = "",
+    sort = "created_at_desc",
+    options?: QueryOptions
+  ): PaginatedResult<Pick<User, "username" | "created_at">> {
+    const { page: validPage, size: validSize, offset } = this.normalizePagination(page, size);
+    const keyword = search.trim();
+
+    let where = "";
+    const params: unknown[] = [];
+    if (keyword) {
+      where = "WHERE username LIKE ?";
+      params.push(`%${keyword}%`);
+    }
+
+    const totalSql = `SELECT COUNT(*) AS cnt FROM users ${where}`;
+    const total = (this.queryOne<{ cnt: number }>(totalSql, params, options)?.cnt) || 0;
+
+    let orderBy = "created_at DESC";
+    if (sort === "created_at_asc") orderBy = "created_at ASC";
+    if (sort === "username_asc") orderBy = "username ASC";
+    if (sort === "username_desc") orderBy = "username DESC";
+
+    const sql = `SELECT username, created_at FROM users ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+    const items = this.query<Pick<User, "username" | "created_at">>(
+      sql,
+      [...params, validSize, offset],
+      options
+    );
+
+    return { items, total, page: validPage, size: validSize };
+  }
+
+  listBasicByUsernames(
+    usernames: string[],
+    options?: QueryOptions
+  ): Array<Pick<User, "username" | "nickname" | "avatar_url">> {
+    const unique = Array.from(new Set(usernames.map((item) => item?.trim()).filter(Boolean)));
+    if (unique.length === 0) return [];
+
+    const placeholders = unique.map(() => "?").join(", ");
+    const sql = `SELECT username, nickname, avatar_url FROM users WHERE username IN (${placeholders})`;
+    return this.query<Pick<User, "username" | "nickname" | "avatar_url">>(sql, unique, options);
+  }
+
+  deleteFollowRelations(username: string, options?: QueryOptions): number {
+    const sql = `DELETE FROM follows WHERE follower = ? OR following = ?`;
+    const result = this.run(sql, [username, username], options);
+    return result.changes;
+  }
+
 
   /**
    */

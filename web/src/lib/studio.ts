@@ -1,6 +1,6 @@
 ﻿import path from "path";
 import fs from "fs";
-import { getStudioDb } from "./db";
+import { videoTaskRepository } from "./repositories";
 import { apiConfig } from "./config";
 import { maskSensitiveValue } from "./security";
 
@@ -25,32 +25,50 @@ type StudioConfig = {
   api_key?: string;
   token?: string;
   host_mode?: string;
-  query_defaults?: Record<string, any>;
+  query_defaults?: Record<string, unknown>;
 };
 
-function getConfigRows() {
-  const db = getStudioDb();
-  return db.prepare("SELECT key, value FROM studio_config").all() as any[];
-}
+type ResultEnvelope<T> = {
+  code?: number;
+  msg?: string;
+  data?: T;
+};
+
+type TaskIdPayload = { id?: string };
+
+type ResultItem = {
+  url: string;
+  pid?: string;
+};
+
+type RemoteTaskResult = {
+  status?: string;
+  progress?: number;
+  error?: string;
+  failure_reason?: string;
+  results?: ResultItem[];
+};
+
+type HistoryRow = {
+  file?: string | null;
+  prompt?: string | null;
+  time?: number;
+  id?: string | null;
+  pid?: string | null;
+  url?: string | null;
+  duration_seconds?: number | null;
+};
 
 export function getConfig(): StudioConfig {
-  const rows = getConfigRows();
-  const cfg: StudioConfig = {};
-  rows.forEach((row) => {
-    try {
-      cfg[row.key as keyof StudioConfig] = JSON.parse(row.value);
-    } catch {
-      cfg[row.key as keyof StudioConfig] = row.value;
-    }
-  });
+  const cfg = videoTaskRepository.getConfig() as StudioConfig;
+  if (!cfg.query_defaults || typeof cfg.query_defaults !== "object") {
+    cfg.query_defaults = {};
+  }
   return cfg;
 }
 
-function setConfigValue(key: string, value: any) {
-  const db = getStudioDb();
-  const payload = JSON.stringify(value);
-  db.prepare("INSERT INTO studio_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-    .run(key, payload);
+function setConfigValue(key: string, value: unknown) {
+  videoTaskRepository.setConfigValue(key as keyof StudioConfig, value);
 }
 
 export function setApiKey(api_key: string) {
@@ -63,8 +81,6 @@ export function setToken(token: string) {
   setConfigValue("token", token);
 }
 
-/**
- */
 export function getApiStatus() {
   const apiKey = getApiKey();
   return {
@@ -79,7 +95,7 @@ export function setHostMode(host_mode: string) {
   setConfigValue("host_mode", host_mode);
 }
 
-export function setQueryDefaults(data: Record<string, any>) {
+export function setQueryDefaults(data: Record<string, unknown>) {
   const cfg = getConfig();
   const current = typeof cfg.query_defaults === "object" && cfg.query_defaults ? cfg.query_defaults : {};
   setConfigValue("query_defaults", { ...current, ...data });
@@ -97,26 +113,24 @@ function iterHosts() {
   return [HOSTS.domestic, HOSTS.overseas];
 }
 
-/**
- */
 function getApiKey(): string | undefined {
   const envKey = apiConfig.sora2.apiKey || apiConfig.grsai.token;
   if (envKey) {
     return envKey;
   }
-  
+
   const cfg = getConfig();
   return cfg.api_key || cfg.token;
 }
 
-async function postJson(pathname: string, payload: any, headers: Record<string, string> = {}) {
+async function postJson(pathname: string, payload: unknown, headers: Record<string, string> = {}) {
   const apiKey = getApiKey();
   const authHeader = apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined;
-  
+
   if (!apiKey && typeof window === "undefined") {
     console.warn("[API WARNING] No API key configured. Set SORA2_API_KEY or GRSAI_TOKEN environment variable.");
   }
-  let lastErr: any = null;
+  let lastErr: unknown = null;
   for (const host of iterHosts()) {
     for (let i = 0; i < 3; i += 1) {
       try {
@@ -127,7 +141,7 @@ async function postJson(pathname: string, payload: any, headers: Record<string, 
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = (await res.json()) as ResultEnvelope<unknown>;
         if (data && typeof data === "object" && data.code && data.code !== 0) {
           throw new Error(data.msg || "API error");
         }
@@ -140,30 +154,27 @@ async function postJson(pathname: string, payload: any, headers: Record<string, 
   throw lastErr || new Error("Network error");
 }
 
-
-function extractData(resp: any) {
-  if (resp && typeof resp === "object" && "data" in resp) return resp.data;
-  return resp;
+function extractData<T>(resp: unknown): T {
+  if (resp && typeof resp === "object" && "data" in resp) {
+    return (resp as ResultEnvelope<T>).data as T;
+  }
+  return resp as T;
 }
 
 function saveTaskTime(taskId: string, ts: number) {
-  const db = getStudioDb();
-  db.prepare("INSERT OR REPLACE INTO studio_task_times (task_id, ts) VALUES (?, ?)").run(taskId, ts);
+  videoTaskRepository.recordTaskTime(taskId, ts);
 }
 
 function getTaskTime(taskId: string) {
-  const db = getStudioDb();
-  const row = db.prepare("SELECT ts FROM studio_task_times WHERE task_id = ?").get(taskId) as any;
-  return row?.ts as number | undefined;
+  return videoTaskRepository.getTaskTime(taskId) || undefined;
 }
 
 function deleteTaskTime(taskId: string) {
-  const db = getStudioDb();
-  db.prepare("DELETE FROM studio_task_times WHERE task_id = ?").run(taskId);
+  videoTaskRepository.deleteTaskTime(taskId);
 }
 
-export async function createVideoTask(payload: any) {
-  const data = extractData(await postJson(CREATE_API, payload));
+export async function createVideoTask(payload: unknown) {
+  const data = extractData<TaskIdPayload>(await postJson(CREATE_API, payload));
   const taskId = data?.id;
   if (!taskId) throw new Error("Missing task id");
   saveTaskTime(taskId, Math.floor(Date.now() / 1000));
@@ -171,18 +182,15 @@ export async function createVideoTask(payload: any) {
 }
 
 export async function getResult(taskId: string) {
-  return extractData(await postJson(RESULT_API, { id: taskId }));
+  return extractData<RemoteTaskResult>(await postJson(RESULT_API, { id: taskId }));
 }
 
-
 export function removeActiveTask(taskId: string) {
-  const db = getStudioDb();
-  db.prepare("DELETE FROM studio_active_tasks WHERE id = ?").run(taskId);
+  videoTaskRepository.removeActiveTask(taskId);
 }
 
 export function getActiveTasks() {
-  const db = getStudioDb();
-  return db.prepare("SELECT id, prompt, start_time FROM studio_active_tasks ORDER BY start_time DESC").all();
+  return videoTaskRepository.getActiveTasks();
 }
 
 function download(url: string, target: string) {
@@ -194,14 +202,20 @@ function download(url: string, target: string) {
 }
 
 function saveHistory(file: string, prompt: string, taskId?: string, pid?: string, url?: string, durationSeconds?: number | null) {
-  const db = getStudioDb();
-  db.prepare("INSERT INTO studio_history (file, prompt, time, task_id, pid, url, duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(file, prompt, Math.floor(Date.now() / 1000), taskId || null, pid || null, url || null, durationSeconds ?? null);
+  videoTaskRepository.addHistory({
+    file,
+    prompt,
+    task_id: taskId,
+    pid,
+    url,
+    duration_seconds: durationSeconds ?? undefined,
+  });
 }
 
 export async function finalizeVideo(taskId: string, prompt: string) {
-  const db = getStudioDb();
-  const history = db.prepare("SELECT file, url, pid FROM studio_history WHERE task_id = ? ORDER BY time DESC").get(taskId) as any;
+  const history = videoTaskRepository.getHistoryByTaskId(taskId) as
+    | { file?: string; url?: string; pid?: string }
+    | null;
   if (history?.file && fs.existsSync(history.file)) {
     return { id: taskId, file: history.file, url: history.url, pid: history.pid };
   }
@@ -224,31 +238,38 @@ export async function finalizeVideo(taskId: string, prompt: string) {
   return { id: taskId, file: filename, url: videoUrl, pid };
 }
 
-export async function uploadCharacterTask(payload: any) {
-  const data = extractData(await postJson(UPLOAD_CHARACTER_API, payload));
+export async function uploadCharacterTask(payload: unknown) {
+  const data = extractData<TaskIdPayload>(await postJson(UPLOAD_CHARACTER_API, payload));
   const taskId = data?.id;
   if (!taskId) throw new Error("Missing task id");
   return taskId;
 }
 
-export async function createCharacterTask(payload: any) {
-  const data = extractData(await postJson(CREATE_CHARACTER_API, payload));
+export async function createCharacterTask(payload: unknown) {
+  const data = extractData<TaskIdPayload>(await postJson(CREATE_CHARACTER_API, payload));
   const taskId = data?.id;
   if (!taskId) throw new Error("Missing task id");
   return taskId;
 }
 
 export function getHistory() {
-  const db = getStudioDb();
-  return db.prepare("SELECT file, prompt, time, task_id as id, pid, url, duration_seconds FROM studio_history ORDER BY time DESC").all();
+  return videoTaskRepository.getHistory().map((item) => ({
+    file: item.file,
+    prompt: item.prompt,
+    time: item.time,
+    id: item.task_id,
+    pid: item.pid,
+    url: item.url,
+    duration_seconds: item.duration_seconds,
+  }));
 }
 
 export function getLocalVideos() {
   ensureDirs();
   if (!fs.existsSync(downloadDir)) return [];
-  const names = fs.readdirSync(downloadDir).filter((n) => n.toLowerCase().endsWith('.mp4'));
-  const history = getHistory() as any[];
-  const map = new Map<string, any>();
+  const names = fs.readdirSync(downloadDir).filter((n) => n.toLowerCase().endsWith(".mp4"));
+  const history = getHistory() as HistoryRow[];
+  const map = new Map<string, HistoryRow>();
   history.forEach((h) => {
     if (h.file) map.set(h.file, h);
     map.set(path.basename(h.file || ""), h);
@@ -276,6 +297,5 @@ export function deleteVideo(name: string) {
   const file = path.join(downloadDir, name);
   if (!fs.existsSync(file)) throw new Error("file not found");
   fs.unlinkSync(file);
-  const db = getStudioDb();
-  db.prepare("DELETE FROM studio_history WHERE file = ?").run(file);
+  videoTaskRepository.deleteHistoryByFile(file);
 }

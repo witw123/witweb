@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
 
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
 export function SettingsPanel() {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -55,8 +59,8 @@ export function SettingsPanel() {
       if (!res.ok) throw new Error("保存失败");
       setStatus({ type: "success", msg: "设置已保存" });
       setConfig((prev) => ({ ...prev, [key]: value }));
-    } catch (err: any) {
-      setStatus({ type: "error", msg: err.message || "保存失败" });
+    } catch (err: unknown) {
+      setStatus({ type: "error", msg: errorMessage(err, "保存失败") });
     } finally {
       setSaving(false);
     }

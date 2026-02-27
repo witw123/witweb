@@ -1,5 +1,5 @@
 ﻿import "server-only";
-import { getStudioDb } from "./db";
+import { topicRadarRepository } from "./repositories";
 
 export type RadarSourceType = "rss" | "html" | "api";
 
@@ -141,6 +141,10 @@ type InsertedRadarItem = {
   score: number;
 };
 
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -215,10 +219,11 @@ function resolveUrl(baseUrl: string, inputUrl: string): string {
 function getByPath(input: unknown, path: string): unknown {
   if (!path) return input;
   const parts = path.split(".").filter(Boolean);
-  let cursor: any = input;
+  let cursor: unknown = input;
   for (const part of parts) {
-    if (cursor == null) return undefined;
-    cursor = cursor[part];
+    const record = toRecord(cursor);
+    if (!record) return undefined;
+    cursor = record[part];
   }
   return cursor;
 }
@@ -302,37 +307,13 @@ async function sendWebhookNotification(
 async function dispatchAlertsForItems(username: string, items: InsertedRadarItem[]) {
   if (items.length === 0) return;
 
-  const db = getStudioDb();
-  const channels = db
-    .prepare(
-      `SELECT id, created_by, type, name, webhook_url, secret, enabled, created_at, updated_at
-       FROM radar_notifications
-       WHERE created_by = ? AND enabled = 1
-       ORDER BY id DESC`
-    )
-    .all(username) as RadarNotification[];
+  const channels = topicRadarRepository.listEnabledNotificationsByUser(username) as RadarNotification[];
   if (channels.length === 0) return;
 
-  const rules = db
-    .prepare(
-      `SELECT id, created_by, name, rule_type, keyword, source_id, min_score, channel_id, enabled, created_at, updated_at
-       FROM radar_alert_rules
-       WHERE created_by = ? AND enabled = 1
-       ORDER BY id DESC`
-    )
-    .all(username) as RadarAlertRule[];
+  const rules = topicRadarRepository.listEnabledAlertRulesByUser(username) as RadarAlertRule[];
   if (rules.length === 0) return;
 
   const channelById = new Map(channels.map((item) => [item.id, item]));
-
-  const hasSent = db.prepare(
-    "SELECT id FROM radar_alert_logs WHERE item_id = ? AND channel_id = ? AND rule_id = ? LIMIT 1"
-  );
-  const insertLog = db.prepare(
-    `INSERT INTO radar_alert_logs
-     (created_by,item_id,channel_id,rule_id,status,response_text,error_text,sent_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  );
 
   for (const item of items) {
     for (const rule of rules) {
@@ -340,68 +321,47 @@ async function dispatchAlertsForItems(username: string, items: InsertedRadarItem
       if (!channel || channel.enabled !== 1) continue;
       if (!shouldTriggerRule(rule, item)) continue;
 
-      const existing = hasSent.get(item.id, channel.id, rule.id) as { id: number } | undefined;
-      if (existing) continue;
+      if (topicRadarRepository.hasAlertLog(item.id, channel.id, rule.id)) continue;
 
       const sendResult = await sendWebhookNotification(channel, rule, item);
-      insertLog.run(
+      topicRadarRepository.insertAlertLog({
         username,
-        item.id,
-        channel.id,
-        rule.id,
-        sendResult.ok ? "success" : "failed",
-        sendResult.responseText || "",
-        sendResult.errorText || "",
-        nowIso()
-      );
+        itemId: item.id,
+        channelId: channel.id,
+        ruleId: rule.id,
+        status: sendResult.ok ? "success" : "failed",
+        responseText: sendResult.responseText || "",
+        errorText: sendResult.errorText || "",
+        sentAt: nowIso(),
+      });
     }
   }
 }
 
 function ensureDefaultRadarSources(username: string) {
-  const db = getStudioDb();
-  const existing = db.prepare("SELECT url FROM topic_sources WHERE created_by = ?").all(username) as Array<{ url: string }>;
+  const existing = topicRadarRepository.listSourceUrlsByUser(username);
   const existingSet = new Set(existing.map((item) => item.url.trim().toLowerCase()));
-
-  const insert = db.prepare(
-    `INSERT INTO topic_sources (name,url,type,parser_config_json,enabled,created_by,created_at,updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  );
   const ts = nowIso();
 
-  const tx = db.transaction(() => {
-    for (const source of DEFAULT_RADAR_SOURCES) {
-      const key = source.url.trim().toLowerCase();
-      if (existingSet.has(key)) continue;
-      insert.run(
-        source.name,
-        source.url,
-        source.type,
-        JSON.stringify({ group: source.group, preset: true }),
-        source.enabled === false ? 0 : 1,
-        username,
-        ts,
-        ts
-      );
-      existingSet.add(key);
-    }
-  });
-
-  tx();
+  for (const source of DEFAULT_RADAR_SOURCES) {
+    const key = source.url.trim().toLowerCase();
+    if (existingSet.has(key)) continue;
+    topicRadarRepository.insertSource({
+      name: source.name,
+      url: source.url,
+      type: source.type,
+      parserConfigJson: JSON.stringify({ group: source.group, preset: true }),
+      enabled: source.enabled === false ? 0 : 1,
+      username,
+      ts,
+    });
+    existingSet.add(key);
+  }
 }
 
 export function listRadarSources(username: string): RadarSource[] {
   ensureDefaultRadarSources(username);
-  const db = getStudioDb();
-  return db
-    .prepare(
-      `SELECT id,name,url,type,parser_config_json,enabled,created_by,created_at,updated_at
-              ,last_fetch_status,last_fetch_error,last_fetched_at,last_fetch_count
-       FROM topic_sources
-       WHERE created_by = ?
-       ORDER BY id DESC`
-    )
-    .all(username) as RadarSource[];
+  return topicRadarRepository.listSourcesByUser(username) as RadarSource[];
 }
 
 export function createRadarSource(input: {
@@ -412,25 +372,18 @@ export function createRadarSource(input: {
   parserConfigJson?: string;
   enabled?: boolean;
 }) {
-  const db = getStudioDb();
   const ts = nowIso();
-  const result = db
-    .prepare(
-      `INSERT INTO topic_sources (name,url,type,parser_config_json,enabled,created_by,created_at,updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      input.name,
-      input.url,
-      input.type,
-      input.parserConfigJson || "{}",
-      input.enabled === false ? 0 : 1,
-      input.username,
+  return {
+    id: topicRadarRepository.insertSource({
+      name: input.name,
+      url: input.url,
+      type: input.type,
+      parserConfigJson: input.parserConfigJson || "{}",
+      enabled: input.enabled === false ? 0 : 1,
+      username: input.username,
       ts,
-      ts
-    );
-
-  return { id: Number(result.lastInsertRowid) };
+    }),
+  };
 }
 
 export function updateRadarSource(
@@ -444,84 +397,31 @@ export function updateRadarSource(
     enabled?: boolean;
   }
 ) {
-  const db = getStudioDb();
-  const existing = db
-    .prepare("SELECT id FROM topic_sources WHERE id = ? AND created_by = ?")
-    .get(sourceId, username) as { id: number } | undefined;
-  if (!existing) throw new Error("source_not_found");
+  if (!topicRadarRepository.sourceExistsByIdAndUser(sourceId, username)) throw new Error("source_not_found");
 
-  db.prepare(
-    `UPDATE topic_sources
-     SET name = COALESCE(?, name),
-         url = COALESCE(?, url),
-         type = COALESCE(?, type),
-         parser_config_json = COALESCE(?, parser_config_json),
-         enabled = COALESCE(?, enabled),
-         updated_at = ?
-     WHERE id = ? AND created_by = ?`
-  ).run(
-    patch.name ?? null,
-    patch.url ?? null,
-    patch.type ?? null,
-    patch.parserConfigJson ?? null,
-    patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
-    nowIso(),
-    sourceId,
-    username
-  );
+  topicRadarRepository.updateSource(sourceId, username, {
+    ...patch,
+    ts: nowIso(),
+  });
 }
 
 export function deleteRadarSource(sourceId: number, username: string) {
-  const db = getStudioDb();
-  const tx = db.transaction(() => {
-    db.prepare("DELETE FROM topic_items WHERE source_id = ?").run(sourceId);
-    const r = db.prepare("DELETE FROM topic_sources WHERE id = ? AND created_by = ?").run(sourceId, username);
-    if (r.changes === 0) throw new Error("source_not_found");
-  });
-  tx();
+  const deleted = topicRadarRepository.deleteSourceWithItems(sourceId, username);
+  if (!deleted) throw new Error("source_not_found");
 }
 
 export function listRadarItems(username: string, options: { limit?: number; q?: string; sourceId?: number } = {}) {
   ensureDefaultRadarSources(username);
-  const db = getStudioDb();
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
-  const where: string[] = ["s.created_by = ?"];
-  const args: any[] = [username];
-
-  if (options.q?.trim()) {
-    where.push("(i.title LIKE ? OR i.summary LIKE ?)");
-    args.push(`%${options.q.trim()}%`, `%${options.q.trim()}%`);
-  }
-  if (options.sourceId) {
-    where.push("i.source_id = ?");
-    args.push(options.sourceId);
-  }
-
-  args.push(limit);
-
-  return db
-    .prepare(
-      `SELECT i.id, i.source_id, i.title, i.url, i.summary, i.published_at, i.score, i.raw_json, i.fetched_at,
-              s.name AS source_name
-       FROM topic_items i
-       JOIN topic_sources s ON s.id = i.source_id
-       WHERE ${where.join(" AND ")}
-       ORDER BY i.score DESC, i.published_at DESC
-       LIMIT ?`
-    )
-    .all(...args) as Array<RadarItem & { source_name: string }>;
+  return topicRadarRepository.listItemsByUser(username, {
+    limit,
+    q: options.q,
+    sourceId: options.sourceId,
+  }) as Array<RadarItem & { source_name: string }>;
 }
 
 export function listRadarNotifications(username: string): RadarNotification[] {
-  const db = getStudioDb();
-  return db
-    .prepare(
-      `SELECT id, created_by, type, name, webhook_url, secret, enabled, created_at, updated_at
-       FROM radar_notifications
-       WHERE created_by = ?
-       ORDER BY id DESC`
-    )
-    .all(username) as RadarNotification[];
+  return topicRadarRepository.listNotificationsByUser(username) as RadarNotification[];
 }
 
 export function createRadarNotification(input: {
@@ -531,16 +431,17 @@ export function createRadarNotification(input: {
   secret?: string;
   enabled?: boolean;
 }) {
-  const db = getStudioDb();
   const ts = nowIso();
-  const result = db
-    .prepare(
-      `INSERT INTO radar_notifications
-       (created_by,type,name,webhook_url,secret,enabled,created_at,updated_at)
-       VALUES (?, 'webhook', ?, ?, ?, ?, ?, ?)`
-    )
-    .run(input.username, input.name, input.webhookUrl, input.secret || "", input.enabled === false ? 0 : 1, ts, ts);
-  return { id: Number(result.lastInsertRowid) };
+  return {
+    id: topicRadarRepository.createNotification({
+      username: input.username,
+      name: input.name,
+      webhookUrl: input.webhookUrl,
+      secret: input.secret || "",
+      enabled: input.enabled === false ? 0 : 1,
+      ts,
+    }),
+  };
 }
 
 export function updateRadarNotification(
@@ -548,53 +449,22 @@ export function updateRadarNotification(
   username: string,
   patch: { name?: string; webhookUrl?: string; secret?: string; enabled?: boolean }
 ) {
-  const db = getStudioDb();
-  const existing = db
-    .prepare("SELECT id FROM radar_notifications WHERE id = ? AND created_by = ?")
-    .get(notificationId, username) as { id: number } | undefined;
-  if (!existing) throw new Error("notification_not_found");
-
-  db.prepare(
-    `UPDATE radar_notifications
-     SET name = COALESCE(?, name),
-         webhook_url = COALESCE(?, webhook_url),
-         secret = COALESCE(?, secret),
-         enabled = COALESCE(?, enabled),
-         updated_at = ?
-     WHERE id = ? AND created_by = ?`
-  ).run(
-    patch.name ?? null,
-    patch.webhookUrl ?? null,
-    patch.secret ?? null,
-    patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
-    nowIso(),
-    notificationId,
-    username
-  );
+  if (!topicRadarRepository.notificationExistsByIdAndUser(notificationId, username)) {
+    throw new Error("notification_not_found");
+  }
+  topicRadarRepository.updateNotification(notificationId, username, {
+    ...patch,
+    ts: nowIso(),
+  });
 }
 
 export function deleteRadarNotification(notificationId: number, username: string) {
-  const db = getStudioDb();
-  const tx = db.transaction(() => {
-    db.prepare("DELETE FROM radar_alert_rules WHERE channel_id = ? AND created_by = ?").run(notificationId, username);
-    const result = db.prepare("DELETE FROM radar_notifications WHERE id = ? AND created_by = ?").run(notificationId, username);
-    if (result.changes === 0) throw new Error("notification_not_found");
-  });
-  tx();
+  const deleted = topicRadarRepository.deleteNotificationWithRules(notificationId, username);
+  if (!deleted) throw new Error("notification_not_found");
 }
 
 export function listRadarAlertRules(username: string): Array<RadarAlertRule & { channel_name: string }> {
-  const db = getStudioDb();
-  return db
-    .prepare(
-      `SELECT r.id, r.created_by, r.name, r.rule_type, r.keyword, r.source_id, r.min_score, r.channel_id, r.enabled, r.created_at, r.updated_at,
-              n.name AS channel_name
-       FROM radar_alert_rules r
-       JOIN radar_notifications n ON n.id = r.channel_id
-       WHERE r.created_by = ?
-       ORDER BY r.id DESC`
-    )
-    .all(username) as Array<RadarAlertRule & { channel_name: string }>;
+  return topicRadarRepository.listAlertRulesByUser(username) as Array<RadarAlertRule & { channel_name: string }>;
 }
 
 export function createRadarAlertRule(input: {
@@ -607,32 +477,23 @@ export function createRadarAlertRule(input: {
   channelId: number;
   enabled?: boolean;
 }) {
-  const db = getStudioDb();
-  const channel = db
-    .prepare("SELECT id FROM radar_notifications WHERE id = ? AND created_by = ?")
-    .get(input.channelId, input.username) as { id: number } | undefined;
+  const channel = topicRadarRepository.notificationExistsByIdAndUser(input.channelId, input.username);
   if (!channel) throw new Error("notification_not_found");
 
   const ts = nowIso();
-  const result = db
-    .prepare(
-      `INSERT INTO radar_alert_rules
-       (created_by,name,rule_type,keyword,source_id,min_score,channel_id,enabled,created_at,updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      input.username,
-      input.name,
-      input.ruleType,
-      input.keyword || "",
-      input.sourceId ?? null,
-      input.minScore ?? 0,
-      input.channelId,
-      input.enabled === false ? 0 : 1,
+  return {
+    id: topicRadarRepository.createAlertRule({
+      username: input.username,
+      name: input.name,
+      ruleType: input.ruleType,
+      keyword: input.keyword || "",
+      sourceId: input.sourceId ?? null,
+      minScore: input.minScore ?? 0,
+      channelId: input.channelId,
+      enabled: input.enabled === false ? 0 : 1,
       ts,
-      ts
-    );
-  return { id: Number(result.lastInsertRowid) };
+    }),
+  };
 }
 
 export function updateRadarAlertRule(
@@ -648,132 +509,59 @@ export function updateRadarAlertRule(
     enabled?: boolean;
   }
 ) {
-  const db = getStudioDb();
-  const existing = db
-    .prepare("SELECT id FROM radar_alert_rules WHERE id = ? AND created_by = ?")
-    .get(ruleId, username) as { id: number } | undefined;
-  if (!existing) throw new Error("rule_not_found");
+  if (!topicRadarRepository.alertRuleExistsByIdAndUser(ruleId, username)) throw new Error("rule_not_found");
 
   if (patch.channelId) {
-    const channel = db
-      .prepare("SELECT id FROM radar_notifications WHERE id = ? AND created_by = ?")
-      .get(patch.channelId, username) as { id: number } | undefined;
-    if (!channel) throw new Error("notification_not_found");
+    if (!topicRadarRepository.notificationExistsByIdAndUser(patch.channelId, username)) {
+      throw new Error("notification_not_found");
+    }
   }
 
-  db.prepare(
-    `UPDATE radar_alert_rules
-     SET name = COALESCE(?, name),
-         rule_type = COALESCE(?, rule_type),
-         keyword = COALESCE(?, keyword),
-         source_id = COALESCE(?, source_id),
-         min_score = COALESCE(?, min_score),
-         channel_id = COALESCE(?, channel_id),
-         enabled = COALESCE(?, enabled),
-         updated_at = ?
-     WHERE id = ? AND created_by = ?`
-  ).run(
-    patch.name ?? null,
-    patch.ruleType ?? null,
-    patch.keyword ?? null,
-    patch.sourceId === undefined ? null : patch.sourceId,
-    patch.minScore ?? null,
-    patch.channelId ?? null,
-    patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
-    nowIso(),
-    ruleId,
-    username
-  );
+  topicRadarRepository.updateAlertRule(ruleId, username, {
+    ...patch,
+    ts: nowIso(),
+  });
 }
 
 export function deleteRadarAlertRule(ruleId: number, username: string) {
-  const db = getStudioDb();
-  const result = db.prepare("DELETE FROM radar_alert_rules WHERE id = ? AND created_by = ?").run(ruleId, username);
-  if (result.changes === 0) throw new Error("rule_not_found");
+  const deleted = topicRadarRepository.deleteAlertRule(ruleId, username);
+  if (!deleted) throw new Error("rule_not_found");
 }
 
 export function listRadarAlertLogs(
   username: string,
   options: { limit?: number; status?: "success" | "failed" } = {}
 ): Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }> {
-  const db = getStudioDb();
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
-  const where: string[] = ["l.created_by = ?"];
-  const args: any[] = [username];
-
-  if (options.status) {
-    where.push("l.status = ?");
-    args.push(options.status);
-  }
-
-  args.push(limit);
-
-  return db
-    .prepare(
-      `SELECT l.id, l.created_by, l.item_id, l.channel_id, l.rule_id, l.status, l.response_text, l.error_text, l.sent_at,
-              r.name AS rule_name, n.name AS channel_name, i.title AS item_title
-       FROM radar_alert_logs l
-       JOIN radar_alert_rules r ON r.id = l.rule_id
-       JOIN radar_notifications n ON n.id = l.channel_id
-       JOIN topic_items i ON i.id = l.item_id
-       WHERE ${where.join(" AND ")}
-       ORDER BY l.sent_at DESC
-       LIMIT ?`
-    )
-    .all(...args) as Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>;
+  return topicRadarRepository.listAlertLogsByUser(username, {
+    limit,
+    status: options.status,
+  }) as Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>;
 }
 
 export function clearRadarItems(username: string, options: { sourceId?: number } = {}) {
   ensureDefaultRadarSources(username);
-  const db = getStudioDb();
 
   if (options.sourceId) {
-    const source = db
-      .prepare("SELECT id FROM topic_sources WHERE id = ? AND created_by = ?")
-      .get(options.sourceId, username) as { id: number } | undefined;
-    if (!source) throw new Error("source_not_found");
-    const result = db.prepare("DELETE FROM topic_items WHERE source_id = ?").run(options.sourceId);
-    return { deleted: result.changes };
+    if (!topicRadarRepository.sourceExistsByIdAndUser(options.sourceId, username)) {
+      throw new Error("source_not_found");
+    }
+    return { deleted: topicRadarRepository.clearItemsBySource(options.sourceId) };
   }
 
-  const result = db
-    .prepare(
-      `DELETE FROM topic_items
-       WHERE source_id IN (SELECT id FROM topic_sources WHERE created_by = ?)`
-    )
-    .run(username);
-  return { deleted: result.changes };
+  return { deleted: topicRadarRepository.clearItemsByUser(username) };
 }
 
 export function listRadarSavedTopics(
   username: string,
   options: { limit?: number; q?: string; kind?: "item" | "analysis" } = {}
 ) {
-  const db = getStudioDb();
   const limit = Math.min(Math.max(options.limit ?? 80, 1), 200);
-  const where: string[] = ["created_by = ?"];
-  const args: any[] = [username];
-
-  if (options.q?.trim()) {
-    where.push("(title LIKE ? OR summary LIKE ? OR content LIKE ?)");
-    const kw = `%${options.q.trim()}%`;
-    args.push(kw, kw, kw);
-  }
-  if (options.kind) {
-    where.push("kind = ?");
-    args.push(options.kind);
-  }
-  args.push(limit);
-
-  const rows = db
-    .prepare(
-      `SELECT id, created_by, kind, title, summary, content, source_name, source_url, score, tags_json, created_at, updated_at
-       FROM radar_topics
-       WHERE ${where.join(" AND ")}
-       ORDER BY id DESC
-       LIMIT ?`
-    )
-    .all(...args) as RadarSavedTopic[];
+  const rows = topicRadarRepository.listSavedTopicsByUser(username, {
+    limit,
+    q: options.q,
+    kind: options.kind,
+  }) as RadarSavedTopic[];
 
   return rows.map((row) => ({
     ...row,
@@ -799,35 +587,26 @@ export function createRadarSavedTopic(input: {
   score?: number;
   tags?: string[];
 }) {
-  const db = getStudioDb();
   const ts = nowIso();
-  const result = db
-    .prepare(
-      `INSERT INTO radar_topics
-       (created_by, kind, title, summary, content, source_name, source_url, score, tags_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      input.username,
-      input.kind,
-      input.title,
-      input.summary || "",
-      input.content || "",
-      input.sourceName || "",
-      input.sourceUrl || "",
-      input.score ?? 0,
-      JSON.stringify((input.tags || []).map((item) => item.trim()).filter(Boolean).slice(0, 20)),
+  return {
+    id: topicRadarRepository.createSavedTopic({
+      username: input.username,
+      kind: input.kind,
+      title: input.title,
+      summary: input.summary || "",
+      content: input.content || "",
+      sourceName: input.sourceName || "",
+      sourceUrl: input.sourceUrl || "",
+      score: input.score ?? 0,
+      tagsJson: JSON.stringify((input.tags || []).map((item) => item.trim()).filter(Boolean).slice(0, 20)),
       ts,
-      ts
-    );
-
-  return { id: Number(result.lastInsertRowid) };
+    }),
+  };
 }
 
 export function deleteRadarSavedTopic(topicId: number, username: string) {
-  const db = getStudioDb();
-  const result = db.prepare("DELETE FROM radar_topics WHERE id = ? AND created_by = ?").run(topicId, username);
-  if (result.changes === 0) throw new Error("topic_not_found");
+  const deleted = topicRadarRepository.deleteSavedTopic(topicId, username);
+  if (!deleted) throw new Error("topic_not_found");
   return { id: topicId, deleted: true };
 }
 
@@ -945,7 +724,7 @@ async function fetchApiItems(sourceUrl: string, parser: ParserConfig): Promise<N
 
     return arr
       .slice(0, 80)
-      .map((item: any) => {
+      .map((item: unknown) => {
         const title = stripHtml(String(getByPath(item, titleKey) || ""));
         const link = String(getByPath(item, urlKey) || "");
         const summary = stripHtml(String(getByPath(item, summaryKey) || ""));
@@ -956,7 +735,7 @@ async function fetchApiItems(sourceUrl: string, parser: ParserConfig): Promise<N
           url,
           summary,
           publishedAt,
-          raw: item,
+          raw: toRecord(item) ?? { value: item },
         };
       })
       .filter((item) => item.title && /^https?:\/\//i.test(item.url));
@@ -968,8 +747,7 @@ async function fetchApiItems(sourceUrl: string, parser: ParserConfig): Promise<N
 export async function fetchRadarSourceNow(sourceId: number, username: string) {
   ensureDefaultRadarSources(username);
 
-  const db = getStudioDb();
-  const source = db.prepare("SELECT * FROM topic_sources WHERE id = ? AND created_by = ?").get(sourceId, username) as RadarSource | undefined;
+  const source = topicRadarRepository.getSourceByIdAndUser(sourceId, username) as RadarSource | null;
   if (!source) throw new Error("source_not_found");
 
   const parser = parseParserConfig(source.parser_config_json || "{}");
@@ -987,77 +765,36 @@ export async function fetchRadarSourceNow(sourceId: number, username: string) {
       throw new Error("source_type_not_supported");
     }
   } catch (error) {
-    db.prepare(
-      `UPDATE topic_sources
-       SET updated_at = ?,
-           last_fetch_status = 'failed',
-           last_fetch_error = ?,
-           last_fetched_at = ?,
-           last_fetch_count = 0
-       WHERE id = ?`
-    ).run(ts, error instanceof Error ? error.message : "fetch_failed", ts, source.id);
+    topicRadarRepository.markSourceFetchFailed(
+      source.id,
+      ts,
+      error instanceof Error ? error.message : "fetch_failed"
+    );
     throw error;
   }
 
-  const insert = db.prepare(
-    `INSERT OR IGNORE INTO topic_items
-     (source_id,title,url,summary,published_at,score,raw_json,fetched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  const persisted = topicRadarRepository.saveFetchedItemsAndMarkSourceSuccess(
+    { id: source.id, name: source.name },
+    items.map((item) => ({
+      title: item.title,
+      url: item.url,
+      summary: item.summary,
+      publishedAt: item.publishedAt,
+      score: totalScore(item.publishedAt),
+      rawJson: JSON.stringify(item.raw),
+    })),
+    ts
   );
 
-  let inserted = 0;
-  const insertedItems: InsertedRadarItem[] = [];
-  const tx = db.transaction(() => {
-    for (const item of items) {
-      const score = totalScore(item.publishedAt);
-      const r = insert.run(
-        source.id,
-        item.title,
-        item.url,
-        item.summary,
-        item.publishedAt,
-        score,
-        JSON.stringify(item.raw),
-        ts
-      );
-      inserted += r.changes;
-      if (r.changes > 0) {
-        insertedItems.push({
-          id: Number(r.lastInsertRowid),
-          source_id: source.id,
-          source_name: source.name,
-          title: item.title,
-          url: item.url,
-          summary: item.summary,
-          published_at: item.publishedAt,
-          score,
-        });
-      }
-    }
-    db.prepare(
-      `UPDATE topic_sources
-       SET updated_at = ?,
-           last_fetch_status = 'ok',
-           last_fetch_error = '',
-           last_fetched_at = ?,
-           last_fetch_count = ?
-       WHERE id = ?`
-    ).run(ts, ts, items.length, source.id);
-  });
-  tx();
+  await dispatchAlertsForItems(username, persisted.insertedItems as InsertedRadarItem[]);
 
-  await dispatchAlertsForItems(username, insertedItems);
-
-  return { sourceId: source.id, fetched: items.length, inserted };
+  return { sourceId: source.id, fetched: items.length, inserted: persisted.inserted };
 }
 
 export async function fetchAllEnabledSources(username: string) {
   ensureDefaultRadarSources(username);
 
-  const db = getStudioDb();
-  const sources = db
-    .prepare("SELECT id FROM topic_sources WHERE created_by = ? ORDER BY id DESC")
-    .all(username) as Array<{ id: number }>;
+  const sources = topicRadarRepository.listSourceIdsByUser(username);
 
   const results: Array<{ sourceId: number; fetched: number; inserted: number; error?: string }> = [];
   for (const source of sources) {

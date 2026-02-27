@@ -5,12 +5,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
 import { getThumbnailUrl } from "@/utils/url";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { PostListItem } from "@/types/blog";
 
 type PostCardProps = {
-  post: any;
+  post: PostListItem;
   token?: string | null;
-  onUpdate?: (updatedPost: any) => void;
+  onUpdate?: (updatedPost: PostListItem) => void;
   highlight?: string;
+};
+
+type PostMetricsData = {
+  like_count?: number;
+  dislike_count?: number;
+  comment_count?: number;
+  favorite_count?: number;
+  favorited?: boolean;
 };
 
 export default function PostCard({ post, token, onUpdate, highlight = "" }: PostCardProps) {
@@ -98,7 +108,7 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
               })
                 .then((res) => res.json())
                 .then((payload) => {
-                  const data = payload?.data || payload;
+                  const data = (payload as SuccessResponse<PostMetricsData> | undefined)?.data;
                   if (!data) return;
                   onUpdate?.({
                     ...post,
@@ -129,7 +139,7 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
               })
                 .then((res) => res.json())
                 .then((payload) => {
-                  const data = payload?.data || payload;
+                  const data = (payload as SuccessResponse<PostMetricsData> | undefined)?.data;
                   if (!data) return;
                   onUpdate?.({
                     ...post,
@@ -160,7 +170,7 @@ export default function PostCard({ post, token, onUpdate, highlight = "" }: Post
               })
                 .then((res) => res.json())
                 .then((payload) => {
-                  const data = payload?.data || payload;
+                  const data = (payload as SuccessResponse<PostMetricsData> | undefined)?.data;
                   if (!data) return;
                   onUpdate?.({
                     ...post,

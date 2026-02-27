@@ -4,13 +4,11 @@
 
 
 /**
- * 鏂囩珷鐘舵€?
  * Post status
  */
 export type PostStatus = 'published' | 'draft' | 'deleted';
 
 /**
- * 鏁版嵁搴撴枃绔犲疄浣?
  * Database Post Entity
  */
 export interface Post {
@@ -43,7 +41,6 @@ export interface Category {
 }
 
 /**
- * 璇勮瀹炰綋
  * Comment entity
  */
 export interface Comment {
@@ -61,7 +58,6 @@ export interface Comment {
 }
 
 /**
- * 鐐硅禐瀹炰綋
  * Like entity
  */
 export interface Like {
@@ -72,7 +68,6 @@ export interface Like {
 }
 
 /**
- * 韪╁疄浣?
  * Dislike entity
  */
 export interface Dislike {
@@ -83,7 +78,6 @@ export interface Dislike {
 }
 
 /**
- * 璇勮鎶曠エ瀹炰綋
  * Comment vote entity
  */
 export interface CommentVote {
@@ -95,7 +89,6 @@ export interface CommentVote {
 }
 
 /**
- * 鏀惰棌瀹炰綋
  * Favorite entity
  */
 export interface Favorite {
@@ -196,7 +189,6 @@ export interface CommentListItem extends Comment {
 export type ActivityType = 'post' | 'like' | 'comment';
 
 /**
- * 鐢ㄦ埛娲诲姩椤?
  * User activity item
  */
 export interface ActivityItem {
@@ -217,7 +209,6 @@ export interface ActivitiesResponse {
 }
 
 /**
- * 閫氱煡椤?
  * Notification item
  */
 export interface NotificationItem {
@@ -243,7 +234,6 @@ export interface CreatePostRequest {
 }
 
 /**
- * 鏇存柊鏂囩珷璇锋眰
  * Update post request
  */
 export interface UpdatePostRequest {
@@ -254,7 +244,6 @@ export interface UpdatePostRequest {
 }
 
 /**
- * 娣诲姞璇勮璇锋眰
  * Add comment request
  */
 export interface AddCommentRequest {
@@ -263,7 +252,6 @@ export interface AddCommentRequest {
 }
 
 /**
- * 鐐硅禐/韪╁搷搴?
  * Like/dislike response
  */
 export interface ToggleLikeResponse {
@@ -283,7 +271,6 @@ export interface ToggleFavoriteResponse {
 }
 
 /**
- * 璇勮鎶曠エ璇锋眰
  * Comment vote request
  */
 export interface VoteCommentRequest {
@@ -291,7 +278,6 @@ export interface VoteCommentRequest {
 }
 
 /**
- * 鏇存柊璇勮璇锋眰
  * Update comment request
  */
 export interface UpdateCommentRequest {

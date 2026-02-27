@@ -3,7 +3,7 @@
 
 import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
-import { listComments, addComment } from "@/lib/blog";
+import { commentRepository, postRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse, errorResponses, createdResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
@@ -23,10 +23,21 @@ export const GET = withErrorHandler(async (req, { params }) => {
   void req;
 
   const { slug } = paramsData;
+  const comments = commentRepository.findByPostSlug(slug);
 
-  const comments = listComments(slug);
+  const rows = userRepository.listBasicByUsernames(comments.map((item) => item.author));
+  const userMap = new Map(rows.map((row) => [row.username, row]));
 
-  return successResponse(comments);
+  const enriched = comments.map((item) => {
+    const user = userMap.get(item.author);
+    return {
+      ...item,
+      author_name: user?.nickname || item.author,
+      author_avatar: user?.avatar_url || "",
+    };
+  });
+
+  return successResponse(enriched);
 });
 
 /**
@@ -38,27 +49,29 @@ export const POST = withErrorHandler(async (req, { params }) => {
 
   const { slug } = paramsData;
 
-  // 验证请求体
   const body = await validateBody(req, createCommentSchema);
 
-  // 获取当前用户（可选）
   const user = await getAuthUser();
   const author = user || body.author || "访客";
 
-  // 获取客户端 IP
   const ip = req.headers.get("x-forwarded-for") || "";
 
-  // 处理 parent_id
   const parentId = body.parent_id
     ? (typeof body.parent_id === "string" ? parseInt(body.parent_id, 10) : body.parent_id)
     : null;
 
-  // 添加评论
-  const result = addComment(slug, author, body.content.trim(), parentId, ip);
-
-  if (!result.ok) {
+  const post = postRepository.findBySlug(slug);
+  if (!post) {
     return errorResponses.notFound("文章不存在");
   }
+
+  commentRepository.create({
+    post_id: post.id,
+    author,
+    content: body.content.trim(),
+    parent_id: parentId,
+    ip_address: ip,
+  });
 
   return createdResponse({ ok: true });
 });

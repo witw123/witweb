@@ -1,11 +1,8 @@
-﻿/**
- * 鐢ㄦ埛鐩稿叧绫诲瀷瀹氫箟
+/**
  * User-related type definitions
  */
 
-
 /**
- * 鏁版嵁搴撶敤鎴峰疄浣?
  * Database User Entity
  */
 export interface User {
@@ -107,9 +104,7 @@ export interface FollowerListResponse {
   size: number;
 }
 
-
 /**
- * 鐢ㄦ埛娉ㄥ唽璇锋眰
  * User registration request
  */
 export interface RegisterRequest {
@@ -119,7 +114,6 @@ export interface RegisterRequest {
 }
 
 /**
- * 鐢ㄦ埛鐧诲綍璇锋眰
  * User login request
  */
 export interface LoginRequest {
@@ -136,7 +130,6 @@ export interface LoginResponse {
 }
 
 /**
- * 鏇存柊鐢ㄦ埛璧勬枡璇锋眰
  * Update profile request
  */
 export interface UpdateProfileRequest {
@@ -146,12 +139,11 @@ export interface UpdateProfileRequest {
   bio?: string;
 }
 
-
 /**
  * User card component props
  */
 export interface UserCardProps {
-  user: Pick<UserProfile, 'username' | 'nickname' | 'avatar_url' | 'bio'>;
+  user: Pick<UserProfile, "username" | "nickname" | "avatar_url" | "bio">;
   showFollowButton?: boolean;
   isFollowing?: boolean;
   onFollowToggle?: (username: string) => void;
@@ -163,12 +155,11 @@ export interface UserCardProps {
 export interface UserAvatarProps {
   username: string;
   avatar_url: string | null;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: "sm" | "md" | "lg" | "xl";
   className?: string;
 }
 
 /**
- * 鐢ㄦ埛璧勬枡椤甸潰 Props
  * User profile page props
  */
 export interface UserProfilePageProps {
@@ -177,7 +168,7 @@ export interface UserProfilePageProps {
   };
 }
 
-// ============ 宸ュ叿绫诲瀷 ============
+// ============ Utility Types ============
 
 /**
  * User row for joins
@@ -199,7 +190,6 @@ export interface JWTPayload {
 }
 
 /**
- * 璁よ瘉鐢ㄦ埛淇℃伅
  * Authenticated user info
  */
 export interface AuthUser {

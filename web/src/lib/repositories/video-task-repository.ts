@@ -343,15 +343,15 @@ export class VideoTaskRepository extends BaseRepository<VideoTask, string> {
     const db = this.getDb(options);
     const rows = db.prepare("SELECT key, value FROM studio_config").all() as Array<{ key: string; value: string }>;
     
-    const cfg: StudioConfig = {};
+    const cfg: Record<string, unknown> = {};
     for (const row of rows) {
       try {
-        cfg[row.key as keyof StudioConfig] = JSON.parse(row.value);
+        cfg[row.key] = JSON.parse(row.value);
       } catch {
-        cfg[row.key as keyof StudioConfig] = row.value as any;
+        cfg[row.key] = row.value;
       }
     }
-    return cfg;
+    return cfg as StudioConfig;
   }
 
   /**
@@ -433,6 +433,12 @@ export class VideoTaskRepository extends BaseRepository<VideoTask, string> {
   deleteHistory(id: number, options?: QueryOptions): boolean {
     const sql = `DELETE FROM studio_history WHERE id = ?`;
     const result = this.run(sql, [id], options);
+    return result.changes > 0;
+  }
+
+  deleteHistoryByFile(file: string, options?: QueryOptions): boolean {
+    const sql = `DELETE FROM studio_history WHERE file = ?`;
+    const result = this.run(sql, [file], options);
     return result.changes > 0;
   }
 

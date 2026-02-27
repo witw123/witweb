@@ -5,13 +5,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import type { SuccessResponse } from "@/lib/api-response";
+import type { FollowingItem } from "@/types/user";
+
+function readSuccessData<T>(payload: unknown): T | null {
+  if (!payload || typeof payload !== "object") return null;
+  const parsed = payload as Partial<SuccessResponse<T>>;
+  if (parsed.success !== true) return null;
+  return parsed.data ?? null;
+}
 
 export default function FollowingPageContent() {
   const { token } = useAuth();
   const searchParams = useSearchParams();
   const username = searchParams.get("username");
 
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<FollowingItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadItems = useCallback(async () => {
@@ -22,8 +31,9 @@ export default function FollowingPageContent() {
         ? `/api/following?username=${encodeURIComponent(username)}&page=1&size=50`
         : `/api/following?page=1&size=50`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setItems(data.data?.items || []);
+      const data = await res.json().catch(() => ({}));
+      const payload = readSuccessData<{ items: FollowingItem[] }>(data);
+      setItems(payload?.items || []);
     } finally {
       setLoading(false);
     }

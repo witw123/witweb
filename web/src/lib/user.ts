@@ -1,20 +1,16 @@
-﻿import { getUsersDb } from "./db";
-import { followCounts, isFollowing } from "./follow";
-import { getUserLikesReceived, getPostCount, getActivityCount } from "./blog";
+﻿import { postRepository, userRepository } from "./repositories";
 import type { User, UserProfile } from "@/types";
 
 export function getUserByUsername(username: string): User | null {
-  const db = getUsersDb();
-  const row = db.prepare("SELECT id, username, password, role, nickname, avatar_url, cover_url, bio, balance, created_at FROM users WHERE username = ?")
-    .get(username) as User | undefined;
-  return row || null;
+  return userRepository.findByUsername(username);
 }
 
 export function publicProfile(username: string, viewer?: string | null): UserProfile | null {
   const user = getUserByUsername(username);
   if (!user) return null;
-  const counts = followCounts(username);
-  const likesReceived = getUserLikesReceived(username);
+
+  const counts = userRepository.getFollowCounts(username);
+  const likesReceived = postRepository.getUserLikesReceived(username);
   const profile: UserProfile = {
     username: user.username,
     role: user.role || "user",
@@ -25,14 +21,16 @@ export function publicProfile(username: string, viewer?: string | null): UserPro
     created_at: user.created_at,
     following_count: counts.following_count,
     follower_count: counts.follower_count,
-    post_count: getPostCount(username),
-    activity_count: getActivityCount(username),
+    post_count: postRepository.getPostCountByAuthor(username),
+    activity_count: postRepository.getActivityCount(username),
     like_received_count: likesReceived,
   };
+
   if (viewer && viewer !== username) {
-    profile.is_following = isFollowing(viewer, username);
+    profile.is_following = userRepository.isFollowing(viewer, username);
   } else {
     profile.is_following = false;
   }
+
   return profile;
 }
