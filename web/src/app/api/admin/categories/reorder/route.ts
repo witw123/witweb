@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -14,7 +13,6 @@ const reorderSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -22,7 +20,7 @@ export const POST = withErrorHandler(async (req: Request) => {
 
   const body = await validateBody(req, reorderSchema);
 
-  postRepository.reorderCategories(body.ids);
+  await postRepository.reorderCategories(body.ids);
 
   return successResponse({ reordered: true });
 });

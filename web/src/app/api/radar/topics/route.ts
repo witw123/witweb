@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, validateQuery, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { createRadarSavedTopic, listRadarSavedTopics } from "@/lib/topic-radar";
 
 const querySchema = z.object({
@@ -23,12 +22,11 @@ const bodySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const query = await validateQuery(req, querySchema);
 
-  const items = listRadarSavedTopics(user, {
+  const items = await listRadarSavedTopics(user, {
     limit: query.limit,
     q: query.q,
     kind: query.kind,
@@ -37,12 +35,11 @@ export const GET = withErrorHandler(async (req) => {
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const body = await validateBody(req, bodySchema);
 
-  const created = createRadarSavedTopic({
+  const created = await createRadarSavedTopic({
     username: user,
     kind: body.kind ?? "item",
     title: body.title,

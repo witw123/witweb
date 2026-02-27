@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { commentRepository, postRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler } from "@/middleware/error-handler";
@@ -19,13 +18,12 @@ const createCommentSchema = z.object({
  */
 export const GET = withErrorHandler(async (req, { params }) => {
   const paramsData = await params;
-  initDb();
   void req;
 
   const { slug } = paramsData;
-  const comments = commentRepository.findByPostSlug(slug);
+  const comments = await commentRepository.findByPostSlug(slug);
 
-  const rows = userRepository.listBasicByUsernames(comments.map((item) => item.author));
+  const rows = await userRepository.listBasicByUsernames(comments.map((item) => item.author));
   const userMap = new Map(rows.map((row) => [row.username, row]));
 
   const enriched = comments.map((item) => {
@@ -45,7 +43,6 @@ export const GET = withErrorHandler(async (req, { params }) => {
  */
 export const POST = withErrorHandler(async (req, { params }) => {
   const paramsData = await params;
-  initDb();
 
   const { slug } = paramsData;
 
@@ -60,12 +57,12 @@ export const POST = withErrorHandler(async (req, { params }) => {
     ? (typeof body.parent_id === "string" ? parseInt(body.parent_id, 10) : body.parent_id)
     : null;
 
-  const post = postRepository.findBySlug(slug);
+  const post = await postRepository.findBySlug(slug);
   if (!post) {
     return errorResponses.notFound("文章不存在");
   }
 
-  commentRepository.create({
+  await commentRepository.create({
     post_id: post.id,
     author,
     content: body.content.trim(),

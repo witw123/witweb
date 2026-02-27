@@ -1,6 +1,5 @@
-﻿import { getAuthUser, isAdminUser } from "@/lib/http";
+import { getAuthUser, isAdminUser } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
-import { initDb } from "@/lib/db-init";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
@@ -23,7 +22,6 @@ export const PUT = withErrorHandler(async (
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -37,7 +35,7 @@ export const PUT = withErrorHandler(async (
     finalAvatarUrl = await detectFriendLinkIcon(body.url);
   }
 
-  postRepository.updateFriendLink(id, {
+  await postRepository.updateFriendLink(id, {
     name: body.name,
     url: body.url,
     description: body.description || "",
@@ -53,14 +51,13 @@ export const DELETE = withErrorHandler(async (
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "Admin access required");
 
   const { id } = validateParams(await params, paramsSchema);
-  postRepository.deleteFriendLink(id);
+  await postRepository.deleteFriendLink(id);
 
   return successResponse({ message: "Friend link deleted successfully" });
 });

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 
  */
 
@@ -15,54 +15,46 @@ interface ConfigEntry {
 
 const configCache = new Map<SensitiveConfigKey, string>();
 
-/**
- */
-export function initSecureConfigTable(): void {
-  secureConfigRepository.initTable();
+export async function initSecureConfigTable(): Promise<void> {
+  await secureConfigRepository.initTable();
 }
 
-/**
- */
-export function setSecureConfig(key: SensitiveConfigKey, value: string): void {
+export async function setSecureConfig(key: SensitiveConfigKey, value: string): Promise<void> {
   if (!appConfig.encryptionKey) {
     throw new Error("ENCRYPTION_KEY not set. Cannot store sensitive config securely.");
   }
-  
+
   if (!value) {
     throw new Error("Value cannot be empty");
   }
-  
-  initSecureConfigTable();
-  
+
+  await initSecureConfigTable();
+
   const encrypted = encryptToString(value);
   const now = new Date().toISOString();
 
-  secureConfigRepository.upsert(key, encrypted, now);
-  
+  await secureConfigRepository.upsert(key, encrypted, now);
+
   configCache.set(key, value);
-  
+
   console.log(`[SecureConfig] Updated ${key} at ${now}`);
 }
 
-/**
- */
-export function getSecureConfig(key: SensitiveConfigKey): string | null {
+export async function getSecureConfig(key: SensitiveConfigKey): Promise<string | null> {
   if (configCache.has(key)) {
     return configCache.get(key)!;
   }
-  
-  initSecureConfigTable();
-  const row = secureConfigRepository.getByKey(key) as ConfigEntry | null;
-  
+
+  await initSecureConfigTable();
+  const row = (await secureConfigRepository.getByKey(key)) as ConfigEntry | null;
+
   if (!row) {
     return null;
   }
-  
+
   try {
     const decrypted = decryptFromString(row.value);
-    
     configCache.set(key, decrypted);
-    
     return decrypted;
   } catch (error) {
     console.error(`[SecureConfig] Failed to decrypt ${key}:`, error);
@@ -70,105 +62,80 @@ export function getSecureConfig(key: SensitiveConfigKey): string | null {
   }
 }
 
-/**
- */
-export function deleteSecureConfig(key: SensitiveConfigKey): void {
-  initSecureConfigTable();
-  secureConfigRepository.deleteByKey(key);
-  
+export async function deleteSecureConfig(key: SensitiveConfigKey): Promise<void> {
+  await initSecureConfigTable();
+  await secureConfigRepository.deleteByKey(key);
   configCache.delete(key);
-  
   console.log(`[SecureConfig] Deleted ${key}`);
 }
 
-/**
- */
 export function clearSecureConfigCache(): void {
   configCache.clear();
   console.log("[SecureConfig] Cache cleared");
 }
 
-/**
- */
-export function listSecureConfigKeys(): Array<{ key: string; updated_at: string }> {
-  initSecureConfigTable();
-  return secureConfigRepository.listKeys();
+export async function listSecureConfigKeys(): Promise<Array<{ key: string; updated_at: string }>> {
+  await initSecureConfigTable();
+  return await secureConfigRepository.listKeys();
 }
 
-/**
- */
-export function getSecureConfigStatus(): {
+export async function getSecureConfigStatus(): Promise<{
   keys: Array<{ key: string; updated_at: string; hasValue: boolean; preview: string | null }>;
   encryptionEnabled: boolean;
-} {
-  const keys = listSecureConfigKeys();
-  
+}> {
+  const keys = await listSecureConfigKeys();
+
   return {
-    keys: keys.map(k => {
-      const value = configCache.get(k.key as SensitiveConfigKey);
-      return {
-        key: k.key,
-        updated_at: k.updated_at,
-        hasValue: !!value || !!getSecureConfig(k.key as SensitiveConfigKey),
-        preview: value ? maskSensitiveValue(value) : null,
-      };
-    }),
+    keys: await Promise.all(
+      keys.map(async (k) => {
+        const value = configCache.get(k.key as SensitiveConfigKey);
+        const storedValue = value || (await getSecureConfig(k.key as SensitiveConfigKey));
+        return {
+          key: k.key,
+          updated_at: k.updated_at,
+          hasValue: !!storedValue,
+          preview: value ? maskSensitiveValue(value) : null,
+        };
+      })
+    ),
     encryptionEnabled: !!appConfig.encryptionKey,
   };
 }
 
-// ============================================================================
-// ============================================================================
-
-/**
- */
-export function getApiKey(): string | null {
+export async function getApiKey(): Promise<string | null> {
   if (apiConfig.sora2.apiKey) {
     return apiConfig.sora2.apiKey;
   }
-  
+
   if (apiConfig.grsai.token) {
     return apiConfig.grsai.token;
   }
-  
-  return getSecureConfig("api_key") || getSecureConfig("token");
+
+  return (await getSecureConfig("api_key")) || (await getSecureConfig("token"));
 }
 
-/**
- */
-export function isApiKeyConfigured(): boolean {
-  return !!getApiKey();
+export async function isApiKeyConfigured(): Promise<boolean> {
+  return !!(await getApiKey());
 }
 
-/**
- */
-export function getApiKeyPreview(): string | null {
-  const key = getApiKey();
+export async function getApiKeyPreview(): Promise<string | null> {
+  const key = await getApiKey();
   return key ? maskSensitiveValue(key) : null;
 }
 
-/**
- */
-export function setApiKey(key: string): void {
+export async function setApiKey(key: string): Promise<void> {
   console.warn("[DEPRECATED] Storing API keys in database is deprecated. Use SORA2_API_KEY environment variable instead.");
-  setSecureConfig("api_key", key);
+  await setSecureConfig("api_key", key);
 }
 
-/**
- */
-export function setToken(token: string): void {
+export async function setToken(token: string): Promise<void> {
   console.warn("[DEPRECATED] Storing tokens in database is deprecated. Use GRSAI_TOKEN environment variable instead.");
-  setSecureConfig("token", token);
+  await setSecureConfig("token", token);
 }
 
-// ============================================================================
-// ============================================================================
-
-/**
- */
-export function migratePlaintextConfig(key: SensitiveConfigKey, plaintextValue: string): boolean {
+export async function migratePlaintextConfig(key: SensitiveConfigKey, plaintextValue: string): Promise<boolean> {
   try {
-    setSecureConfig(key, plaintextValue);
+    await setSecureConfig(key, plaintextValue);
     console.log(`[SecureConfig] Migrated ${key} to encrypted storage`);
     return true;
   } catch (error) {
@@ -177,22 +144,20 @@ export function migratePlaintextConfig(key: SensitiveConfigKey, plaintextValue: 
   }
 }
 
-/**
- */
-export function batchMigrateConfigs(configs: Partial<Record<SensitiveConfigKey, string>>): {
+export async function batchMigrateConfigs(configs: Partial<Record<SensitiveConfigKey, string>>): Promise<{
   success: string[];
   failed: string[];
-} {
+}> {
   const success: string[] = [];
   const failed: string[] = [];
-  
+
   for (const [key, value] of Object.entries(configs)) {
-    if (value && migratePlaintextConfig(key as SensitiveConfigKey, value)) {
+    if (value && (await migratePlaintextConfig(key as SensitiveConfigKey, value))) {
       success.push(key);
     } else {
       failed.push(key);
     }
   }
-  
+
   return { success, failed };
 }

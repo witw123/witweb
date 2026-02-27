@@ -8,13 +8,11 @@ import { topicRadarRepository } from "./topic-radar-repository";
 import { secureConfigRepository } from "./secure-config-repository";
 
 export {
-  BaseRepository,
-  type QueryOptions,
   type PaginationParams,
   type PaginatedResult,
   type SortDirection,
   type SortOptions,
-} from "./base-repository";
+} from "./types";
 
 export {
   UserRepository,
@@ -80,3 +78,4 @@ export const repositories = {
 } as const;
 
 export type Repositories = typeof repositories;
+

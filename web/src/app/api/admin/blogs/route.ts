@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -19,7 +18,6 @@ const querySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -27,7 +25,7 @@ export const GET = withErrorHandler(async (req: Request) => {
 
   const { page, limit, search, status, username, sort } = await validateQuery(req, querySchema);
 
-  const result = postRepository.listAdminBlogs({
+  const result = await postRepository.listAdminBlogs({
     page,
     size: limit,
     search,

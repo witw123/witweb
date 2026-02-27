@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../providers";
+import TurnstileWidget from "@/components/TurnstileWidget";
 
 
 export default function LoginPage() {
@@ -13,6 +14,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const turnstileEnabled =
+    process.env.NEXT_PUBLIC_TURNSTILE_ENABLED === "true" && !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -22,13 +27,17 @@ export default function LoginPage() {
       setError("请输入账号和密码");
       return;
     }
+    if (turnstileEnabled && !captchaToken) {
+      setError("请先完成验证码验证");
+      return;
+    }
 
     setLoading(true);
     try {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, captchaToken }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
@@ -74,6 +83,11 @@ export default function LoginPage() {
             placeholder="请输入密码"
           />
         </label>
+        {turnstileEnabled && (
+          <div className="mb-6">
+            <TurnstileWidget siteKey={turnstileSiteKey} onTokenChange={setCaptchaToken} />
+          </div>
+        )}
         {error && (
           <p className="text-accent mb-4 text-sm bg-accent/10 p-3 rounded border border-accent/20">
             {error}

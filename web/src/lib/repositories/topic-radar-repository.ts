@@ -1,5 +1,5 @@
-﻿import "server-only";
-import { getStudioDb } from "@/lib/db";
+import "server-only";
+import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 
 export type RadarSourceRecord = {
   id: number;
@@ -38,15 +38,11 @@ type FetchCandidate = {
 };
 
 class TopicRadarRepository {
-  private db() {
-    return getStudioDb();
+  async listSourceUrlsByUser(username: string): Promise<Array<{ url: string }>> {
+    return await pgQuery<{ url: string }>("SELECT url FROM topic_sources WHERE created_by = ?", [username]);
   }
 
-  listSourceUrlsByUser(username: string): Array<{ url: string }> {
-    return this.db().prepare("SELECT url FROM topic_sources WHERE created_by = ?").all(username) as Array<{ url: string }>;
-  }
-
-  insertSource(input: {
+  async insertSource(input: {
     name: string;
     url: string;
     type: "rss" | "html" | "api";
@@ -54,64 +50,49 @@ class TopicRadarRepository {
     enabled: number;
     username: string;
     ts: string;
-  }): number {
-    const result = this.db()
-      .prepare(
-        `INSERT INTO topic_sources (name,url,type,parser_config_json,enabled,created_by,created_at,updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        input.name,
-        input.url,
-        input.type,
-        input.parserConfigJson,
-        input.enabled,
-        input.username,
-        input.ts,
-        input.ts
-      );
-    return Number(result.lastInsertRowid);
+  }): Promise<number> {
+    const row = await pgQueryOne<{ id: number }>(
+      `INSERT INTO topic_sources (name,url,type,parser_config_json,enabled,created_by,created_at,updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [input.name, input.url, input.type, input.parserConfigJson, input.enabled, input.username, input.ts, input.ts]
+    );
+    return Number(row?.id || 0);
   }
 
-  listSourcesByUser(username: string): RadarSourceRecord[] {
-    return this.db()
-      .prepare(
-        `SELECT id,name,url,type,parser_config_json,enabled,created_by,created_at,updated_at,
-                last_fetch_status,last_fetch_error,last_fetched_at,last_fetch_count
-         FROM topic_sources
-         WHERE created_by = ?
-         ORDER BY id DESC`
-      )
-      .all(username) as RadarSourceRecord[];
+  async listSourcesByUser(username: string): Promise<RadarSourceRecord[]> {
+    return await pgQuery<RadarSourceRecord>(
+      `SELECT id,name,url,type,parser_config_json,enabled,created_by,created_at,updated_at,
+              last_fetch_status,last_fetch_error,last_fetched_at,last_fetch_count
+       FROM topic_sources
+       WHERE created_by = ?
+       ORDER BY id DESC`,
+      [username]
+    );
   }
 
-  sourceExistsByIdAndUser(sourceId: number, username: string): boolean {
-    const row = this.db().prepare("SELECT id FROM topic_sources WHERE id = ? AND created_by = ?").get(sourceId, username) as
-      | { id: number }
-      | undefined;
+  async sourceExistsByIdAndUser(sourceId: number, username: string): Promise<boolean> {
+    const row = await pgQueryOne<{ id: number }>("SELECT id FROM topic_sources WHERE id = ? AND created_by = ?", [sourceId, username]);
     return !!row;
   }
 
-  updateSource(sourceId: number, username: string, patch: {
+  async updateSource(sourceId: number, username: string, patch: {
     name?: string;
     url?: string;
     type?: "rss" | "html" | "api";
     parserConfigJson?: string;
     enabled?: boolean;
     ts: string;
-  }): void {
-    this.db()
-      .prepare(
-        `UPDATE topic_sources
-         SET name = COALESCE(?, name),
-             url = COALESCE(?, url),
-             type = COALESCE(?, type),
-             parser_config_json = COALESCE(?, parser_config_json),
-             enabled = COALESCE(?, enabled),
-             updated_at = ?
-         WHERE id = ? AND created_by = ?`
-      )
-      .run(
+  }): Promise<void> {
+    await pgRun(
+      `UPDATE topic_sources
+       SET name = COALESCE(?, name),
+           url = COALESCE(?, url),
+           type = COALESCE(?, type),
+           parser_config_json = COALESCE(?, parser_config_json),
+           enabled = COALESCE(?, enabled),
+           updated_at = ?
+       WHERE id = ? AND created_by = ?`,
+      [
         patch.name ?? null,
         patch.url ?? null,
         patch.type ?? null,
@@ -119,20 +100,20 @@ class TopicRadarRepository {
         patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
         patch.ts,
         sourceId,
-        username
-      );
+        username,
+      ]
+    );
   }
 
-  deleteSourceWithItems(sourceId: number, username: string): boolean {
-    const db = this.db();
-    const result = db.transaction(() => {
-      db.prepare("DELETE FROM topic_items WHERE source_id = ?").run(sourceId);
-      return db.prepare("DELETE FROM topic_sources WHERE id = ? AND created_by = ?").run(sourceId, username);
-    })();
-    return result.changes > 0;
+  async deleteSourceWithItems(sourceId: number, username: string): Promise<boolean> {
+    return await withPgTransaction<boolean>(async (client) => {
+      await pgRun("DELETE FROM topic_items WHERE source_id = ?", [sourceId], client);
+      const result = await pgRun("DELETE FROM topic_sources WHERE id = ? AND created_by = ?", [sourceId, username], client);
+      return result.changes > 0;
+    });
   }
 
-  listItemsByUser(username: string, options: { limit: number; q?: string; sourceId?: number }) {
+  async listItemsByUser(username: string, options: { limit: number; q?: string; sourceId?: number }): Promise<Array<Record<string, unknown>>> {
     const where: string[] = ["s.created_by = ?"];
     const args: unknown[] = [username];
 
@@ -147,106 +128,98 @@ class TopicRadarRepository {
 
     args.push(options.limit);
 
-    return this.db()
-      .prepare(
-        `SELECT i.id, i.source_id, i.title, i.url, i.summary, i.published_at, i.score, i.raw_json, i.fetched_at,
-                s.name AS source_name
-         FROM topic_items i
-         JOIN topic_sources s ON s.id = i.source_id
-         WHERE ${where.join(" AND ")}
-         ORDER BY i.score DESC, i.published_at DESC
-         LIMIT ?`
-      )
-      .all(...args);
+    return await pgQuery(
+      `SELECT i.id, i.source_id, i.title, i.url, i.summary, i.published_at, i.score, i.raw_json, i.fetched_at,
+              s.name AS source_name
+       FROM topic_items i
+       JOIN topic_sources s ON s.id = i.source_id
+       WHERE ${where.join(" AND ")}
+       ORDER BY i.score DESC, i.published_at DESC
+       LIMIT ?`,
+      args
+    );
   }
 
-  listNotificationsByUser(username: string) {
-    return this.db()
-      .prepare(
-        `SELECT id, created_by, type, name, webhook_url, secret, enabled, created_at, updated_at
-         FROM radar_notifications
-         WHERE created_by = ?
-         ORDER BY id DESC`
-      )
-      .all(username);
+  async listNotificationsByUser(username: string): Promise<Array<Record<string, unknown>>> {
+    return await pgQuery(
+      `SELECT id, created_by, type, name, webhook_url, secret, enabled, created_at, updated_at
+       FROM radar_notifications
+       WHERE created_by = ?
+       ORDER BY id DESC`,
+      [username]
+    );
   }
 
-  createNotification(input: {
+  async createNotification(input: {
     username: string;
     name: string;
     webhookUrl: string;
     secret: string;
     enabled: number;
     ts: string;
-  }): number {
-    const result = this.db()
-      .prepare(
-        `INSERT INTO radar_notifications
-         (created_by,type,name,webhook_url,secret,enabled,created_at,updated_at)
-         VALUES (?, 'webhook', ?, ?, ?, ?, ?, ?)`
-      )
-      .run(input.username, input.name, input.webhookUrl, input.secret, input.enabled, input.ts, input.ts);
-    return Number(result.lastInsertRowid);
+  }): Promise<number> {
+    const row = await pgQueryOne<{ id: number }>(
+      `INSERT INTO radar_notifications
+       (created_by,type,name,webhook_url,secret,enabled,created_at,updated_at)
+       VALUES (?, 'webhook', ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [input.username, input.name, input.webhookUrl, input.secret, input.enabled, input.ts, input.ts]
+    );
+    return Number(row?.id || 0);
   }
 
-  notificationExistsByIdAndUser(notificationId: number, username: string): boolean {
-    const row = this.db()
-      .prepare("SELECT id FROM radar_notifications WHERE id = ? AND created_by = ?")
-      .get(notificationId, username) as { id: number } | undefined;
+  async notificationExistsByIdAndUser(notificationId: number, username: string): Promise<boolean> {
+    const row = await pgQueryOne<{ id: number }>("SELECT id FROM radar_notifications WHERE id = ? AND created_by = ?", [notificationId, username]);
     return !!row;
   }
 
-  updateNotification(notificationId: number, username: string, patch: {
+  async updateNotification(notificationId: number, username: string, patch: {
     name?: string;
     webhookUrl?: string;
     secret?: string;
     enabled?: boolean;
     ts: string;
-  }): void {
-    this.db()
-      .prepare(
-        `UPDATE radar_notifications
-         SET name = COALESCE(?, name),
-             webhook_url = COALESCE(?, webhook_url),
-             secret = COALESCE(?, secret),
-             enabled = COALESCE(?, enabled),
-             updated_at = ?
-         WHERE id = ? AND created_by = ?`
-      )
-      .run(
+  }): Promise<void> {
+    await pgRun(
+      `UPDATE radar_notifications
+       SET name = COALESCE(?, name),
+           webhook_url = COALESCE(?, webhook_url),
+           secret = COALESCE(?, secret),
+           enabled = COALESCE(?, enabled),
+           updated_at = ?
+       WHERE id = ? AND created_by = ?`,
+      [
         patch.name ?? null,
         patch.webhookUrl ?? null,
         patch.secret ?? null,
         patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
         patch.ts,
         notificationId,
-        username
-      );
+        username,
+      ]
+    );
   }
 
-  deleteNotificationWithRules(notificationId: number, username: string): boolean {
-    const db = this.db();
-    const result = db.transaction(() => {
-      db.prepare("DELETE FROM radar_alert_rules WHERE channel_id = ? AND created_by = ?").run(notificationId, username);
-      return db.prepare("DELETE FROM radar_notifications WHERE id = ? AND created_by = ?").run(notificationId, username);
-    })();
-    return result.changes > 0;
+  async deleteNotificationWithRules(notificationId: number, username: string): Promise<boolean> {
+    return await withPgTransaction<boolean>(async (client) => {
+      await pgRun("DELETE FROM radar_alert_rules WHERE channel_id = ? AND created_by = ?", [notificationId, username], client);
+      const result = await pgRun("DELETE FROM radar_notifications WHERE id = ? AND created_by = ?", [notificationId, username], client);
+      return result.changes > 0;
+    });
   }
 
-  listAlertRulesByUser(username: string) {
-    return this.db()
-      .prepare(
-        `SELECT r.id, r.created_by, r.name, r.rule_type, r.keyword, r.source_id, r.min_score, r.channel_id, r.enabled, r.created_at, r.updated_at,
-                n.name AS channel_name
-         FROM radar_alert_rules r
-         JOIN radar_notifications n ON n.id = r.channel_id
-         WHERE r.created_by = ?
-         ORDER BY r.id DESC`
-      )
-      .all(username);
+  async listAlertRulesByUser(username: string): Promise<Array<Record<string, unknown>>> {
+    return await pgQuery(
+      `SELECT r.id, r.created_by, r.name, r.rule_type, r.keyword, r.source_id, r.min_score, r.channel_id, r.enabled, r.created_at, r.updated_at,
+              n.name AS channel_name
+       FROM radar_alert_rules r
+       JOIN radar_notifications n ON n.id = r.channel_id
+       WHERE r.created_by = ?
+       ORDER BY r.id DESC`,
+      [username]
+    );
   }
 
-  createAlertRule(input: {
+  async createAlertRule(input: {
     username: string;
     name: string;
     ruleType: "new_item" | "keyword" | "source" | "min_score";
@@ -256,36 +229,22 @@ class TopicRadarRepository {
     channelId: number;
     enabled: number;
     ts: string;
-  }): number {
-    const result = this.db()
-      .prepare(
-        `INSERT INTO radar_alert_rules
-         (created_by,name,rule_type,keyword,source_id,min_score,channel_id,enabled,created_at,updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        input.username,
-        input.name,
-        input.ruleType,
-        input.keyword,
-        input.sourceId,
-        input.minScore,
-        input.channelId,
-        input.enabled,
-        input.ts,
-        input.ts
-      );
-    return Number(result.lastInsertRowid);
+  }): Promise<number> {
+    const row = await pgQueryOne<{ id: number }>(
+      `INSERT INTO radar_alert_rules
+       (created_by,name,rule_type,keyword,source_id,min_score,channel_id,enabled,created_at,updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [input.username, input.name, input.ruleType, input.keyword, input.sourceId, input.minScore, input.channelId, input.enabled, input.ts, input.ts]
+    );
+    return Number(row?.id || 0);
   }
 
-  alertRuleExistsByIdAndUser(ruleId: number, username: string): boolean {
-    const row = this.db().prepare("SELECT id FROM radar_alert_rules WHERE id = ? AND created_by = ?").get(ruleId, username) as
-      | { id: number }
-      | undefined;
+  async alertRuleExistsByIdAndUser(ruleId: number, username: string): Promise<boolean> {
+    const row = await pgQueryOne<{ id: number }>("SELECT id FROM radar_alert_rules WHERE id = ? AND created_by = ?", [ruleId, username]);
     return !!row;
   }
 
-  updateAlertRule(ruleId: number, username: string, patch: {
+  async updateAlertRule(ruleId: number, username: string, patch: {
     name?: string;
     ruleType?: "new_item" | "keyword" | "source" | "min_score";
     keyword?: string;
@@ -294,21 +253,19 @@ class TopicRadarRepository {
     channelId?: number;
     enabled?: boolean;
     ts: string;
-  }): void {
-    this.db()
-      .prepare(
-        `UPDATE radar_alert_rules
-         SET name = COALESCE(?, name),
-             rule_type = COALESCE(?, rule_type),
-             keyword = COALESCE(?, keyword),
-             source_id = COALESCE(?, source_id),
-             min_score = COALESCE(?, min_score),
-             channel_id = COALESCE(?, channel_id),
-             enabled = COALESCE(?, enabled),
-             updated_at = ?
-         WHERE id = ? AND created_by = ?`
-      )
-      .run(
+  }): Promise<void> {
+    await pgRun(
+      `UPDATE radar_alert_rules
+       SET name = COALESCE(?, name),
+           rule_type = COALESCE(?, rule_type),
+           keyword = COALESCE(?, keyword),
+           source_id = COALESCE(?, source_id),
+           min_score = COALESCE(?, min_score),
+           channel_id = COALESCE(?, channel_id),
+           enabled = COALESCE(?, enabled),
+           updated_at = ?
+       WHERE id = ? AND created_by = ?`,
+      [
         patch.name ?? null,
         patch.ruleType ?? null,
         patch.keyword ?? null,
@@ -318,16 +275,17 @@ class TopicRadarRepository {
         patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
         patch.ts,
         ruleId,
-        username
-      );
+        username,
+      ]
+    );
   }
 
-  deleteAlertRule(ruleId: number, username: string): boolean {
-    const result = this.db().prepare("DELETE FROM radar_alert_rules WHERE id = ? AND created_by = ?").run(ruleId, username);
+  async deleteAlertRule(ruleId: number, username: string): Promise<boolean> {
+    const result = await pgRun("DELETE FROM radar_alert_rules WHERE id = ? AND created_by = ?", [ruleId, username]);
     return result.changes > 0;
   }
 
-  listAlertLogsByUser(username: string, options: { limit: number; status?: "success" | "failed" }) {
+  async listAlertLogsByUser(username: string, options: { limit: number; status?: "success" | "failed" }): Promise<Array<Record<string, unknown>>> {
     const where: string[] = ["l.created_by = ?"];
     const args: unknown[] = [username];
 
@@ -338,32 +296,31 @@ class TopicRadarRepository {
 
     args.push(options.limit);
 
-    return this.db()
-      .prepare(
-        `SELECT l.id, l.created_by, l.item_id, l.channel_id, l.rule_id, l.status, l.response_text, l.error_text, l.sent_at,
-                r.name AS rule_name, n.name AS channel_name, i.title AS item_title
-         FROM radar_alert_logs l
-         JOIN radar_alert_rules r ON r.id = l.rule_id
-         JOIN radar_notifications n ON n.id = l.channel_id
-         JOIN topic_items i ON i.id = l.item_id
-         WHERE ${where.join(" AND ")}
-         ORDER BY l.sent_at DESC
-         LIMIT ?`
-      )
-      .all(...args);
+    return await pgQuery(
+      `SELECT l.id, l.created_by, l.item_id, l.channel_id, l.rule_id, l.status, l.response_text, l.error_text, l.sent_at,
+              r.name AS rule_name, n.name AS channel_name, i.title AS item_title
+       FROM radar_alert_logs l
+       JOIN radar_alert_rules r ON r.id = l.rule_id
+       JOIN radar_notifications n ON n.id = l.channel_id
+       JOIN topic_items i ON i.id = l.item_id
+       WHERE ${where.join(" AND ")}
+       ORDER BY l.sent_at DESC
+       LIMIT ?`,
+      args
+    );
   }
 
-  clearItemsBySource(sourceId: number): number {
-    return this.db().prepare("DELETE FROM topic_items WHERE source_id = ?").run(sourceId).changes;
+  async clearItemsBySource(sourceId: number): Promise<number> {
+    return (await pgRun("DELETE FROM topic_items WHERE source_id = ?", [sourceId])).changes;
   }
 
-  clearItemsByUser(username: string): number {
-    return this.db()
-      .prepare(`DELETE FROM topic_items WHERE source_id IN (SELECT id FROM topic_sources WHERE created_by = ?)`)
-      .run(username).changes;
+  async clearItemsByUser(username: string): Promise<number> {
+    return (
+      await pgRun("DELETE FROM topic_items WHERE source_id IN (SELECT id FROM topic_sources WHERE created_by = ?)", [username])
+    ).changes;
   }
 
-  listSavedTopicsByUser(username: string, options: { limit: number; q?: string; kind?: "item" | "analysis" }) {
+  async listSavedTopicsByUser(username: string, options: { limit: number; q?: string; kind?: "item" | "analysis" }): Promise<Array<Record<string, unknown>>> {
     const where: string[] = ["created_by = ?"];
     const args: unknown[] = [username];
 
@@ -378,18 +335,17 @@ class TopicRadarRepository {
     }
     args.push(options.limit);
 
-    return this.db()
-      .prepare(
-        `SELECT id, created_by, kind, title, summary, content, source_name, source_url, score, tags_json, created_at, updated_at
-         FROM radar_topics
-         WHERE ${where.join(" AND ")}
-         ORDER BY id DESC
-         LIMIT ?`
-      )
-      .all(...args);
+    return await pgQuery(
+      `SELECT id, created_by, kind, title, summary, content, source_name, source_url, score, tags_json, created_at, updated_at
+       FROM radar_topics
+       WHERE ${where.join(" AND ")}
+       ORDER BY id DESC
+       LIMIT ?`,
+      args
+    );
   }
 
-  createSavedTopic(input: {
+  async createSavedTopic(input: {
     username: string;
     kind: "item" | "analysis";
     title: string;
@@ -400,64 +356,50 @@ class TopicRadarRepository {
     score: number;
     tagsJson: string;
     ts: string;
-  }): number {
-    const result = this.db()
-      .prepare(
-        `INSERT INTO radar_topics
-         (created_by, kind, title, summary, content, source_name, source_url, score, tags_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        input.username,
-        input.kind,
-        input.title,
-        input.summary,
-        input.content,
-        input.sourceName,
-        input.sourceUrl,
-        input.score,
-        input.tagsJson,
-        input.ts,
-        input.ts
-      );
-    return Number(result.lastInsertRowid);
+  }): Promise<number> {
+    const row = await pgQueryOne<{ id: number }>(
+      `INSERT INTO radar_topics
+       (created_by, kind, title, summary, content, source_name, source_url, score, tags_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [input.username, input.kind, input.title, input.summary, input.content, input.sourceName, input.sourceUrl, input.score, input.tagsJson, input.ts, input.ts]
+    );
+    return Number(row?.id || 0);
   }
 
-  deleteSavedTopic(topicId: number, username: string): boolean {
-    const result = this.db().prepare("DELETE FROM radar_topics WHERE id = ? AND created_by = ?").run(topicId, username);
+  async deleteSavedTopic(topicId: number, username: string): Promise<boolean> {
+    const result = await pgRun("DELETE FROM radar_topics WHERE id = ? AND created_by = ?", [topicId, username]);
     return result.changes > 0;
   }
 
-  listEnabledNotificationsByUser(username: string) {
-    return this.db()
-      .prepare(
-        `SELECT id, created_by, type, name, webhook_url, secret, enabled, created_at, updated_at
-         FROM radar_notifications
-         WHERE created_by = ? AND enabled = 1
-         ORDER BY id DESC`
-      )
-      .all(username);
+  async listEnabledNotificationsByUser(username: string): Promise<Array<Record<string, unknown>>> {
+    return await pgQuery(
+      `SELECT id, created_by, type, name, webhook_url, secret, enabled, created_at, updated_at
+       FROM radar_notifications
+       WHERE created_by = ? AND enabled = 1
+       ORDER BY id DESC`,
+      [username]
+    );
   }
 
-  listEnabledAlertRulesByUser(username: string) {
-    return this.db()
-      .prepare(
-        `SELECT id, created_by, name, rule_type, keyword, source_id, min_score, channel_id, enabled, created_at, updated_at
-         FROM radar_alert_rules
-         WHERE created_by = ? AND enabled = 1
-         ORDER BY id DESC`
-      )
-      .all(username);
+  async listEnabledAlertRulesByUser(username: string): Promise<Array<Record<string, unknown>>> {
+    return await pgQuery(
+      `SELECT id, created_by, name, rule_type, keyword, source_id, min_score, channel_id, enabled, created_at, updated_at
+       FROM radar_alert_rules
+       WHERE created_by = ? AND enabled = 1
+       ORDER BY id DESC`,
+      [username]
+    );
   }
 
-  hasAlertLog(itemId: number, channelId: number, ruleId: number): boolean {
-    const row = this.db()
-      .prepare("SELECT id FROM radar_alert_logs WHERE item_id = ? AND channel_id = ? AND rule_id = ? LIMIT 1")
-      .get(itemId, channelId, ruleId) as { id: number } | undefined;
+  async hasAlertLog(itemId: number, channelId: number, ruleId: number): Promise<boolean> {
+    const row = await pgQueryOne<{ id: number }>(
+      "SELECT id FROM radar_alert_logs WHERE item_id = ? AND channel_id = ? AND rule_id = ? LIMIT 1",
+      [itemId, channelId, ruleId]
+    );
     return !!row;
   }
 
-  insertAlertLog(input: {
+  async insertAlertLog(input: {
     username: string;
     itemId: number;
     channelId: number;
@@ -466,79 +408,56 @@ class TopicRadarRepository {
     responseText: string;
     errorText: string;
     sentAt: string;
-  }): void {
-    this.db()
-      .prepare(
-        `INSERT INTO radar_alert_logs
-         (created_by,item_id,channel_id,rule_id,status,response_text,error_text,sent_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        input.username,
-        input.itemId,
-        input.channelId,
-        input.ruleId,
-        input.status,
-        input.responseText,
-        input.errorText,
-        input.sentAt
-      );
+  }): Promise<void> {
+    await pgRun(
+      `INSERT INTO radar_alert_logs
+       (created_by,item_id,channel_id,rule_id,status,response_text,error_text,sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.username, input.itemId, input.channelId, input.ruleId, input.status, input.responseText, input.errorText, input.sentAt]
+    );
   }
 
-  getSourceByIdAndUser(sourceId: number, username: string): RadarSourceRecord | null {
-    return (
-      this.db().prepare("SELECT * FROM topic_sources WHERE id = ? AND created_by = ?").get(sourceId, username) as
-        | RadarSourceRecord
-        | undefined
-    ) || null;
+  async getSourceByIdAndUser(sourceId: number, username: string): Promise<RadarSourceRecord | null> {
+    return await pgQueryOne<RadarSourceRecord>("SELECT * FROM topic_sources WHERE id = ? AND created_by = ?", [sourceId, username]);
   }
 
-  markSourceFetchFailed(sourceId: number, ts: string, errorMessage: string): void {
-    this.db()
-      .prepare(
-        `UPDATE topic_sources
-         SET updated_at = ?,
-             last_fetch_status = 'failed',
-             last_fetch_error = ?,
-             last_fetched_at = ?,
-             last_fetch_count = 0
-         WHERE id = ?`
-      )
-      .run(ts, errorMessage, ts, sourceId);
+  async markSourceFetchFailed(sourceId: number, ts: string, errorMessage: string): Promise<void> {
+    await pgRun(
+      `UPDATE topic_sources
+       SET updated_at = ?,
+           last_fetch_status = 'failed',
+           last_fetch_error = ?,
+           last_fetched_at = ?,
+           last_fetch_count = 0
+       WHERE id = ?`,
+      [ts, errorMessage, ts, sourceId]
+    );
   }
 
-  saveFetchedItemsAndMarkSourceSuccess(
+  async saveFetchedItemsAndMarkSourceSuccess(
     source: { id: number; name: string },
     items: FetchCandidate[],
     ts: string
-  ): { inserted: number; insertedItems: InsertedRadarItemRecord[] } {
-    const db = this.db();
-    const insert = db.prepare(
-      `INSERT OR IGNORE INTO topic_items
-       (source_id,title,url,summary,published_at,score,raw_json,fetched_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    );
+  ): Promise<{ inserted: number; insertedItems: InsertedRadarItemRecord[] }> {
+    return await withPgTransaction(async (client) => {
+      let inserted = 0;
+      const insertedItems: InsertedRadarItemRecord[] = [];
 
-    let inserted = 0;
-    const insertedItems: InsertedRadarItemRecord[] = [];
-
-    db.transaction(() => {
       for (const item of items) {
-        const result = insert.run(
-          source.id,
-          item.title,
-          item.url,
-          item.summary,
-          item.publishedAt,
-          item.score,
-          item.rawJson,
-          ts
+        const row = await pgQueryOne<{ id: number }>(
+          `INSERT INTO topic_items
+           (source_id,title,url,summary,published_at,score,raw_json,fetched_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (source_id, url) DO NOTHING
+           RETURNING id`,
+          [source.id, item.title, item.url, item.summary, item.publishedAt, item.score, item.rawJson, ts],
+          client
         );
 
-        inserted += result.changes;
-        if (result.changes > 0) {
+        if (row?.id) {
+          inserted += 1;
           insertedItems.push({
-            id: Number(result.lastInsertRowid),
+            id: row.id,
             source_id: source.id,
             source_name: source.name,
             title: item.title,
@@ -550,22 +469,24 @@ class TopicRadarRepository {
         }
       }
 
-      db.prepare(
+      await pgRun(
         `UPDATE topic_sources
          SET updated_at = ?,
              last_fetch_status = 'ok',
              last_fetch_error = '',
              last_fetched_at = ?,
              last_fetch_count = ?
-         WHERE id = ?`
-      ).run(ts, ts, items.length, source.id);
-    })();
+         WHERE id = ?`,
+        [ts, ts, items.length, source.id],
+        client
+      );
 
-    return { inserted, insertedItems };
+      return { inserted, insertedItems };
+    });
   }
 
-  listSourceIdsByUser(username: string): Array<{ id: number }> {
-    return this.db().prepare("SELECT id FROM topic_sources WHERE created_by = ? ORDER BY id DESC").all(username) as Array<{ id: number }>;
+  async listSourceIdsByUser(username: string): Promise<Array<{ id: number }>> {
+    return await pgQuery<{ id: number }>("SELECT id FROM topic_sources WHERE created_by = ? ORDER BY id DESC", [username]);
   }
 }
 

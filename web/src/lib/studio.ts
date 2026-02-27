@@ -59,79 +59,79 @@ type HistoryRow = {
   duration_seconds?: number | null;
 };
 
-export function getConfig(): StudioConfig {
-  const cfg = videoTaskRepository.getConfig() as StudioConfig;
+export async function getConfig(): Promise<StudioConfig> {
+  const cfg = (await videoTaskRepository.getConfig()) as StudioConfig;
   if (!cfg.query_defaults || typeof cfg.query_defaults !== "object") {
     cfg.query_defaults = {};
   }
   return cfg;
 }
 
-function setConfigValue(key: string, value: unknown) {
-  videoTaskRepository.setConfigValue(key as keyof StudioConfig, value);
+async function setConfigValue(key: string, value: unknown) {
+  await videoTaskRepository.setConfigValue(key as keyof StudioConfig, value);
 }
 
-export function setApiKey(api_key: string) {
+export async function setApiKey(api_key: string) {
   console.warn("[DEPRECATED] Storing API keys in database is deprecated. Use SORA2_API_KEY or GRSAI_TOKEN environment variable instead.");
-  setConfigValue("api_key", api_key);
+  await setConfigValue("api_key", api_key);
 }
 
-export function setToken(token: string) {
+export async function setToken(token: string) {
   console.warn("[DEPRECATED] Storing tokens in database is deprecated. Use GRSAI_TOKEN environment variable instead.");
-  setConfigValue("token", token);
+  await setConfigValue("token", token);
 }
 
-export function getApiStatus() {
-  const apiKey = getApiKey();
+export async function getApiStatus() {
+  const apiKey = await getApiKey();
   return {
     configured: !!apiKey,
     apiKeyPreview: apiKey ? maskSensitiveValue(apiKey, 4, 4) : null,
-    hostMode: getHostMode(),
+    hostMode: await getHostMode(),
     hosts: HOSTS,
   };
 }
 
-export function setHostMode(host_mode: string) {
-  setConfigValue("host_mode", host_mode);
+export async function setHostMode(host_mode: string) {
+  await setConfigValue("host_mode", host_mode);
 }
 
-export function setQueryDefaults(data: Record<string, unknown>) {
-  const cfg = getConfig();
+export async function setQueryDefaults(data: Record<string, unknown>) {
+  const cfg = await getConfig();
   const current = typeof cfg.query_defaults === "object" && cfg.query_defaults ? cfg.query_defaults : {};
-  setConfigValue("query_defaults", { ...current, ...data });
+  await setConfigValue("query_defaults", { ...current, ...data });
 }
 
-function getHostMode() {
-  const cfg = getConfig();
+async function getHostMode() {
+  const cfg = await getConfig();
   return cfg.host_mode || "auto";
 }
 
-function iterHosts() {
-  const mode = getHostMode();
+async function iterHosts() {
+  const mode = await getHostMode();
   if (mode === "domestic") return [HOSTS.domestic];
   if (mode === "overseas") return [HOSTS.overseas];
   return [HOSTS.domestic, HOSTS.overseas];
 }
 
-function getApiKey(): string | undefined {
+async function getApiKey(): Promise<string | undefined> {
   const envKey = apiConfig.sora2.apiKey || apiConfig.grsai.token;
   if (envKey) {
     return envKey;
   }
 
-  const cfg = getConfig();
+  const cfg = await getConfig();
   return cfg.api_key || cfg.token;
 }
 
 async function postJson(pathname: string, payload: unknown, headers: Record<string, string> = {}) {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   const authHeader = apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined;
 
   if (!apiKey && typeof window === "undefined") {
     console.warn("[API WARNING] No API key configured. Set SORA2_API_KEY or GRSAI_TOKEN environment variable.");
   }
   let lastErr: unknown = null;
-  for (const host of iterHosts()) {
+  for (const host of await iterHosts()) {
     for (let i = 0; i < 3; i += 1) {
       try {
         const requestHeaders: HeadersInit = { "Content-Type": "application/json", ...(authHeader || {}), ...headers };
@@ -161,23 +161,23 @@ function extractData<T>(resp: unknown): T {
   return resp as T;
 }
 
-function saveTaskTime(taskId: string, ts: number) {
-  videoTaskRepository.recordTaskTime(taskId, ts);
+async function saveTaskTime(taskId: string, ts: number) {
+  await videoTaskRepository.recordTaskTime(taskId, ts);
 }
 
-function getTaskTime(taskId: string) {
-  return videoTaskRepository.getTaskTime(taskId) || undefined;
+async function getTaskTime(taskId: string) {
+  return (await videoTaskRepository.getTaskTime(taskId)) || undefined;
 }
 
-function deleteTaskTime(taskId: string) {
-  videoTaskRepository.deleteTaskTime(taskId);
+async function deleteTaskTime(taskId: string) {
+  await videoTaskRepository.deleteTaskTime(taskId);
 }
 
 export async function createVideoTask(payload: unknown) {
   const data = extractData<TaskIdPayload>(await postJson(CREATE_API, payload));
   const taskId = data?.id;
   if (!taskId) throw new Error("Missing task id");
-  saveTaskTime(taskId, Math.floor(Date.now() / 1000));
+  await saveTaskTime(taskId, Math.floor(Date.now() / 1000));
   return taskId;
 }
 
@@ -185,12 +185,12 @@ export async function getResult(taskId: string) {
   return extractData<RemoteTaskResult>(await postJson(RESULT_API, { id: taskId }));
 }
 
-export function removeActiveTask(taskId: string) {
-  videoTaskRepository.removeActiveTask(taskId);
+export async function removeActiveTask(taskId: string) {
+  await videoTaskRepository.removeActiveTask(taskId);
 }
 
-export function getActiveTasks() {
-  return videoTaskRepository.getActiveTasks();
+export async function getActiveTasks() {
+  return await videoTaskRepository.getActiveTasks();
 }
 
 function download(url: string, target: string) {
@@ -201,8 +201,8 @@ function download(url: string, target: string) {
   });
 }
 
-function saveHistory(file: string, prompt: string, taskId?: string, pid?: string, url?: string, durationSeconds?: number | null) {
-  videoTaskRepository.addHistory({
+async function saveHistory(file: string, prompt: string, taskId?: string, pid?: string, url?: string, durationSeconds?: number | null) {
+  await videoTaskRepository.addHistory({
     file,
     prompt,
     task_id: taskId,
@@ -213,7 +213,7 @@ function saveHistory(file: string, prompt: string, taskId?: string, pid?: string
 }
 
 export async function finalizeVideo(taskId: string, prompt: string) {
-  const history = videoTaskRepository.getHistoryByTaskId(taskId) as
+  const history = (await videoTaskRepository.getHistoryByTaskId(taskId)) as
     | { file?: string; url?: string; pid?: string }
     | null;
   if (history?.file && fs.existsSync(history.file)) {
@@ -230,11 +230,11 @@ export async function finalizeVideo(taskId: string, prompt: string) {
   const filename = path.join(downloadDir, `sora_${Date.now()}.mp4`);
   ensureDirs();
   await download(videoUrl, filename);
-  const startTs = getTaskTime(taskId);
-  deleteTaskTime(taskId);
-  removeActiveTask(taskId);
+  const startTs = await getTaskTime(taskId);
+  await deleteTaskTime(taskId);
+  await removeActiveTask(taskId);
   const duration = startTs ? Math.max(0, Math.floor(Date.now() / 1000) - startTs) : null;
-  saveHistory(filename, prompt, taskId, pid, videoUrl, duration);
+  await saveHistory(filename, prompt, taskId, pid, videoUrl, duration);
   return { id: taskId, file: filename, url: videoUrl, pid };
 }
 
@@ -252,8 +252,8 @@ export async function createCharacterTask(payload: unknown) {
   return taskId;
 }
 
-export function getHistory() {
-  return videoTaskRepository.getHistory().map((item) => ({
+export async function getHistory() {
+  return (await videoTaskRepository.getHistory()).map((item) => ({
     file: item.file,
     prompt: item.prompt,
     time: item.time,
@@ -264,11 +264,11 @@ export function getHistory() {
   }));
 }
 
-export function getLocalVideos() {
+export async function getLocalVideos() {
   ensureDirs();
   if (!fs.existsSync(downloadDir)) return [];
   const names = fs.readdirSync(downloadDir).filter((n) => n.toLowerCase().endsWith(".mp4"));
-  const history = getHistory() as HistoryRow[];
+  const history = (await getHistory()) as HistoryRow[];
   const map = new Map<string, HistoryRow>();
   history.forEach((h) => {
     if (h.file) map.set(h.file, h);
@@ -291,11 +291,11 @@ export function getLocalVideos() {
   return items.sort((a, b) => b.mtime - a.mtime);
 }
 
-export function deleteVideo(name: string) {
+export async function deleteVideo(name: string) {
   const base = path.basename(name || "");
   if (base !== name) throw new Error("invalid name");
   const file = path.join(downloadDir, name);
   if (!fs.existsSync(file)) throw new Error("file not found");
   fs.unlinkSync(file);
-  videoTaskRepository.deleteHistoryByFile(file);
+  await videoTaskRepository.deleteHistoryByFile(file);
 }

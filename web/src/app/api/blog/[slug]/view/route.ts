@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { postRepository } from "@/lib/repositories";
 import { successResponse } from "@/lib/api-response";
 import { withErrorHandler } from "@/middleware/error-handler";
@@ -9,9 +8,8 @@ const paramsSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (_: Request, { params }: { params: Promise<{ slug: string }> }) => {
-  initDb();
 
   const { slug } = validateParams(await params, paramsSchema);
-  const viewCount = postRepository.incrementViewCount(slug);
+  const viewCount = await postRepository.incrementViewCount(slug);
   return successResponse({ ok: true, view_count: viewCount });
 });

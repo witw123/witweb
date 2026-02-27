@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { userRepository } from "@/lib/repositories";
 import { publicProfile } from "@/lib/user";
@@ -14,30 +13,28 @@ const profileSchema = z.object({
 });
 
 export const GET = withErrorHandler(async () => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
-  const profile = publicProfile(user, user);
+  const profile = await publicProfile(user, user);
   return successResponse({ profile });
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const body = await validateBody(req, profileSchema);
 
-  userRepository.update(user, {
+  await userRepository.update(user, {
     nickname: body.nickname || user,
     avatar_url: body.avatar_url || "",
     cover_url: body.cover_url || "",
     bio: body.bio || "",
   });
 
-  const profile = publicProfile(user, user);
+  const profile = await publicProfile(user, user);
   return successResponse({ profile });
 });

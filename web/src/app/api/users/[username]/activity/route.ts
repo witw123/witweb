@@ -20,6 +20,6 @@ export const GET = withErrorHandler(async (
   if (!username) return errorResponses.badRequest("Invalid username");
 
   const { page, size } = await validateQuery(request, querySchema);
-  const data = postRepository.getActivities(username, page, size);
+  const data = await postRepository.getActivities(username, page, size);
   return successResponse({ items: data.items, total: data.total });
 });

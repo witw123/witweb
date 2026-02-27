@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resizeImageToDataUrl } from "@/utils/image";
 import { useAuth } from "@/app/providers";
+import TurnstileWidget from "@/components/TurnstileWidget";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -14,8 +15,12 @@ export default function RegisterPage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
   const router = useRouter();
   const { login } = useAuth();
+  const turnstileEnabled =
+    process.env.NEXT_PUBLIC_TURNSTILE_ENABLED === "true" && !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 
   async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -40,6 +45,10 @@ export default function RegisterPage() {
       setError("密码至少需要 6 位字符");
       return;
     }
+    if (turnstileEnabled && !captchaToken) {
+      setError("请先完成验证码验证");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -51,6 +60,7 @@ export default function RegisterPage() {
           password,
           nickname,
           avatar_url: avatarUrl,
+          captchaToken,
         }),
       });
 
@@ -136,6 +146,12 @@ export default function RegisterPage() {
               placeholder="设置密码（至少 6 位）"
             />
           </label>
+
+          {turnstileEnabled && (
+            <div className="mb-6">
+              <TurnstileWidget siteKey={turnstileSiteKey} onTokenChange={setCaptchaToken} />
+            </div>
+          )}
 
           {error && <p className="mb-4 rounded border border-accent/20 bg-accent/10 p-3 text-sm text-accent">{error}</p>}
 

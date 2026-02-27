@@ -1,8 +1,7 @@
-﻿/**
+/**
  */
 
 import { NextRequest } from "next/server";
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { postRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -15,15 +14,14 @@ const querySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user, "请先登录");
 
   const { page, size } = await validateQuery(req, querySchema);
 
-  const data = postRepository.listFavorites(user, page, size);
-  const rows = userRepository.listBasicByUsernames(data.items.map((item) => item.author));
+  const data = await postRepository.listFavorites(user, page, size);
+  const rows = await userRepository.listBasicByUsernames(data.items.map((item) => item.author));
   const userMap = new Map(rows.map((row) => [row.username, row]));
 
   const items = data.items.map((item) => {

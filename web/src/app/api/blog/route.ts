@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { postRepository, userRepository } from "@/lib/repositories";
 import { successResponse, errorResponses, createdResponse } from "@/lib/api-response";
@@ -16,8 +15,8 @@ const listQuerySchema = z.object({
 });
 
 const createPostSchema = z.object({
-  title: z.string().trim().min(1, "鏍囬涓嶈兘涓虹┖"),
-  content: z.string().trim().min(1, "鍐呭涓嶈兘涓虹┖"),
+  title: z.string().trim().min(1, "标题不能为空"),
+  content: z.string().trim().min(1, "内容不能为空"),
   slug: z.string().trim().optional().or(z.literal("")),
   tags: z.string().default(""),
   category_id: z.coerce.number().int().positive().optional().or(z.literal("")).or(z.null()),
@@ -31,18 +30,18 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function ensureUniqueSlug(base: string): string {
+async function ensureUniqueSlug(base: string): Promise<string> {
   let slug = base || "post";
   let i = 1;
-  while (postRepository.findBySlug(slug)) {
+  while (await postRepository.findBySlug(slug)) {
     slug = `${base}-${i}`;
     i += 1;
   }
   return slug;
 }
 
-function attachAuthorProfile(items: PostListItem[]): PostListItem[] {
-  const rows = userRepository.listBasicByUsernames(items.map((item) => item.author));
+async function attachAuthorProfile(items: PostListItem[]): Promise<PostListItem[]> {
+  const rows = await userRepository.listBasicByUsernames(items.map((item) => item.author));
   const userMap = new Map(rows.map((row) => [row.username, row]));
   return items.map((item) => {
     const user = userMap.get(item.author);
@@ -56,7 +55,6 @@ function attachAuthorProfile(items: PostListItem[]): PostListItem[] {
 }
 
 export const GET = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const { page, size, q, author, tag, category } = await validateQuery(req, listQuerySchema);
   const user = await getAuthUser();
@@ -64,13 +62,13 @@ export const GET = withErrorHandler(async (req: Request) => {
   const authorAliases: string[] = [];
   if (author) {
     authorAliases.push(author);
-    const authorRow = userRepository.findByUsername(author);
+    const authorRow = await userRepository.findByUsername(author);
     if (authorRow?.id !== undefined && authorRow?.id !== null) {
       authorAliases.push(String(authorRow.id));
     }
   }
 
-  const data = postRepository.list({
+  const data = await postRepository.list({
     page,
     size,
     query: q,
@@ -82,7 +80,7 @@ export const GET = withErrorHandler(async (req: Request) => {
   });
 
   return successResponse({
-    items: attachAuthorProfile(data.items as PostListItem[]),
+    items: await attachAuthorProfile(data.items as PostListItem[]),
     total: data.total,
     page: data.page,
     size: data.size,
@@ -90,7 +88,6 @@ export const GET = withErrorHandler(async (req: Request) => {
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   if (!user) return errorResponses.unauthorized("Missing token");
@@ -104,9 +101,9 @@ export const POST = withErrorHandler(async (req: Request) => {
       : null;
 
   const base = body.slug?.trim() ? slugify(body.slug) : slugify(body.title);
-  const uniqueSlug = ensureUniqueSlug(base);
+  const uniqueSlug = await ensureUniqueSlug(base);
 
-  postRepository.create({
+  await postRepository.create({
     title: body.title,
     slug: uniqueSlug,
     content: body.content,

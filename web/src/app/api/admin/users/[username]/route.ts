@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { commentRepository, postRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -10,14 +9,13 @@ const paramsSchema = z.object({
 });
 
 export const GET = withErrorHandler(async (_: Request, { params }: { params: Promise<{ username: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "Admin access required");
 
   const { username } = validateParams(await params, paramsSchema);
-  const profile = userRepository.findByUsername(username);
+  const profile = await userRepository.findByUsername(username);
   if (!profile) return errorResponses.notFound("User not found");
 
   const detail = {
@@ -25,14 +23,13 @@ export const GET = withErrorHandler(async (_: Request, { params }: { params: Pro
     created_at: profile.created_at,
     status: "active",
     last_login: null,
-    blog_count: postRepository.getPostCountByAuthor(username),
+    blog_count: await postRepository.getPostCountByAuthor(username),
   };
 
   return successResponse(detail);
 });
 
 export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ username: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -41,14 +38,14 @@ export const DELETE = withErrorHandler(async (_: Request, { params }: { params: 
   const { username } = validateParams(await params, paramsSchema);
   if (isAdminUser(username)) return errorResponses.forbidden("Cannot delete admin");
 
-  postRepository.deleteByAuthor(username);
-  commentRepository.deleteByAuthor(username);
-  postRepository.deleteLikesByUsername(username);
-  postRepository.deleteDislikesByUsername(username);
-  postRepository.deleteFavoritesByUsername(username);
-  commentRepository.deleteVotesByUsername(username);
-  userRepository.deleteFollowRelations(username);
-  userRepository.deleteByUsername(username);
+  await postRepository.deleteByAuthor(username);
+  await commentRepository.deleteByAuthor(username);
+  await postRepository.deleteLikesByUsername(username);
+  await postRepository.deleteDislikesByUsername(username);
+  await postRepository.deleteFavoritesByUsername(username);
+  await commentRepository.deleteVotesByUsername(username);
+  await userRepository.deleteFollowRelations(username);
+  await userRepository.deleteByUsername(username);
 
   return successResponse({ ok: true });
 });

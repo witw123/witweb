@@ -1,6 +1,5 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import BlogPostPage from "@/features/blog/components/BlogPostPage";
-import { initDb } from "@/lib/db-init";
 import { postRepository, userRepository } from "@/lib/repositories";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -24,8 +23,7 @@ export async function generateMetadata({
   const slug = params.slug;
 
   try {
-    initDb();
-    const post = postRepository.getPostDetail(slug);
+    const post = await postRepository.getPostDetail(slug);
     if (!post) {
       return {
         title: "文章不存在",
@@ -33,7 +31,7 @@ export async function generateMetadata({
       };
     }
 
-    const author = userRepository.findByUsername(post.author);
+    const author = await userRepository.findByUsername(post.author);
     const description = stripMarkdown(String(post.content || "")).slice(0, 140) || "查看文章详情";
     const canonical = `/post/${slug}`;
     const tags = String(post.tags || "")

@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -10,14 +9,13 @@ const followSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const body = await validateBody(req, followSchema);
   if (user !== body.username) {
-    userRepository.follow(user, body.username);
+    await userRepository.follow(user, body.username);
   }
 
   return successResponse({ ok: true });

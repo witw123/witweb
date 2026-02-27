@@ -1,8 +1,7 @@
-﻿import { getAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { createRadarSource, listRadarSources } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -14,19 +13,17 @@ const bodySchema = z.object({
 });
 
 export const GET = withErrorHandler(async () => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
-  return successResponse({ items: listRadarSources(user) });
+  return successResponse({ items: await listRadarSources(user) });
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const body = await validateBody(req, bodySchema);
-  const created = createRadarSource({
+  const created = await createRadarSource({
     username: user,
     name: body.name,
     url: body.url,

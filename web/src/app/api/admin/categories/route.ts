@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -31,7 +30,6 @@ function slugify(text: string) {
 }
 
 export const GET = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -39,13 +37,12 @@ export const GET = withErrorHandler(async (req: Request) => {
 
   const { page, limit, search } = await validateQuery(req, querySchema);
 
-  const result = postRepository.listAdminCategories(page, limit, search);
+  const result = await postRepository.listAdminCategories(page, limit, search);
 
   return paginatedResponse(result.items, result.total, page ?? 1, limit ?? 100);
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -60,11 +57,11 @@ export const POST = withErrorHandler(async (req: Request) => {
   }
 
   try {
-    const id = postRepository.createCategory({
+    const id = await postRepository.createCategory({
       name: body.name.trim(),
       slug,
       description: body.description,
-      sort_order: postRepository.getNextCategorySortOrder(),
+      sort_order: await postRepository.getNextCategorySortOrder(),
       is_active: !(body.is_active === 0 || body.is_active === false),
     });
     return createdResponse({ id });

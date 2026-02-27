@@ -26,7 +26,7 @@ export const GET = withErrorHandler(async (
   const { conversationId } = validateParams(await params, paramsSchema);
 
   try {
-    const messages = messageRepository.getMessagesAndMarkAsRead(parseInt(conversationId, 10), user);
+    const messages = await messageRepository.getMessagesAndMarkAsRead(parseInt(conversationId, 10), user);
     return successResponse(messages);
   } catch (error) {
     if (error instanceof ApiError && error.code === ErrorCode.FORBIDDEN) {

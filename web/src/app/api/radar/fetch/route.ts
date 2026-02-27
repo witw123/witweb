@@ -1,8 +1,7 @@
-﻿import { getAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { fetchAllEnabledSources, fetchRadarSourceNow } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -10,7 +9,6 @@ const bodySchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const body = await validateBody(req, bodySchema);

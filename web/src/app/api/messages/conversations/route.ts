@@ -12,9 +12,11 @@ export const GET = withErrorHandler(async () => {
     return errorResponses.unauthorized("请先登录");
   }
 
-  const conversations = messageRepository
-    .getConversationList(user)
-    .filter((item) => userRepository.existsByUsername(item.other_user.username));
+  const conversations = await messageRepository.getConversationList(user);
+  const usernames = conversations.map((item) => item.other_user.username);
+  const existingUsers = await userRepository.listBasicByUsernames(usernames);
+  const existingUsernames = new Set(existingUsers.map((item) => item.username));
+  const filtered = conversations.filter((item) => existingUsernames.has(item.other_user.username));
 
-  return successResponse(conversations);
+  return successResponse(filtered);
 });

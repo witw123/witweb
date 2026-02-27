@@ -10,11 +10,12 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "type-check": "tsc --noEmit",
-    "migrate:postgres": "node scripts/migrate-to-postgres.js"
+    "db:migrate": "node scripts/db-migrate.mjs migrate",
+    "db:migrate:status": "node scripts/db-migrate.mjs status",
+    "data:migrate": "python scripts/migrate-sqlite-to-postgres.py"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.6.0",
     "dompurify": "^3.3.1",
     "jose": "^5.9.3",
     "marked": "^4.3.0",

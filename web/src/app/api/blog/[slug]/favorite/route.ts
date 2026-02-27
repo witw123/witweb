@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { postRepository } from "@/lib/repositories";
@@ -11,7 +10,6 @@ const paramsSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (_: Request, { params }: { params: Promise<{ slug: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -19,7 +17,7 @@ export const POST = withErrorHandler(async (_: Request, { params }: { params: Pr
   const { slug } = validateParams(await params, paramsSchema);
   let favorited = false;
   try {
-    favorited = postRepository.toggleFavorite(slug, user);
+    favorited = await postRepository.toggleFavorite(slug, user);
   } catch (error) {
     if (error instanceof ApiError && error.code === ErrorCode.POST_NOT_FOUND) {
       return errorResponses.notFound("Post not found");
@@ -27,7 +25,7 @@ export const POST = withErrorHandler(async (_: Request, { params }: { params: Pr
     throw error;
   }
 
-  const post = postRepository.getPostDetail(slug, user);
+  const post = await postRepository.getPostDetail(slug, user);
   return successResponse({
     ok: true,
     favorited,

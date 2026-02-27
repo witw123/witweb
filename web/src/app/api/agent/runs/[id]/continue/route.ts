@@ -1,8 +1,7 @@
-﻿import { getAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse, errorResponses } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { continueRun } from "@/lib/agent";
 import { AGENT_MODELS } from "@/lib/agent-llm";
 
@@ -14,7 +13,6 @@ const bodySchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
 

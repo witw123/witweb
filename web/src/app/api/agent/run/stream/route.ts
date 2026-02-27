@@ -1,7 +1,6 @@
-﻿import { getAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
-import { initDb } from "@/lib/db-init";
 import { AGENT_MODELS, generateAgentDraft } from "@/lib/agent-llm";
 import { createRunRecord, finalizeRunFromDraft, markRunFailed } from "@/lib/agent";
 
@@ -18,13 +17,12 @@ function streamLine(obj: unknown) {
 }
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const body = await validateBody(req, bodySchema);
   const model = body.model ?? "gemini-3-pro";
 
-  const runId = createRunRecord(user, body.goal, body.agent_type, model);
+  const runId = await createRunRecord(user, body.goal, body.agent_type, model);
   const encoder = new TextEncoder();
   let chunkCount = 0;
 
@@ -58,11 +56,11 @@ export const POST = withErrorHandler(async (req) => {
         push({ type: "artifact", kind: "content", content: draft.content.slice(0, 900) });
         push({ type: "artifact", kind: "seo", content: JSON.stringify(draft.seo) });
 
-        finalizeRunFromDraft(runId, body.goal, body.agent_type, draft);
+        await finalizeRunFromDraft(runId, body.goal, body.agent_type, draft);
 
         push({ type: "done", run_id: runId, status: "done" });
       } catch (error) {
-        markRunFailed(runId, error instanceof Error ? error.message : "unknown_error");
+        await markRunFailed(runId, error instanceof Error ? error.message : "unknown_error");
         push({
           type: "error",
           run_id: runId,

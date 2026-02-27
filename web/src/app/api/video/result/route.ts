@@ -1,5 +1,4 @@
-﻿import { NextRequest } from "next/server";
-import { initDb } from "@/lib/db-init";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { getResult } from "@/lib/studio";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -11,7 +10,6 @@ const resultSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user, "Please log in first");

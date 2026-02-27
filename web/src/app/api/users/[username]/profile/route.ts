@@ -1,4 +1,3 @@
-import { initDb } from "@/lib/db-init";
 import { publicProfile } from "@/lib/user";
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler } from "@/middleware/error-handler";
@@ -10,12 +9,11 @@ const paramsSchema = z.object({
 });
 
 export const GET = withErrorHandler(async (_: Request, { params }: { params: Promise<{ username: string }> }) => {
-  initDb();
 
   const viewer = await getAuthUser();
   const { username } = validateParams(await params, paramsSchema);
 
-  const profile = publicProfile(username, viewer || undefined);
+  const profile = await publicProfile(username, viewer || undefined);
   if (!profile) return errorResponses.notFound("User not found");
 
   return successResponse(profile);

@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse, errorResponses } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { deleteRadarNotification, updateRadarNotification } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -13,7 +12,6 @@ const bodySchema = z.object({
 });
 
 export const PATCH = withErrorHandler(async (req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const { id } = await context.params;
@@ -21,7 +19,7 @@ export const PATCH = withErrorHandler(async (req, context) => {
   const body = await validateBody(req, bodySchema);
 
   try {
-    updateRadarNotification(notificationId, user, {
+    await updateRadarNotification(notificationId, user, {
       name: body.name,
       webhookUrl: body.webhook_url,
       secret: body.secret,
@@ -34,17 +32,15 @@ export const PATCH = withErrorHandler(async (req, context) => {
 });
 
 export const DELETE = withErrorHandler(async (_req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const { id } = await context.params;
   const notificationId = Number(id);
 
   try {
-    deleteRadarNotification(notificationId, user);
+    await deleteRadarNotification(notificationId, user);
     return successResponse({ id: notificationId, deleted: true });
   } catch {
     return errorResponses.notFound("notification_not_found");
   }
 });
-

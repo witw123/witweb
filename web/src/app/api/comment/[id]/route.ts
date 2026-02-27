@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { commentRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -14,7 +13,6 @@ const updateSchema = z.object({
 });
 
 export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -22,26 +20,25 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
   const { id } = validateParams(await params, paramsSchema);
   const body = await validateBody(req, updateSchema);
 
-  const comment = commentRepository.findById(id);
+  const comment = await commentRepository.findById(id);
   if (!comment) return errorResponses.notFound("Comment not found");
   if (!isAdminUser(user)) return errorResponses.forbidden("Forbidden");
 
-  commentRepository.updateContent(id, body.content);
+  await commentRepository.updateContent(id, body.content);
   return successResponse({ ok: true });
 });
 
 export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ id: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const { id } = validateParams(await params, paramsSchema);
 
-  const comment = commentRepository.findById(id);
+  const comment = await commentRepository.findById(id);
   if (!comment) return errorResponses.notFound("Comment not found");
   if (!isAdminUser(user)) return errorResponses.forbidden("Forbidden");
 
-  commentRepository.delete(id);
+  await commentRepository.delete(id);
   return successResponse({ ok: true });
 });

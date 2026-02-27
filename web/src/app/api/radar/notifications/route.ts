@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { createRadarNotification, listRadarNotifications } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -13,19 +12,17 @@ const bodySchema = z.object({
 });
 
 export const GET = withErrorHandler(async () => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
-  return successResponse({ items: listRadarNotifications(user) });
+  return successResponse({ items: await listRadarNotifications(user) });
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const body = await validateBody(req, bodySchema);
 
-  const created = createRadarNotification({
+  const created = await createRadarNotification({
     username: user,
     name: body.name,
     webhookUrl: body.webhook_url,
@@ -34,4 +31,3 @@ export const POST = withErrorHandler(async (req) => {
   });
   return successResponse(created);
 });
-

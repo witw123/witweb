@@ -1,5 +1,4 @@
-﻿import { NextRequest } from "next/server";
-import { initDb } from "@/lib/db-init";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { videoTaskRepository } from "@/lib/repositories";
 import { getResult } from "@/lib/studio";
@@ -25,7 +24,7 @@ async function pollAndUpdate(taskId: string): Promise<void> {
       : "running";
   const progress = result?.progress || 0;
 
-  videoTaskRepository.updateStatus(taskId, {
+  await videoTaskRepository.updateStatus(taskId, {
     status,
     progress,
     result_json: JSON.stringify(result),
@@ -34,7 +33,7 @@ async function pollAndUpdate(taskId: string): Promise<void> {
   });
 
   if (status === "succeeded" && result?.results) {
-    videoTaskRepository.addResults(
+    await videoTaskRepository.addResults(
       taskId,
       result.results.map((r: { url: string; removeWatermark?: boolean; pid?: string; character_id?: string }) => ({
         url: r.url,
@@ -47,7 +46,6 @@ async function pollAndUpdate(taskId: string): Promise<void> {
 }
 
 export const GET = withErrorHandler(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user, "Please log in first");
@@ -55,18 +53,18 @@ export const GET = withErrorHandler(async (_req: NextRequest, { params }: { para
   const { id } = validateParams(await params, paramsSchema);
 
   let task: VideoTaskWithResults | null = null;
-  const current = videoTaskRepository.findByIdAndUser(id, user);
+  const current = await videoTaskRepository.findByIdAndUser(id, user);
   if (current) {
-    task = { ...current, results: videoTaskRepository.getResultsByTaskId(id) };
+    task = { ...current, results: await videoTaskRepository.getResultsByTaskId(id) };
   }
   assertExists(task, "Task not found");
 
   if (task.status === "pending" || task.status === "running") {
     try {
       await pollAndUpdate(id);
-      const refreshed = videoTaskRepository.findByIdAndUser(id, user);
+      const refreshed = await videoTaskRepository.findByIdAndUser(id, user);
       if (refreshed) {
-        task = { ...refreshed, results: videoTaskRepository.getResultsByTaskId(id) };
+        task = { ...refreshed, results: await videoTaskRepository.getResultsByTaskId(id) };
       }
     } catch {}
   }

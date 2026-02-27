@@ -3,7 +3,7 @@ import { successResponse } from "@/lib/api-response";
 import { postRepository } from "@/lib/repositories";
 
 export const GET = withErrorHandler(async () => {
-  const { totalPosts, totalVisits, totalVisitors } = postRepository.getSiteStats();
+  const { totalPosts, totalVisits, totalVisitors } = await postRepository.getSiteStats();
 
   return successResponse({
     totalPosts,

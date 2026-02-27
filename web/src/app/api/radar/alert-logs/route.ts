@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateQuery, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { listRadarAlertLogs } from "@/lib/topic-radar";
 
 const querySchema = z.object({
@@ -11,16 +10,14 @@ const querySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const query = await validateQuery(req, querySchema);
 
-  const items = listRadarAlertLogs(user, {
+  const items = await listRadarAlertLogs(user, {
     limit: query.limit,
     status: query.status,
   });
 
   return successResponse({ items });
 });
-

@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -10,13 +9,12 @@ const paramsSchema = z.object({
 });
 
 export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ username: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const parsed = validateParams(await params, paramsSchema);
-  userRepository.unfollow(user, parsed.username);
+  await userRepository.unfollow(user, parsed.username);
 
   return successResponse({ ok: true });
 });

@@ -1,8 +1,7 @@
-﻿import { getAuthUser } from "@/lib/http";
+import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse, errorResponses } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { updateRadarSource, deleteRadarSource } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -14,7 +13,6 @@ const bodySchema = z.object({
 });
 
 export const PATCH = withErrorHandler(async (req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const { id } = await context.params;
@@ -22,7 +20,7 @@ export const PATCH = withErrorHandler(async (req, context) => {
   const body = await validateBody(req, bodySchema);
 
   try {
-    updateRadarSource(sourceId, user, {
+    await updateRadarSource(sourceId, user, {
       name: body.name,
       url: body.url,
       type: body.type,
@@ -36,14 +34,13 @@ export const PATCH = withErrorHandler(async (req, context) => {
 });
 
 export const DELETE = withErrorHandler(async (_req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const { id } = await context.params;
   const sourceId = Number(id);
 
   try {
-    deleteRadarSource(sourceId, user);
+    await deleteRadarSource(sourceId, user);
     return successResponse({ id: sourceId, deleted: true });
   } catch {
     return errorResponses.notFound("来源不存在");

@@ -27,8 +27,8 @@ type SenderActivityWithProfile = SenderActivity & {
   sender_avatar: string;
 };
 
-function enrichSender<T extends { sender: string }>(items: T[]) {
-  const rows = userRepository.listBasicByUsernames(items.map((item) => item.sender));
+async function enrichSender<T extends { sender: string }>(items: T[]) {
+  const rows = await userRepository.listBasicByUsernames(items.map((item) => item.sender));
   const userMap = new Map(rows.map((row) => [row.username, row]));
   return items.map((item) => {
     const user = userMap.get(item.sender);
@@ -52,13 +52,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   let total = 0;
 
   if (type === "replies") {
-    items = enrichSender(commentRepository.getRepliesToUser(user, page, size));
+    items = await enrichSender(await commentRepository.getRepliesToUser(user, page, size));
     total = items.length;
   } else if (type === "likes") {
-    items = enrichSender(postRepository.getLikesToUser(user, page, size));
+    items = await enrichSender(await postRepository.getLikesToUser(user, page, size));
     total = items.length;
   } else if (type === "at") {
-    items = enrichSender(commentRepository.getMentionsToUser(user, page, size));
+    items = await enrichSender(await commentRepository.getMentionsToUser(user, page, size));
     total = items.length;
   } else if (type === "system") {
     const now = new Date().toISOString();

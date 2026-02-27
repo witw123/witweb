@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { verifyToken } from "./auth";
 import { authConfig } from "./config";
 import { AUTH_COOKIE_NAME } from "./auth-constants";
-import { userRepository } from "./repositories";
 
 function getTokenFromCookie(cookieHeader: string): string | null {
   const cookies = cookieHeader.split(";");
@@ -37,15 +36,7 @@ export async function getAuthUser() {
 }
 
 export function isAdminUser(username: string | null | undefined): boolean {
-  if (!username) return false;
-
-  try {
-    const row = userRepository.findByUsername(username);
-    if (row?.role === "admin") return true;
-  } catch {
-  }
-
-  return username === authConfig.adminUsername;
+  return !!username && username === authConfig.adminUsername;
 }
 
 export async function requireAuthUser(): Promise<string | Response> {

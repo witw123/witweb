@@ -20,7 +20,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { receiver, content } = await validateBody(req, sendMessageSchema);
 
   try {
-    const result = messageRepository.sendMessage({ sender: auth.username, receiver, content });
+    const result = await messageRepository.sendMessage({ sender: auth.username, receiver, content });
     return successResponse({ conversation_id: result.conversationId });
   } catch (error) {
     if (error instanceof ApiError && error.code === ErrorCode.USER_NOT_FOUND) {

@@ -307,10 +307,10 @@ async function sendWebhookNotification(
 async function dispatchAlertsForItems(username: string, items: InsertedRadarItem[]) {
   if (items.length === 0) return;
 
-  const channels = topicRadarRepository.listEnabledNotificationsByUser(username) as RadarNotification[];
+  const channels = (await topicRadarRepository.listEnabledNotificationsByUser(username)) as RadarNotification[];
   if (channels.length === 0) return;
 
-  const rules = topicRadarRepository.listEnabledAlertRulesByUser(username) as RadarAlertRule[];
+  const rules = (await topicRadarRepository.listEnabledAlertRulesByUser(username)) as RadarAlertRule[];
   if (rules.length === 0) return;
 
   const channelById = new Map(channels.map((item) => [item.id, item]));
@@ -321,10 +321,10 @@ async function dispatchAlertsForItems(username: string, items: InsertedRadarItem
       if (!channel || channel.enabled !== 1) continue;
       if (!shouldTriggerRule(rule, item)) continue;
 
-      if (topicRadarRepository.hasAlertLog(item.id, channel.id, rule.id)) continue;
+      if (await topicRadarRepository.hasAlertLog(item.id, channel.id, rule.id)) continue;
 
       const sendResult = await sendWebhookNotification(channel, rule, item);
-      topicRadarRepository.insertAlertLog({
+      await topicRadarRepository.insertAlertLog({
         username,
         itemId: item.id,
         channelId: channel.id,
@@ -338,15 +338,15 @@ async function dispatchAlertsForItems(username: string, items: InsertedRadarItem
   }
 }
 
-function ensureDefaultRadarSources(username: string) {
-  const existing = topicRadarRepository.listSourceUrlsByUser(username);
+async function ensureDefaultRadarSources(username: string) {
+  const existing = await topicRadarRepository.listSourceUrlsByUser(username);
   const existingSet = new Set(existing.map((item) => item.url.trim().toLowerCase()));
   const ts = nowIso();
 
   for (const source of DEFAULT_RADAR_SOURCES) {
     const key = source.url.trim().toLowerCase();
     if (existingSet.has(key)) continue;
-    topicRadarRepository.insertSource({
+    await topicRadarRepository.insertSource({
       name: source.name,
       url: source.url,
       type: source.type,
@@ -359,12 +359,12 @@ function ensureDefaultRadarSources(username: string) {
   }
 }
 
-export function listRadarSources(username: string): RadarSource[] {
-  ensureDefaultRadarSources(username);
-  return topicRadarRepository.listSourcesByUser(username) as RadarSource[];
+export async function listRadarSources(username: string): Promise<RadarSource[]> {
+  await ensureDefaultRadarSources(username);
+  return (await topicRadarRepository.listSourcesByUser(username)) as RadarSource[];
 }
 
-export function createRadarSource(input: {
+export async function createRadarSource(input: {
   username: string;
   name: string;
   url: string;
@@ -374,7 +374,7 @@ export function createRadarSource(input: {
 }) {
   const ts = nowIso();
   return {
-    id: topicRadarRepository.insertSource({
+    id: await topicRadarRepository.insertSource({
       name: input.name,
       url: input.url,
       type: input.type,
@@ -386,7 +386,7 @@ export function createRadarSource(input: {
   };
 }
 
-export function updateRadarSource(
+export async function updateRadarSource(
   sourceId: number,
   username: string,
   patch: {
@@ -397,34 +397,34 @@ export function updateRadarSource(
     enabled?: boolean;
   }
 ) {
-  if (!topicRadarRepository.sourceExistsByIdAndUser(sourceId, username)) throw new Error("source_not_found");
+  if (!(await topicRadarRepository.sourceExistsByIdAndUser(sourceId, username))) throw new Error("source_not_found");
 
-  topicRadarRepository.updateSource(sourceId, username, {
+  await topicRadarRepository.updateSource(sourceId, username, {
     ...patch,
     ts: nowIso(),
   });
 }
 
-export function deleteRadarSource(sourceId: number, username: string) {
-  const deleted = topicRadarRepository.deleteSourceWithItems(sourceId, username);
+export async function deleteRadarSource(sourceId: number, username: string) {
+  const deleted = await topicRadarRepository.deleteSourceWithItems(sourceId, username);
   if (!deleted) throw new Error("source_not_found");
 }
 
-export function listRadarItems(username: string, options: { limit?: number; q?: string; sourceId?: number } = {}) {
-  ensureDefaultRadarSources(username);
+export async function listRadarItems(username: string, options: { limit?: number; q?: string; sourceId?: number } = {}) {
+  await ensureDefaultRadarSources(username);
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
-  return topicRadarRepository.listItemsByUser(username, {
+  return (await topicRadarRepository.listItemsByUser(username, {
     limit,
     q: options.q,
     sourceId: options.sourceId,
-  }) as Array<RadarItem & { source_name: string }>;
+  })) as Array<RadarItem & { source_name: string }>;
 }
 
-export function listRadarNotifications(username: string): RadarNotification[] {
-  return topicRadarRepository.listNotificationsByUser(username) as RadarNotification[];
+export async function listRadarNotifications(username: string): Promise<RadarNotification[]> {
+  return (await topicRadarRepository.listNotificationsByUser(username)) as RadarNotification[];
 }
 
-export function createRadarNotification(input: {
+export async function createRadarNotification(input: {
   username: string;
   name: string;
   webhookUrl: string;
@@ -433,7 +433,7 @@ export function createRadarNotification(input: {
 }) {
   const ts = nowIso();
   return {
-    id: topicRadarRepository.createNotification({
+    id: await topicRadarRepository.createNotification({
       username: input.username,
       name: input.name,
       webhookUrl: input.webhookUrl,
@@ -444,30 +444,30 @@ export function createRadarNotification(input: {
   };
 }
 
-export function updateRadarNotification(
+export async function updateRadarNotification(
   notificationId: number,
   username: string,
   patch: { name?: string; webhookUrl?: string; secret?: string; enabled?: boolean }
 ) {
-  if (!topicRadarRepository.notificationExistsByIdAndUser(notificationId, username)) {
+  if (!(await topicRadarRepository.notificationExistsByIdAndUser(notificationId, username))) {
     throw new Error("notification_not_found");
   }
-  topicRadarRepository.updateNotification(notificationId, username, {
+  await topicRadarRepository.updateNotification(notificationId, username, {
     ...patch,
     ts: nowIso(),
   });
 }
 
-export function deleteRadarNotification(notificationId: number, username: string) {
-  const deleted = topicRadarRepository.deleteNotificationWithRules(notificationId, username);
+export async function deleteRadarNotification(notificationId: number, username: string) {
+  const deleted = await topicRadarRepository.deleteNotificationWithRules(notificationId, username);
   if (!deleted) throw new Error("notification_not_found");
 }
 
-export function listRadarAlertRules(username: string): Array<RadarAlertRule & { channel_name: string }> {
-  return topicRadarRepository.listAlertRulesByUser(username) as Array<RadarAlertRule & { channel_name: string }>;
+export async function listRadarAlertRules(username: string): Promise<Array<RadarAlertRule & { channel_name: string }>> {
+  return (await topicRadarRepository.listAlertRulesByUser(username)) as Array<RadarAlertRule & { channel_name: string }>;
 }
 
-export function createRadarAlertRule(input: {
+export async function createRadarAlertRule(input: {
   username: string;
   name: string;
   ruleType: RadarAlertRuleType;
@@ -477,12 +477,12 @@ export function createRadarAlertRule(input: {
   channelId: number;
   enabled?: boolean;
 }) {
-  const channel = topicRadarRepository.notificationExistsByIdAndUser(input.channelId, input.username);
+  const channel = await topicRadarRepository.notificationExistsByIdAndUser(input.channelId, input.username);
   if (!channel) throw new Error("notification_not_found");
 
   const ts = nowIso();
   return {
-    id: topicRadarRepository.createAlertRule({
+    id: await topicRadarRepository.createAlertRule({
       username: input.username,
       name: input.name,
       ruleType: input.ruleType,
@@ -496,7 +496,7 @@ export function createRadarAlertRule(input: {
   };
 }
 
-export function updateRadarAlertRule(
+export async function updateRadarAlertRule(
   ruleId: number,
   username: string,
   patch: {
@@ -509,59 +509,59 @@ export function updateRadarAlertRule(
     enabled?: boolean;
   }
 ) {
-  if (!topicRadarRepository.alertRuleExistsByIdAndUser(ruleId, username)) throw new Error("rule_not_found");
+  if (!(await topicRadarRepository.alertRuleExistsByIdAndUser(ruleId, username))) throw new Error("rule_not_found");
 
   if (patch.channelId) {
-    if (!topicRadarRepository.notificationExistsByIdAndUser(patch.channelId, username)) {
+    if (!(await topicRadarRepository.notificationExistsByIdAndUser(patch.channelId, username))) {
       throw new Error("notification_not_found");
     }
   }
 
-  topicRadarRepository.updateAlertRule(ruleId, username, {
+  await topicRadarRepository.updateAlertRule(ruleId, username, {
     ...patch,
     ts: nowIso(),
   });
 }
 
-export function deleteRadarAlertRule(ruleId: number, username: string) {
-  const deleted = topicRadarRepository.deleteAlertRule(ruleId, username);
+export async function deleteRadarAlertRule(ruleId: number, username: string) {
+  const deleted = await topicRadarRepository.deleteAlertRule(ruleId, username);
   if (!deleted) throw new Error("rule_not_found");
 }
 
-export function listRadarAlertLogs(
+export async function listRadarAlertLogs(
   username: string,
   options: { limit?: number; status?: "success" | "failed" } = {}
-): Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }> {
+): Promise<Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>> {
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
-  return topicRadarRepository.listAlertLogsByUser(username, {
+  return (await topicRadarRepository.listAlertLogsByUser(username, {
     limit,
     status: options.status,
-  }) as Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>;
+  })) as Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>;
 }
 
-export function clearRadarItems(username: string, options: { sourceId?: number } = {}) {
-  ensureDefaultRadarSources(username);
+export async function clearRadarItems(username: string, options: { sourceId?: number } = {}) {
+  await ensureDefaultRadarSources(username);
 
   if (options.sourceId) {
-    if (!topicRadarRepository.sourceExistsByIdAndUser(options.sourceId, username)) {
+    if (!(await topicRadarRepository.sourceExistsByIdAndUser(options.sourceId, username))) {
       throw new Error("source_not_found");
     }
-    return { deleted: topicRadarRepository.clearItemsBySource(options.sourceId) };
+    return { deleted: await topicRadarRepository.clearItemsBySource(options.sourceId) };
   }
 
-  return { deleted: topicRadarRepository.clearItemsByUser(username) };
+  return { deleted: await topicRadarRepository.clearItemsByUser(username) };
 }
 
-export function listRadarSavedTopics(
+export async function listRadarSavedTopics(
   username: string,
   options: { limit?: number; q?: string; kind?: "item" | "analysis" } = {}
 ) {
   const limit = Math.min(Math.max(options.limit ?? 80, 1), 200);
-  const rows = topicRadarRepository.listSavedTopicsByUser(username, {
+  const rows = (await topicRadarRepository.listSavedTopicsByUser(username, {
     limit,
     q: options.q,
     kind: options.kind,
-  }) as RadarSavedTopic[];
+  })) as RadarSavedTopic[];
 
   return rows.map((row) => ({
     ...row,
@@ -576,7 +576,7 @@ export function listRadarSavedTopics(
   }));
 }
 
-export function createRadarSavedTopic(input: {
+export async function createRadarSavedTopic(input: {
   username: string;
   kind: "item" | "analysis";
   title: string;
@@ -589,7 +589,7 @@ export function createRadarSavedTopic(input: {
 }) {
   const ts = nowIso();
   return {
-    id: topicRadarRepository.createSavedTopic({
+    id: await topicRadarRepository.createSavedTopic({
       username: input.username,
       kind: input.kind,
       title: input.title,
@@ -604,8 +604,8 @@ export function createRadarSavedTopic(input: {
   };
 }
 
-export function deleteRadarSavedTopic(topicId: number, username: string) {
-  const deleted = topicRadarRepository.deleteSavedTopic(topicId, username);
+export async function deleteRadarSavedTopic(topicId: number, username: string) {
+  const deleted = await topicRadarRepository.deleteSavedTopic(topicId, username);
   if (!deleted) throw new Error("topic_not_found");
   return { id: topicId, deleted: true };
 }
@@ -745,9 +745,9 @@ async function fetchApiItems(sourceUrl: string, parser: ParserConfig): Promise<N
 }
 
 export async function fetchRadarSourceNow(sourceId: number, username: string) {
-  ensureDefaultRadarSources(username);
+  await ensureDefaultRadarSources(username);
 
-  const source = topicRadarRepository.getSourceByIdAndUser(sourceId, username) as RadarSource | null;
+  const source = (await topicRadarRepository.getSourceByIdAndUser(sourceId, username)) as RadarSource | null;
   if (!source) throw new Error("source_not_found");
 
   const parser = parseParserConfig(source.parser_config_json || "{}");
@@ -765,7 +765,7 @@ export async function fetchRadarSourceNow(sourceId: number, username: string) {
       throw new Error("source_type_not_supported");
     }
   } catch (error) {
-    topicRadarRepository.markSourceFetchFailed(
+    await topicRadarRepository.markSourceFetchFailed(
       source.id,
       ts,
       error instanceof Error ? error.message : "fetch_failed"
@@ -773,7 +773,7 @@ export async function fetchRadarSourceNow(sourceId: number, username: string) {
     throw error;
   }
 
-  const persisted = topicRadarRepository.saveFetchedItemsAndMarkSourceSuccess(
+  const persisted = await topicRadarRepository.saveFetchedItemsAndMarkSourceSuccess(
     { id: source.id, name: source.name },
     items.map((item) => ({
       title: item.title,
@@ -792,9 +792,9 @@ export async function fetchRadarSourceNow(sourceId: number, username: string) {
 }
 
 export async function fetchAllEnabledSources(username: string) {
-  ensureDefaultRadarSources(username);
+  await ensureDefaultRadarSources(username);
 
-  const sources = topicRadarRepository.listSourceIdsByUser(username);
+  const sources = await topicRadarRepository.listSourceIdsByUser(username);
 
   const results: Array<{ sourceId: number; fetched: number; inserted: number; error?: string }> = [];
   for (const source of sources) {

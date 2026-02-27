@@ -1,4 +1,3 @@
-import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -28,7 +27,6 @@ const postSchema = z.discriminatedUnion("action", [
 ]);
 
 export const GET = withErrorHandler(async (req) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -38,7 +36,7 @@ export const GET = withErrorHandler(async (req) => {
   securityLog("admin_security_status_view", context);
 
   const validation = validateConfig();
-  const secureConfigStatus = getSecureConfigStatus();
+  const secureConfigStatus = await getSecureConfigStatus();
 
   return successResponse({
     environment: appConfig.env,
@@ -64,14 +62,13 @@ export const GET = withErrorHandler(async (req) => {
       encryptionEnabled: secureConfigStatus.encryptionEnabled,
       storedConfigs: secureConfigStatus.keys,
     },
-    effectiveApiKey: getApiKeyPreview(),
+    effectiveApiKey: await getApiKeyPreview(),
     configSnapshot: getSafeConfig(),
     timestamp: new Date().toISOString(),
   });
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -90,7 +87,7 @@ export const POST = withErrorHandler(async (req) => {
   }
 
   try {
-    setSecureConfig(body.key as SensitiveConfigKey, body.value);
+    await setSecureConfig(body.key as SensitiveConfigKey, body.value);
     securityLog("admin_security_config_set", context, {
       key: body.key,
       admin: user,

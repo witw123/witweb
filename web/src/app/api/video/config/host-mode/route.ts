@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { setHostMode } from "@/lib/studio";
 import {
@@ -17,7 +16,6 @@ const hostModeSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -26,7 +24,7 @@ export const POST = withErrorHandler(async (req) => {
 
   const body = await validateBody(req, hostModeSchema);
 
-  setHostMode(body.host_mode ?? "auto");
+  await setHostMode(body.host_mode ?? "auto");
 
   return successResponse({ ok: true });
 });

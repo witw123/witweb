@@ -36,18 +36,6 @@ function getEnvInt(key: string, defaultValue: number): number {
 // ============================================================================
 
 export const dbConfig = {
-  users: {
-    path: getEnv("SORA_USERS_DB_PATH", ""),
-  },
-  blog: {
-    path: getEnv("SORA_BLOG_DB_PATH", ""),
-  },
-  studio: {
-    path: getEnv("SORA_STUDIO_DB_PATH", ""),
-  },
-  messages: {
-    path: getEnv("SORA_MESSAGES_DB_PATH", ""),
-  },
   postgres: {
     url: getEnv("DATABASE_URL", ""),
     poolMax: getEnvInt("PG_POOL_MAX", 10),
@@ -172,6 +160,10 @@ export const securityConfig = {
   /**
    */
   loginRateLimitMax: getEnvInt("LOGIN_RATE_LIMIT_MAX", 5),
+
+  /**
+   */
+  loginRateLimitWindow: getEnvInt("LOGIN_RATE_LIMIT_WINDOW_MS", 900000),
   
   /**
    */

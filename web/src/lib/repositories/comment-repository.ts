@@ -1,13 +1,6 @@
-﻿/**
- */
+import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
+import type { Comment, CommentListItem } from "@/types";
 
-import type Database from "better-sqlite3";
-import { BaseRepository, type QueryOptions } from "./base-repository";
-import { getBlogDb } from "@/lib/db";
-import type { Comment, CommentListItem, NotificationItem } from "@/types";
-
-/**
- */
 export interface CreateCommentData {
   post_id: number;
   author: string;
@@ -16,28 +9,31 @@ export interface CreateCommentData {
   ip_address?: string;
 }
 
-/**
- */
 export interface UpdateCommentData {
   content: string;
 }
 
-/**
- */
-export class CommentRepository extends BaseRepository<Comment, number> {
-  protected readonly tableName = "comments";
-  protected readonly primaryKey = "id";
+export interface NotificationFeedItem {
+  sender: string;
+  content: string;
+  created_at: string;
+  post_title: string;
+  post_slug: string;
+}
 
-  protected getDb(options?: QueryOptions): Database {
-    return options?.db || getBlogDb();
+function normalizePagination(page = 1, size = 10): { size: number; offset: number } {
+  const validPage = Math.max(1, page);
+  const validSize = Math.max(1, Math.min(50, size));
+  const offset = (validPage - 1) * validSize;
+  return { size: validSize, offset };
+}
+
+export class CommentRepository {
+  async findById(id: number): Promise<Comment | null> {
+    return await pgQueryOne<Comment>("SELECT * FROM comments WHERE id = ?", [id]);
   }
 
-
-  /**
-   */
-  findByPostId(postId: number, options?: QueryOptions): CommentListItem[] {
-    const db = this.getDb(options);
-    
+  async findByPostId(postId: number): Promise<CommentListItem[]> {
     const sql = `
       SELECT
         c.id,
@@ -47,21 +43,16 @@ export class CommentRepository extends BaseRepository<Comment, number> {
         c.created_at,
         c.parent_id,
         c.ip_address,
-        (SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id AND v.value = 1) AS like_count,
-        (SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id AND v.value = -1) AS dislike_count
+        (SELECT COUNT(*)::int FROM comment_votes v WHERE v.comment_id = c.id AND v.value = 1) AS like_count,
+        (SELECT COUNT(*)::int FROM comment_votes v WHERE v.comment_id = c.id AND v.value = -1) AS dislike_count
       FROM comments c
       WHERE c.post_id = ?
       ORDER BY c.id DESC
     `;
-    
-    return db.prepare(sql).all(postId) as CommentListItem[];
+    return await pgQuery<CommentListItem>(sql, [postId]);
   }
 
-  /**
-   */
-  findByPostSlug(slug: string, options?: QueryOptions): CommentListItem[] {
-    const db = this.getDb(options);
-    
+  async findByPostSlug(slug: string): Promise<CommentListItem[]> {
     const sql = `
       SELECT
         c.id,
@@ -71,132 +62,106 @@ export class CommentRepository extends BaseRepository<Comment, number> {
         c.created_at,
         c.parent_id,
         c.ip_address,
-        (SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id AND v.value = 1) AS like_count,
-        (SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id AND v.value = -1) AS dislike_count
+        (SELECT COUNT(*)::int FROM comment_votes v WHERE v.comment_id = c.id AND v.value = 1) AS like_count,
+        (SELECT COUNT(*)::int FROM comment_votes v WHERE v.comment_id = c.id AND v.value = -1) AS dislike_count
       FROM comments c
       INNER JOIN posts p ON c.post_id = p.id
       WHERE p.slug = ?
       ORDER BY c.id DESC
     `;
-    
-    return db.prepare(sql).all(slug) as CommentListItem[];
+    return await pgQuery<CommentListItem>(sql, [slug]);
   }
 
-  /**
-   */
-  create(data: CreateCommentData, options?: QueryOptions): number {
+  async create(data: CreateCommentData): Promise<number> {
     const now = new Date().toISOString();
-    const sql = `
+    const row = await pgQueryOne<{ id: number }>(
+      `
       INSERT INTO comments (post_id, author, content, created_at, parent_id, ip_address)
       VALUES (?, ?, ?, ?, ?, ?)
-    `;
-    const result = this.run(sql, [
-      data.post_id,
-      data.author,
-      data.content,
-      now,
-      data.parent_id || null,
-      data.ip_address || null,
-    ], options);
-    return Number(result.lastInsertRowid);
+      RETURNING id
+      `,
+      [data.post_id, data.author, data.content, now, data.parent_id || null, data.ip_address || null]
+    );
+    return Number(row?.id || 0);
   }
 
-  /**
-   */
-  updateContent(id: number, content: string, options?: QueryOptions): boolean {
-    const sql = `UPDATE comments SET content = ? WHERE id = ?`;
-    const result = this.run(sql, [content, id], options);
+  async updateContent(id: number, content: string): Promise<boolean> {
+    const result = await pgRun("UPDATE comments SET content = ? WHERE id = ?", [content, id]);
     return result.changes > 0;
   }
 
-  /**
-   */
-  delete(id: number, options?: QueryOptions): boolean {
-    const db = this.getDb(options);
-    
-    return db.transaction(() => {
-      db.prepare("DELETE FROM comment_votes WHERE comment_id = ?").run(id);
-      const result = db.prepare("DELETE FROM comments WHERE id = ?").run(id);
+  async delete(id: number): Promise<boolean> {
+    return await withPgTransaction<boolean>(async (client) => {
+      await pgRun("DELETE FROM comment_votes WHERE comment_id = ?", [id], client);
+      const result = await pgRun("DELETE FROM comments WHERE id = ?", [id], client);
       return result.changes > 0;
-    })();
+    });
   }
 
-  /**
-   */
-  getPostSlugForComment(commentId: number, options?: QueryOptions): string {
-    const db = this.getDb(options);
-    
-    const row = db.prepare(`
-      SELECT p.slug 
+  async getPostSlugForComment(commentId: number): Promise<string> {
+    const row = await pgQueryOne<{ slug: string }>(
+      `
+      SELECT p.slug
       FROM comments c
       INNER JOIN posts p ON c.post_id = p.id
       WHERE c.id = ?
-    `).get(commentId) as { slug: string } | undefined;
-    
+      `,
+      [commentId]
+    );
     return row?.slug || "";
   }
 
-
-  /**
-   */
-  vote(commentId: number, username: string, value: 1 | -1, options?: QueryOptions): boolean {
-    const db = this.getDb(options);
-    
-    const existing = db.prepare("SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?")
-      .get(commentId, username) as { id: number } | undefined;
-    
+  async vote(commentId: number, username: string, value: 1 | -1): Promise<boolean> {
+    const existing = await pgQueryOne<{ id: number }>(
+      "SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?",
+      [commentId, username]
+    );
     if (existing) {
-      db.prepare("UPDATE comment_votes SET value = ?, created_at = ? WHERE id = ?")
-        .run(value, new Date().toISOString(), existing.id);
-    } else {
-      db.prepare("INSERT INTO comment_votes (comment_id, username, value, created_at) VALUES (?, ?, ?, ?)")
-        .run(commentId, username, value, new Date().toISOString());
+      await pgRun("UPDATE comment_votes SET value = ?, created_at = ? WHERE id = ?", [
+        value,
+        new Date().toISOString(),
+        existing.id,
+      ]);
+      return true;
     }
-    
+    await pgRun("INSERT INTO comment_votes (comment_id, username, value, created_at) VALUES (?, ?, ?, ?)", [
+      commentId,
+      username,
+      value,
+      new Date().toISOString(),
+    ]);
     return true;
   }
 
-  /**
-   */
-  removeVote(commentId: number, username: string, options?: QueryOptions): boolean {
-    const sql = `DELETE FROM comment_votes WHERE comment_id = ? AND username = ?`;
-    const result = this.run(sql, [commentId, username], options);
+  async removeVote(commentId: number, username: string): Promise<boolean> {
+    const result = await pgRun("DELETE FROM comment_votes WHERE comment_id = ? AND username = ?", [commentId, username]);
     return result.changes > 0;
   }
 
-  /**
-   */
-  getUserVote(commentId: number, username: string, options?: QueryOptions): 1 | -1 | null {
-    const sql = `SELECT value FROM comment_votes WHERE comment_id = ? AND username = ?`;
-    const result = this.queryOne<{ value: 1 | -1 }>(sql, [commentId, username], options);
+  async getUserVote(commentId: number, username: string): Promise<1 | -1 | null> {
+    const result = await pgQueryOne<{ value: 1 | -1 }>(
+      "SELECT value FROM comment_votes WHERE comment_id = ? AND username = ?",
+      [commentId, username]
+    );
     return result?.value || null;
   }
 
-  /**
-   */
-  getVoteCounts(commentId: number, options?: QueryOptions): { like_count: number; dislike_count: number } {
-    const db = this.getDb(options);
-    
-    const likes = db.prepare("SELECT COUNT(*) AS cnt FROM comment_votes WHERE comment_id = ? AND value = 1")
-      .get(commentId) as { cnt: number };
-    const dislikes = db.prepare("SELECT COUNT(*) AS cnt FROM comment_votes WHERE comment_id = ? AND value = -1")
-      .get(commentId) as { cnt: number };
-    
-    return {
-      like_count: likes?.cnt || 0,
-      dislike_count: dislikes?.cnt || 0,
-    };
+  async getVoteCounts(commentId: number): Promise<{ like_count: number; dislike_count: number }> {
+    const likes =
+      (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comment_votes WHERE comment_id = ? AND value = 1", [
+        commentId,
+      ]))?.cnt || 0;
+    const dislikes =
+      (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comment_votes WHERE comment_id = ? AND value = -1", [
+        commentId,
+      ]))?.cnt || 0;
+    return { like_count: likes, dislike_count: dislikes };
   }
 
-
-  /**
-   */
-  getRepliesToUser(username: string, page = 1, size = 10, options?: QueryOptions): NotificationItem[] {
-    const { size: validSize, offset } = this.normalizePagination(page, size);
-    const db = this.getDb(options);
-    
+  async getRepliesToUser(username: string, page = 1, size = 10): Promise<NotificationFeedItem[]> {
+    const { size: validSize, offset } = normalizePagination(page, size);
     const sql = `
-      SELECT 
+      SELECT
         c.author AS sender,
         c.content,
         c.created_at,
@@ -208,18 +173,13 @@ export class CommentRepository extends BaseRepository<Comment, number> {
       ORDER BY c.created_at DESC
       LIMIT ? OFFSET ?
     `;
-    
-    return db.prepare(sql).all(username, username, validSize, offset) as NotificationItem[];
+    return await pgQuery<NotificationFeedItem>(sql, [username, username, validSize, offset]);
   }
 
-  /**
-   */
-  getMentionsToUser(username: string, page = 1, size = 10, options?: QueryOptions): NotificationItem[] {
-    const { size: validSize, offset } = this.normalizePagination(page, size);
-    const db = this.getDb(options);
-    
+  async getMentionsToUser(username: string, page = 1, size = 10): Promise<NotificationFeedItem[]> {
+    const { size: validSize, offset } = normalizePagination(page, size);
     const sql = `
-      SELECT 
+      SELECT
         c.author AS sender,
         c.content,
         c.created_at,
@@ -231,59 +191,52 @@ export class CommentRepository extends BaseRepository<Comment, number> {
       ORDER BY c.created_at DESC
       LIMIT ? OFFSET ?
     `;
-    
-    return db.prepare(sql).all(`%@${username}%`, username, validSize, offset) as NotificationItem[];
+    return await pgQuery<NotificationFeedItem>(sql, [`%@${username}%`, username, validSize, offset]);
   }
 
-  /**
-   */
-  getNewCommentsCount(username: string, since: string, options?: QueryOptions): number {
-    const db = this.getDb(options);
-    
-    const sql = `
-      SELECT COUNT(*) AS cnt 
+  async getNewCommentsCount(username: string, since: string): Promise<number> {
+    const row = await pgQueryOne<{ cnt: number }>(
+      `
+      SELECT COUNT(*)::int AS cnt
       FROM comments c
       INNER JOIN posts p ON c.post_id = p.id
       WHERE p.author = ? AND c.author != ? AND c.created_at > ?
-    `;
-    
-    const result = db.prepare(sql).get(username, username, since) as { cnt: number };
-    return result?.cnt || 0;
+      `,
+      [username, username, since]
+    );
+    return row?.cnt || 0;
   }
 
-  /**
-   */
-  getCommentCountByPostId(postId: number, options?: QueryOptions): number {
-    return this.count("post_id = ?", [postId], options);
+  async getCommentCountByPostId(postId: number): Promise<number> {
+    const row = await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comments WHERE post_id = ?", [postId]);
+    return row?.cnt || 0;
   }
 
-  /**
-   */
-  getCommentCountByAuthor(author: string, options?: QueryOptions): number {
-    return this.count("author = ?", [author], options);
+  async getCommentCountByAuthor(author: string): Promise<number> {
+    const row = await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comments WHERE author = ?", [author]);
+    return row?.cnt || 0;
   }
 
-  /**
-   */
-  getStats(options?: QueryOptions): { total: number; today: number; week: number } {
-    const db = this.getDb(options);
-    
-    const total = (db.prepare("SELECT COUNT(*) AS cnt FROM comments").get() as { cnt: number })?.cnt || 0;
-    const today = (db.prepare("SELECT COUNT(*) AS cnt FROM comments WHERE date(created_at) = date('now', 'localtime')").get() as { cnt: number })?.cnt || 0;
-    const week = (db.prepare("SELECT COUNT(*) AS cnt FROM comments WHERE created_at >= datetime('now', 'localtime', '-7 days')").get() as { cnt: number })?.cnt || 0;
-    
+  async getStats(): Promise<{ total: number; today: number; week: number }> {
+    const total = (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comments"))?.cnt || 0;
+    const today =
+      (await pgQueryOne<{ cnt: number }>(
+        "SELECT COUNT(*)::int AS cnt FROM comments WHERE created_at::date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date"
+      ))?.cnt || 0;
+    const week =
+      (await pgQueryOne<{ cnt: number }>(
+        "SELECT COUNT(*)::int AS cnt FROM comments WHERE created_at >= ((NOW() AT TIME ZONE 'Asia/Shanghai') - interval '7 days')"
+      ))?.cnt || 0;
     return { total, today, week };
   }
 
-  deleteByAuthor(author: string, options?: QueryOptions): number {
-    const sql = `DELETE FROM comments WHERE author = ?`;
-    const result = this.run(sql, [author], options);
+  async deleteByAuthor(author: string): Promise<number> {
+    const result = await pgRun("DELETE FROM comments WHERE author = ?", [author]);
     return result.changes;
   }
 
-  deleteVotesByUsername(username: string, options?: QueryOptions): number {
-    const sql = `DELETE FROM comment_votes WHERE username = ?`;
-    const result = this.run(sql, [username], options);
+  async deleteVotesByUsername(username: string): Promise<number> {
+    const result = await pgRun("DELETE FROM comment_votes WHERE username = ?", [username]);
     return result.changes;
   }
 }

@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -37,7 +36,6 @@ function slugify(text: string) {
 
 export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const paramsData = await params;
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -73,7 +71,7 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
   }
 
   try {
-    postRepository.updateCategory(id, payload);
+    await postRepository.updateCategory(id, payload);
     return successResponse({ updated: true });
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes("UNIQUE")) {
@@ -85,14 +83,13 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
 
 export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ id: string }> }) => {
   const paramsData = await params;
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "需要管理员权限");
 
   const { id } = validateParams(paramsData, paramsSchema);
-  postRepository.deleteCategory(id);
+  await postRepository.deleteCategory(id);
 
   return noContentResponse();
 });

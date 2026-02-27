@@ -1,8 +1,7 @@
-﻿/**
+/**
  */
 
 import { NextRequest } from "next/server";
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { videoTaskRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -17,14 +16,13 @@ const listTasksQuerySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user, "请先登录");
 
   const { page, limit, task_type } = await validateQuery(req, listTasksQuerySchema);
 
-  const result = videoTaskRepository.listByUser(user, page, limit, task_type as VideoTaskType | undefined);
+  const result = await videoTaskRepository.listByUser(user, page, limit, task_type as VideoTaskType | undefined);
 
   return paginatedResponse(result.items, result.total, page ?? 1, limit ?? 20);
 });

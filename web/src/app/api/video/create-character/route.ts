@@ -1,8 +1,7 @@
-﻿/**
+/**
  */
 
 import { NextRequest } from "next/server";
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { createCharacterTask } from "@/lib/studio";
 import { videoTaskRepository } from "@/lib/repositories";
@@ -18,7 +17,6 @@ const createCharacterSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user, "请先登录");
@@ -32,14 +30,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     shutProgress: body.shutProgress,
   });
 
-  videoTaskRepository.create({
+  await videoTaskRepository.create({
     id: taskId,
     username: user,
     task_type: "create_character",
     pid: body.pid,
     timestamps: body.timestamps,
   });
-  videoTaskRepository.updateStatus(taskId, { status: "running", progress: 0 });
+  await videoTaskRepository.updateStatus(taskId, { status: "running", progress: 0 });
 
   return successResponse({ ok: true, task_id: taskId, id: taskId });
 });

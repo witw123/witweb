@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { listRadarItems } from "@/lib/topic-radar";
 import { generateRadarAnalysis } from "@/lib/agent-llm";
 
@@ -14,12 +13,11 @@ const bodySchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const body = await validateBody(req, bodySchema);
 
-  const items = listRadarItems(user, {
+  const items = await listRadarItems(user, {
     limit: body.limit,
     q: body.q,
     sourceId: body.source_id,
@@ -44,4 +42,3 @@ export const POST = withErrorHandler(async (req) => {
     item_count: items.length,
   });
 });
-

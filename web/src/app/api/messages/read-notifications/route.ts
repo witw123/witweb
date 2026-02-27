@@ -12,7 +12,7 @@ export const POST = withErrorHandler(async () => {
     return errorResponses.unauthorized("请先登录");
   }
 
-  userRepository.markNotificationsAsRead(user);
+  await userRepository.markNotificationsAsRead(user);
 
   return successResponse({ ok: true });
 });

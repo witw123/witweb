@@ -2,7 +2,6 @@
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
-import { initDb } from "@/lib/db-init";
 import { postRepository } from "@/lib/repositories";
 
 const trackVisitSchema = z.object({
@@ -11,15 +10,13 @@ const trackVisitSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (request: Request) => {
-  initDb();
-
   const { visitorId, pageUrl } = await validateBody(request, trackVisitSchema);
 
   const headersList = await headers();
   const userAgent = headersList.get("user-agent") || "";
   const ipAddress = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "unknown";
 
-  postRepository.recordSiteVisit(visitorId, pageUrl || "/", userAgent, ipAddress);
+  await postRepository.recordSiteVisit(visitorId, pageUrl || "/", userAgent, ipAddress);
 
   return successResponse({ recorded: true });
 });

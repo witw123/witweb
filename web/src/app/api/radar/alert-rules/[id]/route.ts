@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse, errorResponses } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { deleteRadarAlertRule, updateRadarAlertRule } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -16,7 +15,6 @@ const bodySchema = z.object({
 });
 
 export const PATCH = withErrorHandler(async (req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const { id } = await context.params;
@@ -24,7 +22,7 @@ export const PATCH = withErrorHandler(async (req, context) => {
   const body = await validateBody(req, bodySchema);
 
   try {
-    updateRadarAlertRule(ruleId, user, {
+    await updateRadarAlertRule(ruleId, user, {
       name: body.name,
       ruleType: body.rule_type,
       keyword: body.keyword,
@@ -43,17 +41,15 @@ export const PATCH = withErrorHandler(async (req, context) => {
 });
 
 export const DELETE = withErrorHandler(async (_req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const { id } = await context.params;
   const ruleId = Number(id);
 
   try {
-    deleteRadarAlertRule(ruleId, user);
+    await deleteRadarAlertRule(ruleId, user);
     return successResponse({ id: ruleId, deleted: true });
   } catch {
     return errorResponses.notFound("rule_not_found");
   }
 });
-

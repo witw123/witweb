@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -18,21 +17,19 @@ const updateSchema = z.object({
 });
 
 export const GET = withErrorHandler(async (_: Request, { params }: { params: Promise<{ id: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "Admin access required");
 
   const { id } = validateParams(await params, paramsSchema);
-  const blog = postRepository.getAdminBlogDetail(id);
+  const blog = await postRepository.getAdminBlogDetail(id);
   if (!blog) return errorResponses.notFound("Blog not found");
 
   return successResponse(blog);
 });
 
 export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -40,20 +37,19 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
 
   const { id } = validateParams(await params, paramsSchema);
   const body = await validateBody(req, updateSchema);
-  postRepository.updateById(id, body);
+  await postRepository.updateById(id, body);
 
   return successResponse({ ok: true });
 });
 
 export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ id: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
   assertAuthorized(isAdminUser(user), "Admin access required");
 
   const { id } = validateParams(await params, paramsSchema);
-  postRepository.delete(id);
+  await postRepository.delete(id);
 
   return successResponse({ ok: true });
 });

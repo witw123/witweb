@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import path from "path";
 import fs from "fs/promises";
@@ -9,7 +8,6 @@ import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handle
 import { errorResponses, createdResponse } from "@/lib/api-response";
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
   
   const user = await getAuthUser();
   assertAuthenticated(user, "请先登录");

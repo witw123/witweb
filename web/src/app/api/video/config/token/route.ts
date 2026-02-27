@@ -1,7 +1,6 @@
-﻿/**
+/**
  */
 
-import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { setToken } from "@/lib/studio";
 import {
@@ -17,7 +16,6 @@ const tokenSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -26,7 +24,7 @@ export const POST = withErrorHandler(async (req) => {
 
   const body = await validateBody(req, tokenSchema);
 
-  setToken(body.token ?? "");
+  await setToken(body.token ?? "");
 
   return successResponse({ ok: true });
 });

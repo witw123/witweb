@@ -1,9 +1,8 @@
 import type { MetadataRoute } from "next";
-import { initDb } from "@/lib/db-init";
 import { postRepository } from "@/lib/repositories";
 import { getSiteUrl } from "@/lib/site-url";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getSiteUrl();
   const now = new Date();
 
@@ -14,8 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   try {
-    initDb();
-    const posts = postRepository.listSitemapPosts();
+    const posts = await postRepository.listSitemapPosts();
 
     const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
       url: `${base}/post/${post.slug}`,

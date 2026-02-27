@@ -1,8 +1,7 @@
-﻿/**
+/**
  */
 
 import { NextRequest } from "next/server";
-import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { userRepository } from "@/lib/repositories";
 import { withErrorHandler } from "@/middleware/error-handler";
@@ -17,7 +16,6 @@ const querySchema = z.object({
 });
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  initDb();
 
   const user = await getAuthUser();
   if (!user) {
@@ -27,7 +25,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { username, page, size, q } = await validateQuery(req, querySchema);
 
   const targetUsername = username || user;
-  const result = userRepository.listFollowing(targetUsername, page, size, q, user);
+  const result = await userRepository.listFollowing(targetUsername, page, size, q);
 
   return successResponse(result);
 });

@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { commentRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
@@ -11,14 +10,13 @@ const paramsSchema = z.object({
 
 export const POST = withErrorHandler(async (_req, { params }) => {
   const paramsData = await params;
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const { id } = validateParams(paramsData, paramsSchema);
 
-  commentRepository.vote(id, user, -1);
+  await commentRepository.vote(id, user, -1);
 
   return successResponse({ message: "点踩成功" });
 });

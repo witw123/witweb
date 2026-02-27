@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser } from "@/lib/http";
 import { createVideoTask } from "@/lib/studio";
 import { videoTaskRepository } from "@/lib/repositories";
@@ -20,7 +19,6 @@ const generateSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-  initDb();
 
   const user = await getAuthUser();
   if (!user) return errorResponses.unauthorized("Missing token");
@@ -44,7 +42,7 @@ export const POST = withErrorHandler(async (req: Request) => {
     : payload.url
       ? "image2video"
       : "text2video";
-  videoTaskRepository.create(
+  await videoTaskRepository.create(
     {
       id: taskId,
       username: user,
@@ -58,7 +56,7 @@ export const POST = withErrorHandler(async (req: Request) => {
       size: payload.size,
     }
   );
-  videoTaskRepository.updateStatus(taskId, { status: "running", progress: 0 });
+  await videoTaskRepository.updateStatus(taskId, { status: "running", progress: 0 });
 
   return successResponse({ ok: true, task_id: taskId, id: taskId });
 });

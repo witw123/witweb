@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
 import { postRepository } from "@/lib/repositories";
@@ -15,18 +14,16 @@ const friendLinkSchema = z.object({
 });
 
 export const GET = withErrorHandler(async () => {
-  initDb();
 
   const user = await getAuthUser();
   const isAdmin = !!user && isAdminUser(user);
 
-  const links = postRepository.listFriendLinks(isAdmin);
+  const links = await postRepository.listFriendLinks(isAdmin);
 
   return successResponse({ links });
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -39,7 +36,7 @@ export const POST = withErrorHandler(async (req) => {
     finalAvatarUrl = await detectFriendLinkIcon(body.url);
   }
 
-  const id = postRepository.createFriendLink({
+  const id = await postRepository.createFriendLink({
     name: body.name,
     url: body.url,
     description: body.description || "",

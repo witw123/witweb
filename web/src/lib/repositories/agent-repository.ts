@@ -1,5 +1,5 @@
-﻿import "server-only";
-import { getStudioDb } from "@/lib/db";
+import "server-only";
+import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 
 export type AgentType = "topic" | "writing" | "publish";
 export type AgentStatus = "queued" | "running" | "done" | "failed";
@@ -40,138 +40,112 @@ export type AgentArtifactRow = {
 };
 
 class AgentRepository {
-  private db() {
-    return getStudioDb();
+  async createRunRecord(runId: string, username: string, goal: string, agentType: AgentType, model: string, ts: string): Promise<void> {
+    await pgRun(
+      `INSERT INTO agent_runs (id, username, goal, agent_type, status, model, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
+      [runId, username, goal, agentType, model, ts, ts]
+    );
   }
 
-  createRunRecord(runId: string, username: string, goal: string, agentType: AgentType, model: string, ts: string): void {
-    this.db()
-      .prepare(
-        `INSERT INTO agent_runs (id, username, goal, agent_type, status, model, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`
-      )
-      .run(runId, username, goal, agentType, model, ts, ts);
-  }
-
-  insertStepDone(
+  async insertStepDone(
     runId: string,
     stepKey: string,
     stepTitle: string,
     inputJson: string,
     outputJson: string,
     ts: string
-  ): void {
-    this.db()
-      .prepare(
-        `INSERT INTO agent_steps (
-           run_id, step_key, step_title, status, input_json, output_json, started_at, finished_at
-         ) VALUES (?, ?, ?, 'done', ?, ?, ?, ?)`
-      )
-      .run(runId, stepKey, stepTitle, inputJson, outputJson, ts, ts);
+  ): Promise<void> {
+    await pgRun(
+      `INSERT INTO agent_steps (
+         run_id, step_key, step_title, status, input_json, output_json, started_at, finished_at
+       ) VALUES (?, ?, ?, 'done', ?, ?, ?, ?)`,
+      [runId, stepKey, stepTitle, inputJson, outputJson, ts, ts]
+    );
   }
 
-  insertArtifact(runId: string, kind: ArtifactKind, content: string, metaJson: string, ts: string): void {
-    this.db()
-      .prepare(
-        `INSERT INTO agent_artifacts (run_id, kind, content, meta_json, created_at)
-         VALUES (?, ?, ?, ?, ?)`
-      )
-      .run(runId, kind, content, metaJson, ts);
+  async insertArtifact(runId: string, kind: ArtifactKind, content: string, metaJson: string, ts: string): Promise<void> {
+    await pgRun(
+      `INSERT INTO agent_artifacts (run_id, kind, content, meta_json, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [runId, kind, content, metaJson, ts]
+    );
   }
 
-  markRunDone(runId: string, ts: string): void {
-    this.db().prepare("UPDATE agent_runs SET status = 'done', updated_at = ? WHERE id = ?").run(ts, runId);
+  async markRunDone(runId: string, ts: string): Promise<void> {
+    await pgRun("UPDATE agent_runs SET status = 'done', updated_at = ? WHERE id = ?", [ts, runId]);
   }
 
-  markRunFailed(runId: string, message: string, ts: string): void {
-    this.db()
-      .prepare("UPDATE agent_runs SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?")
-      .run(message, ts, runId);
+  async markRunFailed(runId: string, message: string, ts: string): Promise<void> {
+    await pgRun("UPDATE agent_runs SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?", [message, ts, runId]);
   }
 
-  getRunById(runId: string): AgentRunRow | null {
-    return (this.db().prepare("SELECT * FROM agent_runs WHERE id = ?").get(runId) as AgentRunRow | undefined) || null;
+  async getRunById(runId: string): Promise<AgentRunRow | null> {
+    return await pgQueryOne<AgentRunRow>("SELECT * FROM agent_runs WHERE id = ?", [runId]);
   }
 
-  getRunByIdAndUser(runId: string, username: string): AgentRunRow | null {
-    return (
-      this.db().prepare("SELECT * FROM agent_runs WHERE id = ? AND username = ?").get(runId, username) as
-        | AgentRunRow
-        | undefined
-    ) || null;
+  async getRunByIdAndUser(runId: string, username: string): Promise<AgentRunRow | null> {
+    return await pgQueryOne<AgentRunRow>("SELECT * FROM agent_runs WHERE id = ? AND username = ?", [runId, username]);
   }
 
-  listRunsByUser(username: string, page: number, size: number): {
-    items: Array<Omit<AgentRunRow, "username">>;
-    total: number;
-    page: number;
-    size: number;
-  } {
+  async listRunsByUser(
+    username: string,
+    page: number,
+    size: number
+  ): Promise<{ items: Array<Omit<AgentRunRow, "username">>; total: number; page: number; size: number }> {
     const offset = (page - 1) * size;
-    const db = this.db();
-
-    const total =
-      (db.prepare("SELECT COUNT(*) AS cnt FROM agent_runs WHERE username = ?").get(username) as
-        | { cnt: number }
-        | undefined)?.cnt || 0;
-
-    const items = db
-      .prepare(
-        `SELECT id, goal, agent_type, status, model, error_message, created_at, updated_at
-         FROM agent_runs
-         WHERE username = ?
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?`
-      )
-      .all(username, size, offset) as Array<Omit<AgentRunRow, "username">>;
-
-    return { items, total, page, size };
+    const total = (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM agent_runs WHERE username = ?", [username]))?.cnt || 0;
+    const items = await pgQuery<Array<Omit<AgentRunRow, "username">> extends (infer R)[] ? R : never>(
+      `SELECT id, goal, agent_type, status, model, error_message, created_at, updated_at
+       FROM agent_runs
+       WHERE username = ?
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+      [username, size, offset]
+    );
+    return { items: items as Array<Omit<AgentRunRow, "username">>, total, page, size };
   }
 
-  getRunSteps(runId: string): AgentStepRow[] {
-    return this.db().prepare("SELECT * FROM agent_steps WHERE run_id = ? ORDER BY id ASC").all(runId) as AgentStepRow[];
+  async getRunSteps(runId: string): Promise<AgentStepRow[]> {
+    return await pgQuery<AgentStepRow>("SELECT * FROM agent_steps WHERE run_id = ? ORDER BY id ASC", [runId]);
   }
 
-  getRunArtifacts(runId: string): AgentArtifactRow[] {
-    return this.db().prepare("SELECT * FROM agent_artifacts WHERE run_id = ? ORDER BY id DESC").all(runId) as AgentArtifactRow[];
+  async getRunArtifacts(runId: string): Promise<AgentArtifactRow[]> {
+    return await pgQuery<AgentArtifactRow>("SELECT * FROM agent_artifacts WHERE run_id = ? ORDER BY id DESC", [runId]);
   }
 
-  getLatestArtifact(runId: string, kind: ArtifactKind): { id: number; content: string } | null {
-    return (
-      this.db()
-        .prepare("SELECT id, content FROM agent_artifacts WHERE run_id = ? AND kind = ? ORDER BY id DESC LIMIT 1")
-        .get(runId, kind) as { id: number; content: string } | undefined
-    ) || null;
+  async getLatestArtifact(runId: string, kind: ArtifactKind): Promise<{ id: number; content: string } | null> {
+    return await pgQueryOne<{ id: number; content: string }>(
+      "SELECT id, content FROM agent_artifacts WHERE run_id = ? AND kind = ? ORDER BY id DESC LIMIT 1",
+      [runId, kind]
+    );
   }
 
-  getArtifactContentById(runId: string, kind: ArtifactKind, artifactId: number): string | null {
-    const row = this.db()
-      .prepare("SELECT content FROM agent_artifacts WHERE id = ? AND run_id = ? AND kind = ?")
-      .get(artifactId, runId, kind) as { content: string } | undefined;
+  async getArtifactContentById(runId: string, kind: ArtifactKind, artifactId: number): Promise<string | null> {
+    const row = await pgQueryOne<{ content: string }>(
+      "SELECT content FROM agent_artifacts WHERE id = ? AND run_id = ? AND kind = ?",
+      [artifactId, runId, kind]
+    );
     return row?.content || null;
   }
 
-  getLatestArtifactContent(runId: string, kind: ArtifactKind): string {
-    const row = this.db()
-      .prepare("SELECT content FROM agent_artifacts WHERE run_id = ? AND kind = ? ORDER BY id DESC LIMIT 1")
-      .get(runId, kind) as { content: string } | undefined;
+  async getLatestArtifactContent(runId: string, kind: ArtifactKind): Promise<string> {
+    const row = await pgQueryOne<{ content: string }>(
+      "SELECT content FROM agent_artifacts WHERE run_id = ? AND kind = ? ORDER BY id DESC LIMIT 1",
+      [runId, kind]
+    );
     return row?.content || "";
   }
 
-  deleteRunWithRelations(runId: string, username: string): boolean {
-    const db = this.db();
-    const run = db
-      .prepare("SELECT id FROM agent_runs WHERE id = ? AND username = ?")
-      .get(runId, username) as { id: string } | undefined;
-    if (!run) return false;
-
-    db.transaction(() => {
-      db.prepare("DELETE FROM agent_artifacts WHERE run_id = ?").run(runId);
-      db.prepare("DELETE FROM agent_steps WHERE run_id = ?").run(runId);
-      db.prepare("DELETE FROM agent_runs WHERE id = ? AND username = ?").run(runId, username);
-    })();
-
-    return true;
+  async deleteRunWithRelations(runId: string, username: string): Promise<boolean> {
+    return await withPgTransaction(async (client) => {
+      const run = await pgQueryOne<{ id: string }>("SELECT id FROM agent_runs WHERE id = ? AND username = ?", [runId, username], client);
+      if (!run) return false;
+      await pgRun("DELETE FROM agent_artifacts WHERE run_id = ?", [runId], client);
+      await pgRun("DELETE FROM agent_steps WHERE run_id = ?", [runId], client);
+      await pgRun("DELETE FROM agent_runs WHERE id = ? AND username = ?", [runId, username], client);
+      return true;
+    });
   }
 }
 

@@ -2,7 +2,6 @@ import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { createRadarAlertRule, listRadarAlertRules } from "@/lib/topic-radar";
 
 const bodySchema = z.object({
@@ -16,19 +15,17 @@ const bodySchema = z.object({
 });
 
 export const GET = withErrorHandler(async () => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
-  return successResponse({ items: listRadarAlertRules(user) });
+  return successResponse({ items: await listRadarAlertRules(user) });
 });
 
 export const POST = withErrorHandler(async (req) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
   const body = await validateBody(req, bodySchema);
 
-  const created = createRadarAlertRule({
+  const created = await createRadarAlertRule({
     username: user,
     name: body.name,
     ruleType: body.rule_type,
@@ -41,4 +38,3 @@ export const POST = withErrorHandler(async (req) => {
 
   return successResponse(created);
 });
-

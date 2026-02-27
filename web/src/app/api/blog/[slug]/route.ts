@@ -1,4 +1,3 @@
-﻿import { initDb } from "@/lib/db-init";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { postRepository, userRepository } from "@/lib/repositories";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -17,14 +16,13 @@ const updatePostSchema = z.object({
 });
 
 export const GET = withErrorHandler(async (_: Request, { params }: { params: Promise<{ slug: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   const { slug } = validateParams(await params, paramsSchema);
-  const post = postRepository.getPostDetail(slug, user || undefined);
+  const post = await postRepository.getPostDetail(slug, user || undefined);
   if (!post) return errorResponses.notFound("Post not found");
 
-  const authorRow = userRepository.findByUsername(post.author);
+  const authorRow = await userRepository.findByUsername(post.author);
   return successResponse({
     ...post,
     author_name: authorRow?.nickname || post.author,
@@ -34,7 +32,6 @@ export const GET = withErrorHandler(async (_: Request, { params }: { params: Pro
 });
 
 export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ slug: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
@@ -48,11 +45,11 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
       ? Number(body.category_id)
       : null;
 
-  const existing = postRepository.findBySlug(slug);
+  const existing = await postRepository.findBySlug(slug);
   if (!existing) return errorResponses.notFound("Post not found");
   if (existing.author !== user) return errorResponses.forbidden("Forbidden");
 
-  postRepository.updateBySlug(slug, {
+  await postRepository.updateBySlug(slug, {
     title: body.title,
     content: body.content,
     tags: body.tags || "",
@@ -63,16 +60,15 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
 });
 
 export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ slug: string }> }) => {
-  initDb();
 
   const user = await getAuthUser();
   assertAuthenticated(user);
 
   const { slug } = validateParams(await params, paramsSchema);
-  const existing = postRepository.findBySlug(slug);
+  const existing = await postRepository.findBySlug(slug);
   if (!existing) return errorResponses.notFound("Post not found");
   if (existing.author !== user && !isAdminUser(user)) return errorResponses.forbidden("Forbidden");
 
-  postRepository.hardDelete(slug);
+  await postRepository.hardDelete(slug);
   return successResponse({ ok: true });
 });

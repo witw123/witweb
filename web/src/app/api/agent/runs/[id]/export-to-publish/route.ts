@@ -1,8 +1,7 @@
-import { getAuthUser } from "@/lib/http";
+﻿import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { successResponse, errorResponses } from "@/lib/api-response";
-import { initDb } from "@/lib/db-init";
 import { exportToPublish } from "@/lib/agent";
 
 const bodySchema = z.object({
@@ -12,7 +11,6 @@ const bodySchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req, context) => {
-  initDb();
   const user = await getAuthUser();
   assertAuthenticated(user);
 
@@ -20,14 +18,13 @@ export const POST = withErrorHandler(async (req, context) => {
   const body = await validateBody(req, bodySchema);
 
   try {
-    const payload = exportToPublish(id, user, {
+    const payload = await exportToPublish(id, user, {
       titleArtifactId: body.title_artifact_id,
       contentArtifactId: body.content_artifact_id,
       tagsArtifactId: body.tags_artifact_id,
     });
     return successResponse(payload);
   } catch {
-    return errorResponses.notFound("任务不存在");
+    return errorResponses.notFound("task_not_found");
   }
 });
-
