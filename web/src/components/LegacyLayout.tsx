@@ -215,9 +215,6 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                 <Link href="/login" className="btn-ghost">
                   登录
                 </Link>
-                <Link href="/register" className="btn-primary">
-                  注册
-                </Link>
               </div>
             )}
           </div>

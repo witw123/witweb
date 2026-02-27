@@ -89,7 +89,7 @@ export default function RegisterPage() {
     <div className="auth-page">
       <div className="auth-page-inner">
         <div className="auth-page-head">
-          <h1 className="blog-page-title">AI Studio</h1>
+          <h1 className="blog-page-title">WITWEB</h1>
           <p className="app-page-subtitle">注册后自动登录</p>
         </div>
 

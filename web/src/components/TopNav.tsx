@@ -52,7 +52,6 @@ export default function TopNav() {
         ) : (
           <div className="flex gap-3">
             <Link className="btn-ghost" href="/login">登录</Link>
-            <Link className="btn-primary" href="/register">注册</Link>
           </div>
         )}
       </div>
