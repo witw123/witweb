@@ -403,6 +403,33 @@ def transform_unique_visitors_csv(src_path: Path, dst_path: Path):
             )
 
 
+def transform_site_visits_csv(src_path: Path, dst_path: Path):
+    now = datetime.now(timezone.utc).isoformat()
+    with src_path.open("r", encoding="utf-8", newline="") as rf, dst_path.open("w", encoding="utf-8", newline="") as wf:
+        reader = csv.DictReader(rf)
+        fieldnames = ["id", "visitor_id", "page_url", "user_agent", "ip_address", "created_at"]
+        writer = csv.DictWriter(wf, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in reader:
+            id_v = (row.get("id") or "").strip()
+            visitor_id = (row.get("visitor_id") or "").strip()
+            page_url = (row.get("page_url") or "").strip() or "/"
+            user_agent = (row.get("user_agent") or "").strip()
+            ip_address = (row.get("ip_address") or "").strip() or "unknown"
+            created_raw = (row.get("created_at") or "").strip()
+            created_at = _normalize_last_visit(created_raw) if created_raw else now
+            writer.writerow(
+                {
+                    "id": id_v if id_v else r"\N",
+                    "visitor_id": visitor_id if visitor_id else r"\N",
+                    "page_url": page_url,
+                    "user_agent": user_agent,
+                    "ip_address": ip_address,
+                    "created_at": created_at,
+                }
+            )
+
+
 def reset_sequences(conn_info):
     sql = """
 DO $$
@@ -485,6 +512,10 @@ def main():
             if table == "unique_visitors":
                 transformed = tmp_dir / "unique_visitors_fixed.csv"
                 transform_unique_visitors_csv(csv_file, transformed)
+                copy_csv_to_postgres(conn_info, table, transformed)
+            elif table == "site_visits":
+                transformed = tmp_dir / "site_visits_fixed.csv"
+                transform_site_visits_csv(csv_file, transformed)
                 copy_csv_to_postgres(conn_info, table, transformed)
             else:
                 copy_csv_to_postgres(conn_info, table, csv_file)
