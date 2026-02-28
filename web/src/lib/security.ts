@@ -196,27 +196,15 @@ export function validatePassword(password: string): {
   const errors: string[] = [];
   
   if (!password || typeof password !== "string") {
-    return { valid: false, errors: ["Password is required"] };
+    return { valid: false, errors: ["请输入密码"] };
   }
   
-  if (password.length < 8) {
-    errors.push("Password must be at least 8 characters long");
+  if (password.length < 6) {
+    errors.push("密码至少 6 位");
   }
   
-  if (password.length > 128) {
-    errors.push("Password must not exceed 128 characters");
-  }
-  
-  if (!/[a-z]/.test(password)) {
-    errors.push("Password must contain at least one lowercase letter");
-  }
-  
-  if (!/[A-Z]/.test(password)) {
-    errors.push("Password must contain at least one uppercase letter");
-  }
-  
-  if (!/[0-9]/.test(password)) {
-    errors.push("Password must contain at least one number");
+  if (password.length > 256) {
+    errors.push("密码最多 256 位");
   }
   
   return {

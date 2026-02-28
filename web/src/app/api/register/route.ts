@@ -1,4 +1,4 @@
-import { createToken, hashPassword } from "@/lib/auth";
+﻿import { createToken, hashPassword } from "@/lib/auth";
 import { userRepository } from "@/lib/repositories";
 import { getUserByUsername, publicProfile } from "@/lib/user";
 import { withErrorHandler } from "@/middleware/error-handler";
@@ -12,10 +12,10 @@ const registerSchema = z.object({
   username: z
     .string()
     .trim()
-    .min(3, "用户名至少 3 位")
-    .max(30, "用户名最多 30 位")
-    .regex(/^[A-Za-z0-9_]+$/, "用户名仅支持英文、数字和下划线"),
-  password: z.string().min(8, "密码至少 8 位").max(128, "密码最多 128 位"),
+    .min(2, "用户名至少 2 位")
+    .max(64, "用户名最多 64 位")
+    .regex(/^[A-Za-z0-9_.-]+$/, "用户名仅支持英文、数字、下划线、点和中划线"),
+  password: z.string().min(6, "密码至少 6 位").max(256, "密码最多 256 位"),
   nickname: z.string().trim().max(50, "昵称最多 50 位").optional(),
   avatar_url: z.string().url("头像 URL 格式不正确").optional().or(z.literal("")),
   cover_url: z.string().url("封面 URL 格式不正确").optional().or(z.literal("")),
@@ -32,13 +32,13 @@ export const POST = withErrorHandler(async (req) => {
   if (isTurnstileEnabled()) {
     const captchaOk = await verifyTurnstileToken(req, body.captchaToken);
     if (!captchaOk) {
-      return errorResponses.badRequest("Captcha verification failed");
+      return errorResponses.badRequest("验证码校验失败，请重试");
     }
   }
 
   const passwordValidation = validatePassword(body.password);
   if (!passwordValidation.valid) {
-    return errorResponses.validation("密码强度不足", { rules: passwordValidation.errors });
+    return errorResponses.validation("密码不符合要求", { rules: passwordValidation.errors });
   }
 
   const { username, password, nickname, avatar_url, cover_url, bio } = body;

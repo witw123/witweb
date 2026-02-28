@@ -42,7 +42,7 @@ export default function RegisterPage() {
     }
 
     if (password.length < 6) {
-      setError("密码至少需要 6 位字符");
+      setError("密码至少需要 6 位");
       return;
     }
     if (turnstileEnabled && !captchaToken) {
@@ -143,7 +143,7 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="设置密码（至少 6 位）"
+              placeholder="设置密码（6-256 位）"
             />
           </label>
 
