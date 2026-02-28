@@ -46,7 +46,7 @@ export default function RegisterPage() {
       return;
     }
     if (turnstileEnabled && !captchaToken) {
-      setError("请先完成验证码验证");
+      setError("请先完成人机验证");
       return;
     }
 

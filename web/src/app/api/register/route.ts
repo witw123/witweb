@@ -26,13 +26,16 @@ const registerSchema = z.object({
 export const POST = withErrorHandler(async (req) => {
   assertAuthPayloadSize(req);
 
-  const body = await validateBody(req, registerSchema);
+  const body = await validateBody(req, registerSchema, { message: "注册信息校验失败" });
   assertAuthRateLimit(req, "register", body.username);
 
   if (isTurnstileEnabled()) {
+    if (!body.captchaToken) {
+      return errorResponses.badRequest("请先完成人机验证");
+    }
     const captchaOk = await verifyTurnstileToken(req, body.captchaToken);
     if (!captchaOk) {
-      return errorResponses.badRequest("验证码校验失败，请重试");
+      return errorResponses.badRequest("人机验证未通过，请重试");
     }
   }
 

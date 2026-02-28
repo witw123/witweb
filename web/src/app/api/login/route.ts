@@ -19,14 +19,18 @@ const loginSchema = z.object({
 export const POST = withErrorHandler(async (req: Request) => {
   assertAuthPayloadSize(req);
 
-  const body = await validateBody(req, loginSchema);
+  const body = await validateBody(req, loginSchema, { message: "登录信息校验失败" });
   assertAuthRateLimit(req, "login", body.username);
 
   if (isTurnstileEnabled()) {
+    if (!body.captchaToken) {
+      await delayFailedAuth();
+      return errorResponses.badRequest("请先完成人机验证");
+    }
     const captchaOk = await verifyTurnstileToken(req, body.captchaToken);
     if (!captchaOk) {
       await delayFailedAuth();
-      return errorResponses.badRequest("验证码校验失败，请重试");
+      return errorResponses.badRequest("人机验证未通过，请重试");
     }
   }
 

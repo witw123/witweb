@@ -28,7 +28,7 @@ export default function LoginPage() {
       return;
     }
     if (turnstileEnabled && !captchaToken) {
-      setError("请先完成验证码验证");
+      setError("请先完成人机验证");
       return;
     }
 
@@ -41,7 +41,11 @@ export default function LoginPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        setError(data.error?.message || "登录失败，请稍后重试");
+        const detailMessage =
+          data.error?.details && typeof data.error.details === "object"
+            ? Object.values(data.error.details)[0]
+            : "";
+        setError((detailMessage as string) || data.error?.message || "登录失败，请稍后重试");
         return;
       }
       if (data.data?.token && data.data?.profile) {
