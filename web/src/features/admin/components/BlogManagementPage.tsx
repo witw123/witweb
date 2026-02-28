@@ -582,7 +582,7 @@ export default function BlogManagementPage() {
                 <th>分类</th>
                 <th>状态</th>
                 <th>创建时间</th>
-                <th>操作</th>
+                <th className="blog-col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -610,22 +610,20 @@ export default function BlogManagementPage() {
                     </span>
                   </td>
                   <td>{new Date(blog.created_at).toLocaleString("zh-CN")}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <td className="blog-actions-cell">
+                    <div className="blog-row-actions">
                       {!recycleMode && (
                         <>
                           <button
                             onClick={() => void handleEdit(blog.id)}
-                            className="btn-admin btn-admin-primary"
-                            style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            className="btn-admin btn-admin-primary blog-row-action-btn"
                           >
                             编辑
                           </button>
                           {blog.status === "draft" && (
                             <button
                               onClick={() => void handleStatusChange(blog.id, "published")}
-                              className="btn-admin btn-admin-secondary"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-secondary blog-row-action-btn"
                             >
                               发布
                             </button>
@@ -633,8 +631,7 @@ export default function BlogManagementPage() {
                           {blog.status === "published" && (
                             <button
                               onClick={() => void handleStatusChange(blog.id, "draft")}
-                              className="btn-admin btn-admin-secondary"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-secondary blog-row-action-btn"
                             >
                               撤回
                             </button>
@@ -644,15 +641,13 @@ export default function BlogManagementPage() {
                             <>
                               <button
                                 onClick={() => void handleDelete(blog.id, blog.title)}
-                                className="btn-admin btn-admin-danger"
-                                style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                                className="btn-admin btn-admin-danger blog-row-action-btn"
                               >
                                 确认删除
                               </button>
                               <button
                                 onClick={() => setPendingDeleteId(null)}
-                                className="btn-admin btn-admin-secondary"
-                                style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                                className="btn-admin btn-admin-secondary blog-row-action-btn"
                               >
                                 取消
                               </button>
@@ -660,8 +655,7 @@ export default function BlogManagementPage() {
                           ) : (
                             <button
                               onClick={() => setPendingDeleteId(blog.id)}
-                              className="btn-admin btn-admin-danger"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-danger blog-row-action-btn"
                             >
                               删除
                             </button>
@@ -673,22 +667,19 @@ export default function BlogManagementPage() {
                           <>
                             <button
                               onClick={() => void handleRestore(blog.id, blog.title)}
-                              className="btn-admin btn-admin-secondary"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-secondary blog-row-action-btn"
                             >
                               恢复为草稿
                             </button>
                             <button
                               onClick={() => void handleDestroy(blog.id, blog.title)}
-                              className="btn-admin btn-admin-danger"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-danger blog-row-action-btn"
                             >
                               确认永久删除
                             </button>
                             <button
                               onClick={() => setPendingDestroyId(null)}
-                              className="btn-admin btn-admin-secondary"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-secondary blog-row-action-btn"
                             >
                               取消
                             </button>
@@ -697,15 +688,13 @@ export default function BlogManagementPage() {
                           <>
                             <button
                               onClick={() => void handleRestore(blog.id, blog.title)}
-                              className="btn-admin btn-admin-secondary"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-secondary blog-row-action-btn"
                             >
                               恢复
                             </button>
                             <button
                               onClick={() => setPendingDestroyId(blog.id)}
-                              className="btn-admin btn-admin-danger"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              className="btn-admin btn-admin-danger blog-row-action-btn"
                             >
                               永久删除
                             </button>

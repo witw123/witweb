@@ -13,6 +13,11 @@ type AdminUser = {
   activity_status?: "active" | "inactive";
 };
 
+const activityStatusLabel: Record<"active" | "inactive", string> = {
+  active: "活跃",
+  inactive: "不活跃",
+};
+
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -387,7 +392,7 @@ export default function UserManagementPage() {
                   <td>{new Date(user.created_at).toLocaleString("zh-CN")}</td>
                   <td>
                     <span className={`badge badge-${(user.activity_status || "inactive") === "active" ? "success" : "warning"}`}>
-                      {(user.activity_status || "inactive") === "active" ? "active" : "inactive"}
+                      {activityStatusLabel[user.activity_status || "inactive"]}
                     </span>
                   </td>
                   <td>

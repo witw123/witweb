@@ -338,6 +338,8 @@
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .badge-success {
@@ -457,6 +459,28 @@
   font-size: 0.875rem;
   color: var(--text-secondary);
   margin-right: 0.2rem;
+}
+
+.blog-col-actions {
+  width: 300px;
+}
+
+.blog-actions-cell {
+  min-width: 300px;
+}
+
+.blog-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.blog-row-action-btn {
+  min-width: 64px;
+  padding: 0.38rem 0.78rem;
+  font-size: 0.8125rem;
 }
 
 .admin-notice {
