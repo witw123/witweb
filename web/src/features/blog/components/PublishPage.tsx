@@ -9,6 +9,15 @@ import type { SuccessResponse } from "@/lib/api-response";
 import type { Category } from "@/types/blog";
 
 const AGENT_DRAFT_KEY = "agent_publish_draft_v1";
+const LOCAL_DRAFT_KEY_PREFIX = "publish_local_draft_v1";
+
+type LocalPublishDraft = {
+  title: string;
+  tags: string;
+  content: string;
+  categoryId: string;
+  updatedAt: string;
+};
 
 function readSuccessData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== "object") return null;
@@ -42,10 +51,60 @@ function readImportedDraft(): { title: string; content: string; tags: string; im
   }
 }
 
+function getLocalDraftKey(username?: string): string {
+  const suffix = username?.trim() ? username.trim().toLowerCase() : "guest";
+  return `${LOCAL_DRAFT_KEY_PREFIX}:${suffix}`;
+}
+
+function readLocalDraft(username?: string): LocalPublishDraft | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(getLocalDraftKey(username));
+    if (!raw) return null;
+
+    const draft = JSON.parse(raw) as Partial<LocalPublishDraft>;
+    return {
+      title: draft.title || "",
+      tags: draft.tags || "",
+      content: draft.content || "",
+      categoryId: draft.categoryId || "",
+      updatedAt: draft.updatedAt || new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalDraft(username: string | undefined, draft: Omit<LocalPublishDraft, "updatedAt">): string {
+  const updatedAt = new Date().toISOString();
+  if (typeof window === "undefined") return updatedAt;
+
+  const payload: LocalPublishDraft = {
+    ...draft,
+    updatedAt,
+  };
+  localStorage.setItem(getLocalDraftKey(username), JSON.stringify(payload));
+  return updatedAt;
+}
+
+function clearLocalDraft(username?: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(getLocalDraftKey(username));
+}
+
+function formatDraftTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "刚刚";
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
 export default function PublishPage() {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
   const router = useRouter();
   const contentRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const loadedDraftUserRef = useRef<string | null>(null);
   const initialDraft = useMemo(() => readImportedDraft(), []);
   const [title, setTitle] = useState(initialDraft.title);
   const [tags, setTags] = useState(initialDraft.tags);
@@ -55,11 +114,47 @@ export default function PublishPage() {
   const [publishing, setPublishing] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState("");
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState("");
+
+  const currentDraftUser = user?.username;
 
   useEffect(() => {
     if (!initialDraft.imported || typeof window === "undefined") return;
     localStorage.removeItem(AGENT_DRAFT_KEY);
   }, [initialDraft.imported]);
+
+  useEffect(() => {
+    const userKey = (currentDraftUser || "guest").toLowerCase();
+    if (loadedDraftUserRef.current === userKey) return;
+    loadedDraftUserRef.current = userKey;
+
+    const draft = readLocalDraft(currentDraftUser);
+    if (!draft) return;
+
+    setDraftUpdatedAt(draft.updatedAt);
+
+    // 优先保留页面已有内容（如来自 Agent），仅补齐空字段。
+    setTitle((prev) => (prev.trim() ? prev : draft.title));
+    setTags((prev) => (prev.trim() ? prev : draft.tags));
+    setContent((prev) => (prev.trim() ? prev : draft.content));
+    setCategoryId((prev) => (prev ? prev : draft.categoryId));
+
+    if (!initialDraft.imported) {
+      setStatus(`已恢复本地草稿（${formatDraftTime(draft.updatedAt)}）。`);
+    }
+  }, [currentDraftUser, initialDraft.imported]);
+
+  useEffect(() => {
+    const hasValue = Boolean(title.trim() || tags.trim() || content.trim() || categoryId);
+    if (!hasValue) return;
+
+    const timer = window.setTimeout(() => {
+      const updatedAt = saveLocalDraft(currentDraftUser, { title, tags, content, categoryId });
+      setDraftUpdatedAt(updatedAt);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [title, tags, content, categoryId, currentDraftUser]);
 
   useEffect(() => {
     fetch("/api/categories")
@@ -72,6 +167,24 @@ export default function PublishPage() {
         setCategories([]);
       });
   }, []);
+
+  function handleSaveDraft() {
+    const hasValue = Boolean(title.trim() || tags.trim() || content.trim() || categoryId);
+    if (!hasValue) {
+      setStatus("草稿内容为空，无需保存。");
+      return;
+    }
+
+    const updatedAt = saveLocalDraft(currentDraftUser, { title, tags, content, categoryId });
+    setDraftUpdatedAt(updatedAt);
+    setStatus(`草稿已保存（${formatDraftTime(updatedAt)}）。`);
+  }
+
+  function handleClearDraft() {
+    clearLocalDraft(currentDraftUser);
+    setDraftUpdatedAt("");
+    setStatus("本地草稿已清空。");
+  }
 
   async function publish() {
     setStatus("");
@@ -112,6 +225,8 @@ export default function PublishPage() {
     setTags("");
     setContent("");
     setCategoryId("");
+    clearLocalDraft(currentDraftUser);
+    setDraftUpdatedAt("");
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("blog-updated"));
     }
@@ -225,21 +340,40 @@ export default function PublishPage() {
               />
             </label>
 
-            <div className="flex items-center gap-4 mt-1">
-              <label className="btn-ghost">
-                <input
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) uploadImage(file);
-                    e.currentTarget.value = "";
-                  }}
-                />
+            <div className="publish-actions-row mt-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadImage(file);
+                  e.currentTarget.value = "";
+                }}
+              />
+              <button
+                className="btn-ghost publish-action-btn"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 {uploading ? "上传中..." : "上传图片"}
-              </label>
+              </button>
+
+              <div className="publish-actions-right">
+                <button className="btn-ghost publish-action-btn" type="button" onClick={handleClearDraft}>
+                  清空草稿
+                </button>
+                <button className="btn-ghost publish-action-btn" type="button" onClick={handleSaveDraft}>
+                  保存草稿
+                </button>
+              </div>
             </div>
+
+            <p className="text-muted text-xs mt-1">
+              草稿会自动保存在当前浏览器
+              {draftUpdatedAt ? `，上次保存：${formatDraftTime(draftUpdatedAt)}` : ""}。
+            </p>
 
             {status && <p className="text-accent text-sm mt-2">{status}</p>}
 

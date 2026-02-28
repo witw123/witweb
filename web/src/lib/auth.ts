@@ -9,7 +9,7 @@ if (typeof window === "undefined" && authConfig.secret.length > 0 && authConfig.
 
 export async function createToken(
   username: string,
-  role: "admin" | "user" | "bot" = "user"
+  role: "super_admin" | "content_reviewer" | "operator" | "admin" | "user" | "bot" = "user"
 ) {
   return createJwtToken(username, authConfig.expiresIn, role);
 }

@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
-import { verifyToken } from "./auth";
+import { verifyJwtPayload } from "./jwt";
 import { authConfig } from "./config";
 import { AUTH_COOKIE_NAME } from "./auth-constants";
+import { hasAdminAccess, normalizeRole, type AppRole } from "./rbac";
 
 function getTokenFromCookie(cookieHeader: string): string | null {
   const cookies = cookieHeader.split(";");
@@ -16,20 +17,44 @@ function getTokenFromCookie(cookieHeader: string): string | null {
 }
 
 export async function getAuthUser() {
+  const auth = await getAuthIdentity();
+  return auth?.username || null;
+}
+
+export type AuthIdentity = {
+  username: string;
+  role: AppRole;
+  rawRole?: string;
+};
+
+async function resolveTokenFromHeaders(): Promise<string | null> {
   const h = await headers();
-  const auth = h.get("authorization") || "";
+  const authHeader = h.get("authorization") || "";
   let token: string | null = null;
 
-  if (auth.toLowerCase().startsWith("bearer ")) {
-    token = auth.slice(7);
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    token = authHeader.slice(7);
   } else {
     token = getTokenFromCookie(h.get("cookie") || "");
   }
+  return token;
+}
 
+export async function getAuthIdentity(): Promise<AuthIdentity | null> {
+  const token = await resolveTokenFromHeaders();
   if (!token) return null;
 
   try {
-    return await verifyToken(token);
+    const payload = await verifyJwtPayload(token);
+    const username = String(payload.sub || "").trim();
+    if (!username) return null;
+    const isLegacyAdmin = username === authConfig.adminUsername;
+    const rawRole = typeof payload.role === "string" ? payload.role : undefined;
+    return {
+      username,
+      role: normalizeRole(rawRole, isLegacyAdmin),
+      rawRole,
+    };
   } catch {
     return null;
   }
@@ -46,7 +71,9 @@ export async function requireAuthUser(): Promise<string | Response> {
 }
 
 export async function requireAdminUser(): Promise<string | Response> {
-  const user = await getAuthUser();
-  if (!isAdminUser(user)) return Response.json({ detail: "Admin access required" }, { status: 403 });
-  return user as string;
+  const auth = await getAuthIdentity();
+  if (!auth || !hasAdminAccess(auth.role)) {
+    return Response.json({ detail: "Admin access required" }, { status: 403 });
+  }
+  return auth.username;
 }

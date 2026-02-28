@@ -1,12 +1,14 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
+import AdminNotice from "./AdminNotice";
+import { ADMIN_LIST_PAGE_SIZE } from "@/features/admin/constants";
 
 type BlogItem = {
   id: number;
   username: string;
   title: string;
-  status: "published" | "draft";
+  status: "published" | "draft" | "deleted";
   category_name?: string | null;
   created_at: string;
 };
@@ -31,13 +33,31 @@ export default function BlogManagementPage() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [recycleMode, setRecycleMode] = useState(false);
+  const [authorFilter, setAuthorFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sort, setSort] = useState("created_at_desc");
   const [message, setMessage] = useState("");
+  const [noticeTone, setNoticeTone] = useState<"success" | "error" | "info">("info");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [batchDeleteConfirming, setBatchDeleteConfirming] = useState(false);
 
   const [editingBlog, setEditingBlog] = useState<BlogDetail | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingDestroyId, setPendingDestroyId] = useState<number | null>(null);
+  const showError = (msg: string) => {
+    setNoticeTone("error");
+    setMessage(msg);
+  };
+  const showSuccess = (msg: string) => {
+    setNoticeTone("success");
+    setMessage(msg);
+  };
 
   const loadBlogs = useCallback(async () => {
     try {
@@ -45,10 +65,19 @@ export default function BlogManagementPage() {
       const token = localStorage.getItem("token");
       const params = new URLSearchParams({
         page: String(page),
-        limit: "20",
+        limit: String(ADMIN_LIST_PAGE_SIZE),
       });
       if (search.trim()) params.set("search", search.trim());
-      if (statusFilter) params.set("status", statusFilter);
+      if (recycleMode) {
+        params.set("status", "deleted");
+      } else if (statusFilter) {
+        params.set("status", statusFilter);
+      }
+      if (authorFilter.trim()) params.set("username", authorFilter.trim());
+      if (tagFilter.trim()) params.set("tag", tagFilter.trim());
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", `${dateTo}T23:59:59.999Z`);
+      if (sort) params.set("sort", sort);
 
       const response = await fetch(`/api/admin/blogs?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -58,20 +87,21 @@ export default function BlogManagementPage() {
       if (!response.ok || !data.success) {
         setBlogs([]);
         setTotal(0);
-        setMessage(data.error?.message || "加载文章失败");
+        showError(data.error?.message || "加载文章失败");
         return;
       }
 
       setBlogs(data.data?.items || []);
       setTotal(data.data?.total || 0);
+      setSelectedIds((prev) => prev.filter((id) => (data.data?.items || []).some((item: BlogItem) => item.id === id)));
     } catch {
       setBlogs([]);
       setTotal(0);
-      setMessage("加载文章失败");
+      showError("加载文章失败");
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, recycleMode, authorFilter, tagFilter, dateFrom, dateTo, sort]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -116,7 +146,7 @@ export default function BlogManagementPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) {
-        setMessage(data.error?.message || "获取文章详情失败");
+        showError(data.error?.message || "获取文章详情失败");
         return;
       }
       setEditingBlog(data.data);
@@ -147,10 +177,10 @@ export default function BlogManagementPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) {
-        setMessage(data.error?.message || "更新失败");
+        showError(data.error?.message || "更新失败");
         return;
       }
-      setMessage("更新成功");
+      showSuccess("更新成功");
       setIsEditModalOpen(false);
       void loadBlogs();
     } finally {
@@ -167,17 +197,66 @@ export default function BlogManagementPage() {
       });
 
       if (response.ok) {
-        setMessage(`文章《${title}》已删除`);
+        showSuccess(`文章《${title}》已移入回收站`);
         setPendingDeleteId(null);
         void loadBlogs();
         return;
       }
 
       const data = await response.json().catch(() => ({}));
-      setMessage(data.error?.message || "删除失败");
+      showError(data.error?.message || "删除失败");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "未知错误";
-      setMessage(`删除失败: ${message}`);
+      showError(`删除失败: ${message}`);
+    }
+  };
+
+  const handleRestore = async (blogId: number, title: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/blogs/${blogId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "draft" }),
+      });
+
+      if (response.ok) {
+        showSuccess(`文章《${title}》已恢复为草稿`);
+        void loadBlogs();
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      showError(data.error?.message || "恢复失败");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      showError(`恢复失败: ${message}`);
+    }
+  };
+
+  const handleDestroy = async (blogId: number, title: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/blogs/${blogId}?hard=1`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        showSuccess(`文章《${title}》已永久删除`);
+        setPendingDestroyId(null);
+        void loadBlogs();
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      showError(data.error?.message || "永久删除失败");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      showError(`永久删除失败: ${message}`);
     }
   };
 
@@ -194,18 +273,73 @@ export default function BlogManagementPage() {
       });
 
       if (response.ok) {
-        setMessage("状态更新成功");
+        showSuccess("状态更新成功");
         void loadBlogs();
         return;
       }
 
       const data = await response.json().catch(() => ({}));
-      setMessage(data.error?.message || "更新失败");
+      showError(data.error?.message || "更新失败");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "未知错误";
-      setMessage(`更新失败: ${message}`);
+      showError(`更新失败: ${message}`);
     }
   };
+
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, id]));
+      return prev.filter((item) => item !== id);
+    });
+  };
+
+  const toggleSelectAllCurrentPage = (checked: boolean) => {
+    if (!checked) {
+      setSelectedIds((prev) => prev.filter((id) => !blogs.some((blog) => blog.id === id)));
+      return;
+    }
+
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...blogs.map((blog) => blog.id)])));
+  };
+
+  const runBatchAction = async (action: "publish" | "draft" | "delete" | "restore" | "destroy") => {
+    if (selectedIds.length === 0) {
+      showError("请先选择至少一篇文章");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/admin/blogs", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          ids: selectedIds,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        showError(data.error?.message || "批量操作失败");
+        return;
+      }
+
+      if (action === "delete") showSuccess(`批量操作完成，共移入回收站 ${data.data?.deleted ?? 0} 篇文章`);
+      if (action === "destroy") showSuccess(`批量永久删除完成，共删除 ${data.data?.deleted ?? 0} 篇文章`);
+      if (action === "publish" || action === "draft" || action === "restore") showSuccess(`批量更新完成，共更新 ${data.data?.updated ?? 0} 篇文章`);
+      setSelectedIds([]);
+      setBatchDeleteConfirming(false);
+      void loadBlogs();
+    } catch (error: unknown) {
+      showError(error instanceof Error ? error.message : "批量操作失败");
+    }
+  };
+
+  const allCurrentPageSelected = blogs.length > 0 && blogs.every((blog) => selectedIds.includes(blog.id));
 
   return (
     <div>
@@ -215,39 +349,234 @@ export default function BlogManagementPage() {
       </div>
 
       <div className="admin-card">
-        {message && <p style={{ marginBottom: "0.75rem" }}>{message}</p>}
+        <AdminNotice message={message} tone={noticeTone} />
 
-        <div className="card-header" style={{ flexWrap: "wrap", gap: "1rem" }}>
-          <input
-            type="text"
-            placeholder="搜索文章..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="admin-input"
-            style={{ width: "300px" }}
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="admin-select"
-          >
-            <option value="">全部状态</option>
-            <option value="published">已发布</option>
-            <option value="draft">草稿</option>
-          </select>
-          <div style={{ marginLeft: "auto" }}>共 {total} 篇文章</div>
+        <div className="blog-toolbar">
+          <div className="blog-toolbar-head">
+            <div className="blog-toolbar-title">筛选条件</div>
+            <div className="blog-toolbar-count">共 {total} 篇文章</div>
+          </div>
+
+          <div className="blog-filter-grid">
+            <input
+              type="text"
+              placeholder="搜索标题/内容关键字"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="admin-input blog-filter-search"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="admin-select"
+              disabled={recycleMode}
+            >
+              <option value="">全部状态</option>
+              <option value="published">已发布</option>
+              <option value="draft">草稿</option>
+              <option value="deleted">已删除</option>
+            </select>
+            <input
+              type="text"
+              placeholder="作者用户名"
+              value={authorFilter}
+              onChange={(e) => {
+                setAuthorFilter(e.target.value);
+                setPage(1);
+              }}
+              className="admin-input"
+            />
+            <input
+              type="text"
+              placeholder="标签关键字"
+              value={tagFilter}
+              onChange={(e) => {
+                setTagFilter(e.target.value);
+                setPage(1);
+              }}
+              className="admin-input"
+            />
+            <div className="blog-date-field">
+              <div className="blog-date-label">开始日期</div>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                className="admin-input"
+                aria-label="开始日期"
+              />
+            </div>
+            <div className="blog-date-field">
+              <div className="blog-date-label">结束日期</div>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                className="admin-input"
+                aria-label="结束日期"
+              />
+            </div>
+            <select
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value);
+                setPage(1);
+              }}
+              className="admin-select"
+            >
+              <option value="created_at_desc">创建时间（新到旧）</option>
+              <option value="created_at_asc">创建时间（旧到新）</option>
+              <option value="updated_at_desc">更新时间（新到旧）</option>
+              <option value="updated_at_asc">更新时间（旧到新）</option>
+              <option value="title_asc">标题（A-Z）</option>
+              <option value="title_desc">标题（Z-A）</option>
+            </select>
+          </div>
+
+          <div className="blog-toolbar-actions">
+            <div className="blog-toolbar-left">
+              <button
+                className="btn-admin btn-admin-secondary"
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter(recycleMode ? "deleted" : "");
+                  setAuthorFilter("");
+                  setTagFilter("");
+                  setDateFrom("");
+                  setDateTo("");
+                  setSort("created_at_desc");
+                  setPage(1);
+                }}
+              >
+                清空筛选
+              </button>
+            </div>
+            <div className="blog-toolbar-right">
+              <button
+                className={`btn-admin ${recycleMode ? "btn-admin-secondary" : "btn-admin-primary"}`}
+                type="button"
+                onClick={() => {
+                  setRecycleMode(false);
+                  setStatusFilter("");
+                  setPage(1);
+                  setSelectedIds([]);
+                  setBatchDeleteConfirming(false);
+                }}
+              >
+                正常列表
+              </button>
+              <button
+                className={`btn-admin ${recycleMode ? "btn-admin-primary" : "btn-admin-secondary"}`}
+                type="button"
+                onClick={() => {
+                  setRecycleMode(true);
+                  setStatusFilter("deleted");
+                  setPage(1);
+                  setSelectedIds([]);
+                  setBatchDeleteConfirming(false);
+                }}
+              >
+                回收站
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="blog-batch-bar">
+          <span className="blog-batch-count">已选 {selectedIds.length} 篇</span>
+          {!recycleMode && (
+            <>
+              <button
+                className="btn-admin btn-admin-secondary"
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={() => {
+                  setBatchDeleteConfirming(false);
+                  void runBatchAction("publish");
+                }}
+              >
+                批量发布
+              </button>
+              <button
+                className="btn-admin btn-admin-secondary"
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={() => {
+                  setBatchDeleteConfirming(false);
+                  void runBatchAction("draft");
+                }}
+              >
+                批量撤回
+              </button>
+            </>
+          )}
+          {recycleMode && (
+            <button
+              className="btn-admin btn-admin-secondary"
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={() => {
+                setBatchDeleteConfirming(false);
+                void runBatchAction("restore");
+              }}
+            >
+              批量恢复为草稿
+            </button>
+          )}
+          {!batchDeleteConfirming ? (
+            <button
+              className="btn-admin btn-admin-danger"
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={() => setBatchDeleteConfirming(true)}
+            >
+              {recycleMode ? "批量永久删除" : "批量删除"}
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn-admin btn-admin-danger"
+                type="button"
+                disabled={selectedIds.length === 0}
+                onClick={() => void runBatchAction(recycleMode ? "destroy" : "delete")}
+              >
+                {recycleMode ? "确认批量永久删除" : "确认批量删除"}
+              </button>
+              <button
+                className="btn-admin btn-admin-secondary"
+                type="button"
+                onClick={() => setBatchDeleteConfirming(false)}
+              >
+                取消
+              </button>
+            </>
+          )}
         </div>
 
         {!loading && (
           <table className="admin-table">
             <thead>
               <tr>
+                <th style={{ width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={allCurrentPageSelected}
+                    onChange={(e) => toggleSelectAllCurrentPage(e.target.checked)}
+                  />
+                </th>
                 <th>标题</th>
                 <th>作者</th>
                 <th>分类</th>
@@ -260,70 +589,128 @@ export default function BlogManagementPage() {
               {blogs.map((blog) => (
                 <tr key={blog.id}>
                   <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(blog.id)}
+                      onChange={(e) => toggleSelect(blog.id, e.target.checked)}
+                    />
+                  </td>
+                  <td>
                     <strong>{blog.title}</strong>
                   </td>
                   <td>{blog.username}</td>
                   <td>{blog.category_name || "未分类"}</td>
                   <td>
-                    <span className={`badge badge-${blog.status === "published" ? "success" : "warning"}`}>
-                      {blog.status === "published" ? "已发布" : "草稿"}
+                    <span
+                      className={`badge badge-${
+                        blog.status === "published" ? "success" : blog.status === "deleted" ? "danger" : "warning"
+                      }`}
+                    >
+                      {blog.status === "published" ? "已发布" : blog.status === "deleted" ? "已删除" : "草稿"}
                     </span>
                   </td>
                   <td>{new Date(blog.created_at).toLocaleString("zh-CN")}</td>
                   <td>
                     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                      <button
-                        onClick={() => void handleEdit(blog.id)}
-                        className="btn-admin btn-admin-primary"
-                        style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                      >
-                        编辑
-                      </button>
-                      {blog.status === "draft" && (
-                        <button
-                          onClick={() => void handleStatusChange(blog.id, "published")}
-                          className="btn-admin btn-admin-secondary"
-                          style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                        >
-                          发布
-                        </button>
-                      )}
-                      {blog.status === "published" && (
-                        <button
-                          onClick={() => void handleStatusChange(blog.id, "draft")}
-                          className="btn-admin btn-admin-secondary"
-                          style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                        >
-                          撤回
-                        </button>
-                      )}
-
-                      {pendingDeleteId === blog.id ? (
+                      {!recycleMode && (
                         <>
                           <button
-                            onClick={() => void handleDelete(blog.id, blog.title)}
-                            className="btn-admin btn-admin-danger"
+                            onClick={() => void handleEdit(blog.id)}
+                            className="btn-admin btn-admin-primary"
                             style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
                           >
-                            确认删除
+                            编辑
                           </button>
-                          <button
-                            onClick={() => setPendingDeleteId(null)}
-                            className="btn-admin btn-admin-secondary"
-                            style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                          >
-                            取消
-                          </button>
+                          {blog.status === "draft" && (
+                            <button
+                              onClick={() => void handleStatusChange(blog.id, "published")}
+                              className="btn-admin btn-admin-secondary"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              发布
+                            </button>
+                          )}
+                          {blog.status === "published" && (
+                            <button
+                              onClick={() => void handleStatusChange(blog.id, "draft")}
+                              className="btn-admin btn-admin-secondary"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              撤回
+                            </button>
+                          )}
+
+                          {pendingDeleteId === blog.id ? (
+                            <>
+                              <button
+                                onClick={() => void handleDelete(blog.id, blog.title)}
+                                className="btn-admin btn-admin-danger"
+                                style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              >
+                                确认删除
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteId(null)}
+                                className="btn-admin btn-admin-secondary"
+                                style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                              >
+                                取消
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setPendingDeleteId(blog.id)}
+                              className="btn-admin btn-admin-danger"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              删除
+                            </button>
+                          )}
                         </>
-                      ) : (
-                        <button
-                          onClick={() => setPendingDeleteId(blog.id)}
-                          className="btn-admin btn-admin-danger"
-                          style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                        >
-                          删除
-                        </button>
                       )}
+                      {recycleMode &&
+                        (pendingDestroyId === blog.id ? (
+                          <>
+                            <button
+                              onClick={() => void handleRestore(blog.id, blog.title)}
+                              className="btn-admin btn-admin-secondary"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              恢复为草稿
+                            </button>
+                            <button
+                              onClick={() => void handleDestroy(blog.id, blog.title)}
+                              className="btn-admin btn-admin-danger"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              确认永久删除
+                            </button>
+                            <button
+                              onClick={() => setPendingDestroyId(null)}
+                              className="btn-admin btn-admin-secondary"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => void handleRestore(blog.id, blog.title)}
+                              className="btn-admin btn-admin-secondary"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              恢复
+                            </button>
+                            <button
+                              onClick={() => setPendingDestroyId(blog.id)}
+                              className="btn-admin btn-admin-danger"
+                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
+                            >
+                              永久删除
+                            </button>
+                          </>
+                        ))}
                     </div>
                   </td>
                 </tr>
@@ -332,7 +719,7 @@ export default function BlogManagementPage() {
           </table>
         )}
 
-        {total > 20 && (
+        {total > ADMIN_LIST_PAGE_SIZE && (
           <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "center" }}>
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -344,7 +731,7 @@ export default function BlogManagementPage() {
             <span style={{ padding: "0.5rem 1rem" }}>第 {page} 页</span>
             <button
               onClick={() => setPage((p) => p + 1)}
-              disabled={page * 20 >= total}
+              disabled={page * ADMIN_LIST_PAGE_SIZE >= total}
               className="btn-admin btn-admin-secondary"
             >
               下一页

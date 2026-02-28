@@ -1,9 +1,11 @@
-import { getAuthUser, isAdminUser } from "@/lib/http";
+import { getAuthIdentity } from "@/lib/http";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse } from "@/lib/api-response";
 import { validateBody, validateParams, z } from "@/lib/validate";
+import { recordAdminAudit } from "@/lib/admin-audit";
+import { hasAdminPermission } from "@/lib/rbac";
 
 const paramsSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -22,18 +24,15 @@ export const PUT = withErrorHandler(async (
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "Admin access required");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "friends.manage"), "需要友链管理权限");
 
   const { id } = validateParams(await params, paramsSchema);
   const body = await validateBody(request, updateSchema);
 
   let finalAvatarUrl = body.avatar_url || null;
-  if (!finalAvatarUrl && body.url) {
-    finalAvatarUrl = await detectFriendLinkIcon(body.url);
-  }
+  if (!finalAvatarUrl && body.url) finalAvatarUrl = await detectFriendLinkIcon(body.url);
 
   await postRepository.updateFriendLink(id, {
     name: body.name,
@@ -44,20 +43,41 @@ export const PUT = withErrorHandler(async (
     is_active: body.is_active ?? 1,
   });
 
+  await recordAdminAudit({
+    actor: auth.username,
+    action: "admin.friend_link.update",
+    targetType: "friend_link",
+    targetId: String(id),
+    detail: {
+      name: body.name,
+      url: body.url,
+      is_active: body.is_active ?? 1,
+    },
+    req: request,
+  });
+
   return successResponse({ message: "Friend link updated successfully" });
 });
 
 export const DELETE = withErrorHandler(async (
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "Admin access required");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "friends.manage"), "需要友链管理权限");
 
   const { id } = validateParams(await params, paramsSchema);
   await postRepository.deleteFriendLink(id);
 
+  await recordAdminAudit({
+    actor: auth.username,
+    action: "admin.friend_link.delete",
+    targetType: "friend_link",
+    targetId: String(id),
+    req: request,
+  });
+
   return successResponse({ message: "Friend link deleted successfully" });
 });
+

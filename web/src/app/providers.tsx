@@ -5,7 +5,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
 
 export type UserProfile = {
   username: string;
-  role?: "admin" | "user" | "bot";
+  role?: "super_admin" | "content_reviewer" | "operator" | "admin" | "user" | "bot";
   nickname?: string;
   avatar_url?: string;
   cover_url?: string;

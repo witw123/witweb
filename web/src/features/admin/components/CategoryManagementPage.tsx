@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
+import AdminNotice from "./AdminNotice";
 
 type Category = {
   id: number;
@@ -22,9 +23,22 @@ export default function CategoryManagementPage() {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [noticeTone, setNoticeTone] = useState<"success" | "error" | "info">("info");
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const showError = (msg: string) => {
+    setNoticeTone("error");
+    setMessage(msg);
+  };
+  const showSuccess = (msg: string) => {
+    setNoticeTone("success");
+    setMessage(msg);
+  };
+  const clearNotice = () => {
+    setNoticeTone("info");
+    setMessage("");
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -48,11 +62,11 @@ export default function CategoryManagementPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         setCategories([]);
-        setMessage(data.error?.message || "加载分类失败");
+        showError(data.error?.message || "加载分类失败");
         return;
       }
       setCategories((data.data?.items || []) as Category[]);
-      setMessage("");
+      clearNotice();
     } finally {
       setLoading(false);
     }
@@ -60,13 +74,13 @@ export default function CategoryManagementPage() {
 
   async function createCategory() {
     if (!name.trim()) {
-      setMessage("分类名称不能为空");
+      showError("分类名称不能为空");
       return;
     }
 
     try {
       setSubmitting(true);
-      setMessage("");
+      clearNotice();
 
       const res = await fetch("/api/admin/categories", {
         method: "POST",
@@ -83,14 +97,14 @@ export default function CategoryManagementPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        setMessage(data.error?.message || "创建失败");
+        showError(data.error?.message || "创建失败");
         return;
       }
 
       setName("");
       setSlug("");
       setDescription("");
-      setMessage("创建成功");
+      showSuccess("创建成功");
       await loadCategories();
     } finally {
       setSubmitting(false);
@@ -109,11 +123,11 @@ export default function CategoryManagementPage() {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
-      setMessage(data.error?.message || "更新失败");
+      showError(data.error?.message || "更新失败");
       return;
     }
 
-    setMessage("状态更新成功");
+    showSuccess("状态更新成功");
     await loadCategories();
   }
 
@@ -125,23 +139,23 @@ export default function CategoryManagementPage() {
 
     if (!res.ok && res.status !== 204) {
       const data = await res.json().catch(() => ({}));
-      setMessage(data.error?.message || "删除失败");
+      showError(data.error?.message || "删除失败");
       return;
     }
 
     setPendingDeleteId(null);
-    setMessage("删除成功");
+    showSuccess("删除成功");
     await loadCategories();
   }
 
   async function submitEditCategory() {
     if (!editingCategory) return;
     if (!editingCategory.name.trim()) {
-      setMessage("分类名称不能为空");
+      showError("分类名称不能为空");
       return;
     }
     if (!editingCategory.slug.trim()) {
-      setMessage("分类别名不能为空");
+      showError("分类别名不能为空");
       return;
     }
 
@@ -162,11 +176,11 @@ export default function CategoryManagementPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        setMessage(data.error?.message || "更新失败");
+        showError(data.error?.message || "更新失败");
         return;
       }
 
-      setMessage("更新成功");
+      showSuccess("更新成功");
       setEditingCategory(null);
       await loadCategories();
     } finally {
@@ -195,12 +209,12 @@ export default function CategoryManagementPage() {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
-      setMessage(data.error?.message || "排序失败");
+      showError(data.error?.message || "排序失败");
       await loadCategories();
       return;
     }
 
-    setMessage("排序已更新");
+    showSuccess("排序已更新");
     await loadCategories();
   }
 
@@ -223,7 +237,7 @@ export default function CategoryManagementPage() {
             {submitting ? "创建中..." : "创建"}
           </button>
         </div>
-        {message && <p style={{ marginTop: "0.75rem" }}>{message}</p>}
+        <AdminNotice message={message} tone={noticeTone} />
       </div>
 
       <div className="admin-card">

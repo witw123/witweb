@@ -111,6 +111,29 @@
   margin: 0 auto;
 }
 
+.publish-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.publish-actions-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.publish-action-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  line-height: 1;
+  margin: 0;
+}
+
 .blog-category-filter {
   position: relative;
   isolation: isolate;
@@ -212,5 +235,14 @@
   .blog-list-page .blog-list-container {
     min-height: auto;
     padding-bottom: 34px;
+  }
+
+  .publish-actions-row {
+    gap: 10px;
+  }
+
+  .publish-actions-right {
+    width: 100%;
+    justify-content: flex-end;
   }
 }

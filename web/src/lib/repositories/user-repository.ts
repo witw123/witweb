@@ -1,6 +1,7 @@
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { pgQuery, pgQueryOne, pgRun } from "@/lib/postgres-query";
 import type { FollowerItem, FollowerListResponse, FollowingItem, FollowingListResponse, User } from "@/types";
+import { authConfig } from "@/lib/config";
 
 export interface CreateUserData {
   username: string;
@@ -37,6 +38,13 @@ export interface PaginatedResult<T> {
   total: number;
   page: number;
   size: number;
+}
+
+export interface AdminUserListItem {
+  username: string;
+  created_at: string;
+  role: "super_admin" | "content_reviewer" | "operator" | "admin" | "user" | "bot";
+  activity_status: "active" | "inactive";
 }
 
 export class UserRepository {
@@ -134,6 +142,32 @@ export class UserRepository {
     return result.changes > 0;
   }
 
+  async updateRole(
+    username: string,
+    role: "super_admin" | "content_reviewer" | "operator" | "admin" | "user" | "bot"
+  ): Promise<boolean> {
+    const result = await pgRun("UPDATE users SET role = ? WHERE username = ?", [role, username]);
+    return result.changes > 0;
+  }
+
+  async bulkDeleteByUsernames(usernames: string[], excludeUsernames: string[] = []): Promise<number> {
+    const targets = Array.from(new Set(usernames.map((item) => item.trim()).filter(Boolean)));
+    if (targets.length === 0) return 0;
+
+    const placeholders = targets.map(() => "?").join(", ");
+    const params: unknown[] = [...targets];
+    let sql = `DELETE FROM users WHERE username IN (${placeholders}) AND COALESCE(role, 'user') NOT IN ('admin', 'super_admin')`;
+
+    const excludes = Array.from(new Set(excludeUsernames.map((item) => item.trim()).filter(Boolean)));
+    if (excludes.length > 0) {
+      const excludePlaceholders = excludes.map(() => "?").join(", ");
+      sql += ` AND username NOT IN (${excludePlaceholders})`;
+      params.push(...excludes);
+    }
+
+    return (await pgRun(sql, params)).changes;
+  }
+
   async list(page = 1, size = 20, search?: string): Promise<PaginatedResult<User>> {
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
     let whereClause = "";
@@ -161,28 +195,62 @@ export class UserRepository {
     page = 1,
     size = 20,
     search = "",
-    sort = "created_at_desc"
-  ): Promise<PaginatedResult<Pick<User, "username" | "created_at">>> {
+    sort = "created_at_desc",
+    role = "",
+    activity = ""
+  ): Promise<PaginatedResult<AdminUserListItem>> {
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
     const keyword = search.trim();
+    const adminUsername = authConfig.adminUsername;
 
-    let where = "";
+    const whereParts: string[] = [];
     const params: unknown[] = [];
+    const activeExpr = `(
+      EXISTS(SELECT 1 FROM posts p WHERE p.author = u.username AND p.created_at::timestamptz >= NOW() - INTERVAL '30 days')
+      OR EXISTS(SELECT 1 FROM comments c WHERE c.author = u.username AND c.created_at::timestamptz >= NOW() - INTERVAL '30 days')
+      OR EXISTS(SELECT 1 FROM likes l WHERE l.username = u.username AND l.created_at::timestamptz >= NOW() - INTERVAL '30 days')
+    )`;
+
     if (keyword) {
-      where = "WHERE username LIKE ?";
+      whereParts.push("u.username LIKE ?");
       params.push(`%${keyword}%`);
     }
+    if (role.trim()) {
+      if (role.trim() === "super_admin") {
+        whereParts.push("u.username = ?");
+        params.push(adminUsername);
+      } else if (role.trim() === "admin") {
+        whereParts.push("COALESCE(u.role, 'user') = ? AND u.username <> ?");
+        params.push("admin", adminUsername);
+      } else {
+        whereParts.push("COALESCE(u.role, 'user') = ?");
+        params.push(role.trim());
+      }
+    }
+    if (activity === "active") whereParts.push(activeExpr);
+    if (activity === "inactive") whereParts.push(`NOT ${activeExpr}`);
+    const where = whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-    const totalSql = `SELECT COUNT(*)::int AS cnt FROM users ${where}`;
+    const totalSql = `SELECT COUNT(*)::int AS cnt FROM users u ${where}`;
     const total = (await pgQueryOne<{ cnt: number }>(totalSql, params))?.cnt || 0;
 
     let orderBy = "created_at DESC";
     if (sort === "created_at_asc") orderBy = "created_at ASC";
     if (sort === "username_asc") orderBy = "username ASC";
     if (sort === "username_desc") orderBy = "username DESC";
+    if (sort === "role_asc") orderBy = "role ASC";
+    if (sort === "role_desc") orderBy = "role DESC";
 
-    const sql = `SELECT username, created_at FROM users ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
-    const items = await pgQuery<Pick<User, "username" | "created_at">>(sql, [...params, validSize, offset]);
+    const sql = `SELECT
+      u.username,
+      u.created_at,
+      CASE WHEN u.username = ? THEN 'super_admin' ELSE COALESCE(u.role, 'user') END AS role,
+      CASE WHEN ${activeExpr} THEN 'active' ELSE 'inactive' END AS activity_status
+      FROM users u ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+    const items = await pgQuery<AdminUserListItem>(
+      sql,
+      [adminUsername, ...params, validSize, offset]
+    );
 
     return { items, total, page: validPage, size: validSize };
   }

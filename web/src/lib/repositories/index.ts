@@ -6,6 +6,7 @@ import { messageRepository } from "./message-repository";
 import { agentRepository } from "./agent-repository";
 import { topicRadarRepository } from "./topic-radar-repository";
 import { secureConfigRepository } from "./secure-config-repository";
+import { auditLogRepository } from "./audit-log-repository";
 
 export {
   type PaginationParams,
@@ -65,6 +66,7 @@ export {
 
 export { topicRadarRepository } from "./topic-radar-repository";
 export { secureConfigRepository } from "./secure-config-repository";
+export { auditLogRepository, type AdminAuditLogRow } from "./audit-log-repository";
 
 export const repositories = {
   user: userRepository,
@@ -75,6 +77,7 @@ export const repositories = {
   agent: agentRepository,
   topicRadar: topicRadarRepository,
   secureConfig: secureConfigRepository,
+  auditLog: auditLogRepository,
 } as const;
 
 export type Repositories = typeof repositories;

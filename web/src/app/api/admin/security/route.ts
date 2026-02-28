@@ -1,4 +1,4 @@
-import { getAuthUser, isAdminUser } from "@/lib/http";
+import { getAuthIdentity } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
@@ -12,6 +12,8 @@ import {
 import { apiConfig, appConfig, getSafeConfig, validateConfig } from "@/lib/config";
 import { maskSensitiveValue } from "@/lib/security";
 import { createSecurityContext, securityLog } from "@/lib/security-middleware";
+import { recordAdminAudit } from "@/lib/admin-audit";
+import { hasAdminPermission } from "@/lib/rbac";
 
 const validKeys = ["api_key", "token", "webhook_secret", "oauth_client_secret"] as const;
 
@@ -27,10 +29,9 @@ const postSchema = z.discriminatedUnion("action", [
 ]);
 
 export const GET = withErrorHandler(async (req) => {
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "security.manage"), "需要安全设置管理权限");
 
   const context = await createSecurityContext(req);
   securityLog("admin_security_status_view", context);
@@ -69,17 +70,23 @@ export const GET = withErrorHandler(async (req) => {
 });
 
 export const POST = withErrorHandler(async (req) => {
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "security.manage"), "需要安全设置管理权限");
 
   const body = await validateBody(req, postSchema);
   const context = await createSecurityContext(req);
 
   if (body.action === "clearCache") {
     clearSecureConfigCache();
-    securityLog("admin_security_cache_cleared", context, { admin: user });
+    securityLog("admin_security_cache_cleared", context, { admin: auth.username });
+    await recordAdminAudit({
+      actor: auth.username,
+      action: "admin.security.clear_cache",
+      targetType: "security",
+      targetId: "config-cache",
+      req,
+    });
     return successResponse({
       message: "Configuration cache cleared",
       timestamp: new Date().toISOString(),
@@ -90,8 +97,17 @@ export const POST = withErrorHandler(async (req) => {
     await setSecureConfig(body.key as SensitiveConfigKey, body.value);
     securityLog("admin_security_config_set", context, {
       key: body.key,
-      admin: user,
+      admin: auth.username,
       source: "api",
+    });
+
+    await recordAdminAudit({
+      actor: auth.username,
+      action: "admin.security.set_config",
+      targetType: "security",
+      targetId: body.key,
+      detail: { key: body.key },
+      req,
     });
 
     const warning =
@@ -110,3 +126,4 @@ export const POST = withErrorHandler(async (req) => {
     return errorResponses.internal("Failed to save configuration");
   }
 });
+

@@ -1,12 +1,10 @@
-/**
- */
-
-import { getAuthUser } from "@/lib/http";
+import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, errorResponses, noContentResponse } from "@/lib/api-response";
 import { validateParams, validateBody, z } from "@/lib/validate";
-import { isAdminUser } from "@/lib/http";
+import { recordAdminAudit } from "@/lib/admin-audit";
+import { hasAdminPermission } from "@/lib/rbac";
 
 const paramsSchema = z.object({
   id: z.coerce.number().int().positive("分类ID必须是正整数"),
@@ -36,10 +34,9 @@ function slugify(text: string) {
 
 export const PUT = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const paramsData = await params;
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "categories.manage"), "需要分类管理权限");
 
   const { id } = validateParams(paramsData, paramsSchema);
   const body = await validateBody(req, updateCategorySchema);
@@ -47,9 +44,7 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
   const payload: CategoryUpdatePayload = {};
   const nextName = body.name !== undefined ? body.name.trim() : undefined;
   if (nextName !== undefined) {
-    if (!nextName) {
-      return errorResponses.badRequest("分类名称不能为空");
-    }
+    if (!nextName) return errorResponses.badRequest("分类名称不能为空");
     payload.name = nextName;
   }
 
@@ -57,21 +52,27 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
     const rawSlug = body.slug.trim();
     const fallbackName = nextName || "";
     const normalizedSlug = slugify(rawSlug || fallbackName);
-    if (!normalizedSlug) {
-      return errorResponses.badRequest("分类别名不能为空");
-    }
+    if (!normalizedSlug) return errorResponses.badRequest("分类别名不能为空");
     payload.slug = normalizedSlug;
   }
 
   if (body.description !== undefined) payload.description = body.description;
   if (body.is_active !== undefined) payload.is_active = !(body.is_active === 0 || body.is_active === false);
 
-  if (Object.keys(payload).length === 0) {
-    return errorResponses.badRequest("没有可更新的字段");
-  }
+  if (Object.keys(payload).length === 0) return errorResponses.badRequest("没有可更新字段");
 
   try {
     await postRepository.updateCategory(id, payload);
+
+    await recordAdminAudit({
+      actor: auth.username,
+      action: "admin.category.update",
+      targetType: "category",
+      targetId: String(id),
+      detail: payload,
+      req,
+    });
+
     return successResponse({ updated: true });
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes("UNIQUE")) {
@@ -81,15 +82,23 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
   }
 });
 
-export const DELETE = withErrorHandler(async (_: Request, { params }: { params: Promise<{ id: string }> }) => {
+export const DELETE = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const paramsData = await params;
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "categories.manage"), "需要分类管理权限");
 
   const { id } = validateParams(paramsData, paramsSchema);
   await postRepository.deleteCategory(id);
 
+  await recordAdminAudit({
+    actor: auth.username,
+    action: "admin.category.delete",
+    targetType: "category",
+    targetId: String(id),
+    req,
+  });
+
   return noContentResponse();
 });
+

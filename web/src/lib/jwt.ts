@@ -25,7 +25,7 @@ function getJwtSecretKey(): Uint8Array {
 export async function createJwtToken(
   username: string,
   expiresIn: string,
-  role: "admin" | "user" | "bot" = "user"
+  role: "super_admin" | "content_reviewer" | "operator" | "admin" | "user" | "bot" = "user"
 ): Promise<string> {
   return new SignJWT({ sub: username, role })
     .setProtectedHeader({ alg: JWT_ALGORITHM })

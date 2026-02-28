@@ -1,12 +1,10 @@
-/**
- */
-
-import { getAuthUser } from "@/lib/http";
+import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { errorResponses, paginatedResponse, createdResponse } from "@/lib/api-response";
 import { validateQuery, validateBody, z } from "@/lib/validate";
-import { isAdminUser } from "@/lib/http";
+import { recordAdminAudit } from "@/lib/admin-audit";
+import { hasAdminPermission } from "@/lib/rbac";
 
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -30,31 +28,25 @@ function slugify(text: string) {
 }
 
 export const GET = withErrorHandler(async (req: Request) => {
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "categories.manage"), "需要分类管理权限");
 
   const { page, limit, search } = await validateQuery(req, querySchema);
-
   const result = await postRepository.listAdminCategories(page, limit, search);
 
   return paginatedResponse(result.items, result.total, page ?? 1, limit ?? 100);
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-
-  const user = await getAuthUser();
-  assertAuthenticated(user);
-  assertAuthorized(isAdminUser(user), "需要管理员权限");
+  const auth = await getAuthIdentity();
+  assertAuthenticated(auth?.username);
+  assertAuthorized(!!auth && hasAdminPermission(auth.role, "categories.manage"), "需要分类管理权限");
 
   const body = await validateBody(req, createCategorySchema);
-
   const slug = body.slug?.trim() || slugify(body.name);
 
-  if (!slug) {
-    return errorResponses.badRequest("分类别名不能为空");
-  }
+  if (!slug) return errorResponses.badRequest("分类别名不能为空");
 
   try {
     const id = await postRepository.createCategory({
@@ -64,6 +56,19 @@ export const POST = withErrorHandler(async (req: Request) => {
       sort_order: await postRepository.getNextCategorySortOrder(),
       is_active: !(body.is_active === 0 || body.is_active === false),
     });
+
+    await recordAdminAudit({
+      actor: auth.username,
+      action: "admin.category.create",
+      targetType: "category",
+      targetId: String(id),
+      detail: {
+        name: body.name.trim(),
+        slug,
+      },
+      req,
+    });
+
     return createdResponse({ id });
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes("UNIQUE")) {
@@ -72,3 +77,4 @@ export const POST = withErrorHandler(async (req: Request) => {
     throw error;
   }
 });
+

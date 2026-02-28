@@ -6,7 +6,17 @@ import type { PaginatedResult } from "./types";
 export interface CreatePostData { title: string; slug: string; content: string; author: string; tags?: string; category_id?: number | null; status?: PostStatus; }
 export interface UpdatePostData { title?: string; content?: string; tags?: string; category_id?: number | null; status?: PostStatus; }
 export interface ListPostsParams { page?: number; size?: number; query?: string; author?: string; authorAliases?: string[]; tag?: string; category?: string; username?: string; }
-export interface AdminListBlogsParams { page?: number; size?: number; search?: string; status?: string; username?: string; sort?: string; }
+export interface AdminListBlogsParams {
+  page?: number;
+  size?: number;
+  search?: string;
+  status?: string;
+  username?: string;
+  tag?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sort?: string;
+}
 export interface AdminBlogListItem { id: number; username: string; title: string; status: string; category_id: number | null; category_name: string | null; category_slug: string | null; created_at: string; updated_at: string; }
 export interface AdminBlogDetail extends AdminBlogListItem { content: string; tags: string | null; }
 export interface SitemapPostItem { slug: string; updated_at?: string | null; created_at?: string | null; }
@@ -276,12 +286,30 @@ export class PostRepository {
   }
 
   async listAdminBlogs(params: AdminListBlogsParams): Promise<PaginatedResult<AdminBlogListItem>> {
-    const { page = 1, size = 20, search = "", status = "", username = "", sort = "created_at_desc" } = params;
+    const {
+      page = 1,
+      size = 20,
+      search = "",
+      status = "",
+      username = "",
+      tag = "",
+      dateFrom = "",
+      dateTo = "",
+      sort = "created_at_desc",
+    } = params;
     const { page: p, size: s, offset } = normalizePagination(page, size);
     let where = "WHERE 1=1"; const fp: unknown[] = [];
     if (search.trim()) { where += " AND (p.title LIKE ? OR p.content LIKE ?)"; fp.push(`%${search.trim()}%`, `%${search.trim()}%`); }
-    if (status.trim()) { where += " AND p.status = ?"; fp.push(status.trim()); }
+    if (status.trim()) {
+      where += " AND COALESCE(p.status, 'published') = ?";
+      fp.push(status.trim());
+    } else {
+      where += " AND COALESCE(p.status, 'published') <> 'deleted'";
+    }
     if (username.trim()) { where += " AND p.author = ?"; fp.push(username.trim()); }
+    if (tag.trim()) { where += " AND COALESCE(p.tags, '') LIKE ?"; fp.push(`%${tag.trim()}%`); }
+    if (dateFrom.trim()) { where += " AND p.created_at >= ?"; fp.push(dateFrom.trim()); }
+    if (dateTo.trim()) { where += " AND p.created_at <= ?"; fp.push(dateTo.trim()); }
     const total = (await pgQueryOne<{ cnt: number }>(`SELECT COUNT(*)::int AS cnt FROM posts p ${where}`, fp))?.cnt || 0;
     let orderBy = "p.created_at DESC";
     if (sort === "created_at_asc") orderBy = "p.created_at ASC";
@@ -305,7 +333,10 @@ export class PostRepository {
     return await pgQuery<SitemapPostItem>("SELECT slug,updated_at,created_at FROM posts WHERE slug IS NOT NULL AND trim(slug) <> '' AND (status IS NULL OR status <> 'deleted') ORDER BY id DESC");
   }
 
-  async updateById(id: number, data: { status?: string; title?: string; content?: string; tags?: string; category_id?: number }): Promise<boolean> {
+  async updateById(
+    id: number,
+    data: { status?: PostStatus; title?: string; content?: string; tags?: string; category_id?: number | null }
+  ): Promise<boolean> {
     const fields: string[] = []; const params: unknown[] = [];
     if (data.status !== undefined) { fields.push("status = ?"); params.push(data.status); }
     if (data.title !== undefined) { fields.push("title = ?"); params.push(data.title); }
@@ -317,7 +348,34 @@ export class PostRepository {
     return (await pgRun(`UPDATE posts SET ${fields.join(", ")} WHERE id = ?`, params)).changes > 0;
   }
 
-  async delete(id: number): Promise<boolean> { return (await pgRun("DELETE FROM posts WHERE id = ?", [id])).changes > 0; }
+  async bulkUpdateStatusByIds(ids: number[], status: PostStatus): Promise<number> {
+    const uniqueIds = Array.from(new Set(ids)).filter((id) => Number.isInteger(id) && id > 0);
+    if (uniqueIds.length === 0) return 0;
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    return (
+      await pgRun(
+        `UPDATE posts SET status = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
+        [status, ...uniqueIds]
+      )
+    ).changes;
+  }
+
+  async bulkDeleteByIds(ids: number[]): Promise<number> {
+    const uniqueIds = Array.from(new Set(ids)).filter((id) => Number.isInteger(id) && id > 0);
+    if (uniqueIds.length === 0) return 0;
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    return (await pgRun(`DELETE FROM posts WHERE id IN (${placeholders})`, uniqueIds)).changes;
+  }
+
+  async softDeleteById(id: number): Promise<boolean> {
+    return (await pgRun("UPDATE posts SET status = 'deleted', updated_at = NOW() WHERE id = ?", [id])).changes > 0;
+  }
+
+  async restoreById(id: number, status: "published" | "draft" = "draft"): Promise<boolean> {
+    return (await pgRun("UPDATE posts SET status = ?, updated_at = NOW() WHERE id = ?", [status, id])).changes > 0;
+  }
+
+  async hardDeleteById(id: number): Promise<boolean> { return (await pgRun("DELETE FROM posts WHERE id = ?", [id])).changes > 0; }
   async deleteByAuthor(author: string): Promise<number> { return (await pgRun("DELETE FROM posts WHERE author = ?", [author])).changes; }
   async deleteLikesByUsername(username: string): Promise<number> { return (await pgRun("DELETE FROM likes WHERE username = ?", [username])).changes; }
   async deleteDislikesByUsername(username: string): Promise<number> { return (await pgRun("DELETE FROM dislikes WHERE username = ?", [username])).changes; }

@@ -9,7 +9,8 @@ import {
   ValidationError 
 } from "./security";
 import { securityConfig } from "./config";
-import { getAuthUser } from "./http";
+import { getAuthIdentity, getAuthUser } from "./http";
+import { hasAdminAccess } from "./rbac";
 
 export interface SecurityContext {
   ip: string;
@@ -204,7 +205,8 @@ export async function authMiddleware(req: NextRequest): Promise<string | Respons
  */
 export async function adminAuthMiddleware(req: NextRequest): Promise<string | Response> {
   void req;
-  const user = await getAuthUser();
+  const auth = await getAuthIdentity();
+  const user = auth?.username || null;
   
   if (!user) {
     return createJsonResponse(
@@ -216,8 +218,7 @@ export async function adminAuthMiddleware(req: NextRequest): Promise<string | Re
     );
   }
   
-  const { isAdminUser } = await import("./http");
-  if (!isAdminUser(user)) {
+  if (!auth || !hasAdminAccess(auth.role)) {
     return createJsonResponse(
       {
         error: "Forbidden",
