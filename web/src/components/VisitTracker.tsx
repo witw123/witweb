@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useAuth } from "@/app/providers";
 
 // Generate a unique visitor ID and store it in localStorage
 function getVisitorId(): string {
@@ -15,7 +16,11 @@ function getVisitorId(): string {
 }
 
 export default function VisitTracker() {
+  const { isAuthenticated } = useAuth();
+
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const trackVisit = async () => {
       try {
         const visitorId = getVisitorId();
@@ -35,7 +40,7 @@ export default function VisitTracker() {
 
     // Track visit on mount
     trackVisit();
-  }, []);
+  }, [isAuthenticated]);
 
   return null; // This component doesn't render anything
 }

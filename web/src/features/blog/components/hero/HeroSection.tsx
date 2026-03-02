@@ -18,11 +18,11 @@ interface HeroSectionProps {
 export function HeroSection({
   title = "witw 的技术与创作交流平台",
   subtitle = "记录项目实践、工具构建与个人经验。",
-  primaryAction = { label: "开始阅读", onClick: () => {} },
+  primaryAction = { label: "开始阅读", onClick: () => { } },
   secondaryAction = { label: "关于我", href: "/profile" },
 }: HeroSectionProps) {
   return (
-    <section className="hero-section relative flex min-h-[calc(100vh-64px)] flex-col items-center justify-center overflow-hidden px-4 text-center">
+    <section className="hero-section relative flex flex-col items-center justify-center overflow-hidden px-4 text-center" style={{ minHeight: 'calc(100vh - var(--header-height))' }}>
       <div className="hero-grid" />
 
       <div className="hero-kicker relative z-10 mb-6 inline-flex items-center justify-center rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider">

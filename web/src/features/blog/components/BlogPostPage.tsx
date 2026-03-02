@@ -244,7 +244,7 @@ export default function BlogPostPage() {
   }, [loadComments, loadPost]);
 
   useEffect(() => {
-    if (!slug || typeof window === "undefined") return;
+    if (!slug || typeof window === "undefined" || !isAuthenticated) return;
     const viewedKey = `post:viewed:${slug}`;
     if (sessionStorage.getItem(viewedKey)) return;
     fetch(`/api/blog/${slug}/view`, { method: "POST" })
@@ -258,7 +258,7 @@ export default function BlogPostPage() {
         }
       })
       .catch(() => { });
-  }, [slug]);
+  }, [isAuthenticated, slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -405,6 +405,10 @@ export default function BlogPostPage() {
     event.preventDefault();
     if (commentLoading) return;
     setCommentStatus("");
+    if (!isAuthenticated || !token) {
+      setCommentStatus("请先登录后再操作。");
+      return;
+    }
     const trimmed = commentText.trim();
     if (!trimmed) {
       setCommentStatus("请输入评论内容。");
@@ -426,7 +430,6 @@ export default function BlogPostPage() {
               ? trimmed
               : `@${replyTo.author_name || replyTo.author} ${trimmed}`
             : trimmed,
-          author: profile?.nickname || profile?.username || "访客",
           parent_id: replyTo?.root_id || replyTo?.id || null,
         }),
       });
@@ -660,7 +663,7 @@ export default function BlogPostPage() {
       if (node.parent_id && nodes.has(node.parent_id)) {
         const parent = nodes.get(node.parent_id);
         if (!parent) return;
-        node.reply_to = parent.author_name || parent.author || "访客";
+        node.reply_to = parent.author_name || parent.author || "用户";
         node.reply_to_id = parent.id;
         node.root_id = parent.root_id || parent.id;
         parent.children.push(node);
@@ -687,7 +690,7 @@ export default function BlogPostPage() {
   );
 
   function handleReplyClick(comment: CommentNode) {
-    const name = comment.author_name || comment.author || "访客";
+    const name = comment.author_name || comment.author || "用户";
     const prefix = `@${name} `;
     setReplyTo(comment);
     setCommentText((value) => (value.startsWith(prefix) ? value : prefix));
@@ -1064,8 +1067,10 @@ export default function BlogPostPage() {
             <textarea
               rows={4}
               value={commentText}
+              disabled={!isAuthenticated}
               onChange={(event) => setCommentText(event.target.value)}
               onKeyDown={(event) => {
+                if (!isAuthenticated) return;
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   handleComment(event);
@@ -1074,12 +1079,10 @@ export default function BlogPostPage() {
               placeholder={replyTo ? `回复 @${replyTo.author_name || replyTo.author}` : "写下你的观点... (按 Enter 发送)"}
             />
           </label>
-          {!isAuthenticated && (
-            <p className="text-xs text-muted mt-2">未登录将以“访客”身份发表评论。</p>
-          )}
+          {!isAuthenticated && <p className="text-xs text-muted mt-2">请先登录后评论。</p>}
           {commentStatus && <p className="status">{commentStatus}</p>}
           <div className="flex justify-end mt-2">
-            <button className="btn-primary" type="submit" disabled={commentLoading}>
+            <button className="btn-primary" type="submit" disabled={!isAuthenticated || commentLoading}>
               {commentLoading ? "提交中..." : "评论"}
             </button>
           </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "./providers";
-import LegacyLayout from "@/components/LegacyLayout";
+import AppShell from "@/components/AppShell";
 import { getSiteUrl } from "@/lib/site-url";
 
 const siteUrl = getSiteUrl();
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN">
       <body>
         <AuthProvider>
-          <LegacyLayout>{children}</LegacyLayout>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

@@ -41,7 +41,7 @@
   /* Effects */
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.5);
   --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.28);
-  --header-height: 64px;
+  --header-height: 48px;
 
   /* Surface / overlays */
   --surface-soft: rgba(255, 255, 255, 0.04);
@@ -85,14 +85,12 @@
   --ui-hero-primary-hover-bg: #0080ff;
   --ui-hero-primary-shadow: 0 0 20px rgba(0, 112, 243, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.2);
   --ui-hero-primary-shadow-hover: 0 0 30px rgba(0, 112, 243, 0.4);
-  --ui-hero-shimmer-gradient: linear-gradient(
-    to bottom right,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.1) 40%,
-    rgba(255, 255, 255, 0.4) 50%,
-    rgba(255, 255, 255, 0.1) 60%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  --ui-hero-shimmer-gradient: linear-gradient(to bottom right,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.1) 40%,
+      rgba(255, 255, 255, 0.4) 50%,
+      rgba(255, 255, 255, 0.1) 60%,
+      rgba(255, 255, 255, 0) 100%);
   --ui-hero-secondary-border: rgba(255, 255, 255, 0.1);
   --ui-hero-secondary-hover-bg: rgba(255, 255, 255, 0.1);
   --ui-hero-secondary-hover-border: rgba(255, 255, 255, 0.2);
@@ -117,7 +115,7 @@
     --spacing-lg: 16px;
     --spacing-xl: 24px;
     --spacing-2xl: 32px;
-    --header-height: 56px;
+    --header-height: 44px;
   }
 }
 

@@ -52,7 +52,7 @@ function readImportedDraft(): { title: string; content: string; tags: string; im
 }
 
 function getLocalDraftKey(username?: string): string {
-  const suffix = username?.trim() ? username.trim().toLowerCase() : "guest";
+  const suffix = username?.trim() ? username.trim().toLowerCase() : "anon";
   return `${LOCAL_DRAFT_KEY_PREFIX}:${suffix}`;
 }
 
@@ -124,7 +124,7 @@ export default function PublishPage() {
   }, [initialDraft.imported]);
 
   useEffect(() => {
-    const userKey = (currentDraftUser || "guest").toLowerCase();
+    const userKey = (currentDraftUser || "anon").toLowerCase();
     if (loadedDraftUserRef.current === userKey) return;
     loadedDraftUserRef.current = userKey;
 

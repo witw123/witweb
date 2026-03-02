@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { getThumbnailUrl } from "@/utils/url";
+import { hasAdminAccess, normalizeRole } from "@/lib/rbac";
 import Footer from "./Footer";
 import VisitTracker from "./VisitTracker";
 
@@ -21,6 +22,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const isStudio = pathname.startsWith("/studio");
   const isHome = pathname === "/";
+  const canAccessAdmin = isAuthenticated && hasAdminAccess(normalizeRole(user?.role, user?.username === adminUsername));
 
   const toggleUserMenu = async () => {
     const nextState = !showUserMenu;
@@ -97,11 +99,6 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
             <Link href="/categories" className={navClass("/categories")} onClick={closeMobileMenu}>
               分类
             </Link>
-            {isAuthenticated && (user?.role === "admin" || user?.username === adminUsername) && (
-              <Link href="/admin" className="nav-link" onClick={closeMobileMenu}>
-                管理后台
-              </Link>
-            )}
             <Link href="/studio" className={navClass("/studio")} onClick={closeMobileMenu}>
               工作台
             </Link>
@@ -113,6 +110,9 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                 发布文章
               </Link>
             )}
+            <Link href="/about" className={navClass("/about")} onClick={closeMobileMenu}>
+              关于我
+            </Link>
           </nav>
 
           {isMobileMenuOpen && <div className="mobile-menu-overlay" onClick={closeMobileMenu}></div>}
@@ -201,6 +201,11 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                           <Link href="/favorites" className="dropdown-item" onClick={() => setShowUserMenu(false)}>
                             我的收藏
                           </Link>
+                          {canAccessAdmin && (
+                            <Link href="/admin" className="dropdown-item" onClick={() => setShowUserMenu(false)}>
+                              管理后台
+                            </Link>
+                          )}
                           <button onClick={handleLogout} className="dropdown-item danger">
                             退出登录
                           </button>

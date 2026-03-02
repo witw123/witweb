@@ -6,16 +6,69 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
 }
 
+/* ── Grid background with fade-in + subtle pulse ── */
 .hero-grid {
   pointer-events: none;
   position: absolute;
   inset: 0;
-  opacity: 0.2;
+  opacity: 0;
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 30px 30px;
   mask-image: linear-gradient(180deg, #fff 45%, rgba(255, 255, 255, 0));
+  animation: heroGridIn 1.2s ease 0.1s forwards, heroGridPulse 6s ease-in-out 1.5s infinite;
+}
+
+@keyframes heroGridIn {
+  to {
+    opacity: 0.22;
+  }
+}
+
+@keyframes heroGridPulse {
+
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+
+  50% {
+    opacity: 0.12;
+  }
+}
+
+/* ── Cascade fade-in for hero elements ── */
+.hero-kicker,
+.hero-title,
+.hero-subtitle,
+.hero-actions {
+  opacity: 0;
+  transform: translateY(18px);
+  animation: heroCascade 0.65s ease forwards;
+}
+
+.hero-kicker {
+  animation-delay: 0.15s;
+}
+
+.hero-title {
+  animation-delay: 0.3s;
+}
+
+.hero-subtitle {
+  animation-delay: 0.45s;
+}
+
+.hero-actions {
+  animation-delay: 0.6s;
+}
+
+@keyframes heroCascade {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .hero-kicker {

@@ -49,7 +49,10 @@ export const POST = withErrorHandler(async (req, { params }) => {
   const body = await validateBody(req, createCommentSchema);
 
   const user = await getAuthUser();
-  const author = user || body.author || "访客";
+  if (!user) {
+    return errorResponses.unauthorized("请先登录后再评论");
+  }
+  const author = user;
 
   const ip = req.headers.get("x-forwarded-for") || "";
 

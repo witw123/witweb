@@ -2,11 +2,76 @@
   max-width: 1200px;
 }
 
-.blog-list-page .home-feed-shell,
+/* ── Tag panel slide-in from left ── */
 .blog-list-page .tag-atlas-shell {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
   padding: 1px;
+  opacity: 0;
+  transform: translateX(-20px);
+  animation: blogSlideInLeft 0.55s ease 0.4s forwards;
+}
+
+@keyframes blogSlideInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Feed shell fade-in ── */
+.blog-list-page .home-feed-shell {
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  padding: 1px;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: blogFeedIn 0.5s ease 0.5s forwards;
+}
+
+@keyframes blogFeedIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Post card staggered entrance ── */
+.blog-list-page .home-feed .post-card-item {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: blogCardIn 0.4s ease forwards;
+}
+
+.blog-list-page .home-feed .post-card-item:nth-child(1) {
+  animation-delay: 0.55s;
+}
+
+.blog-list-page .home-feed .post-card-item:nth-child(2) {
+  animation-delay: 0.65s;
+}
+
+.blog-list-page .home-feed .post-card-item:nth-child(3) {
+  animation-delay: 0.75s;
+}
+
+.blog-list-page .home-feed .post-card-item:nth-child(4) {
+  animation-delay: 0.85s;
+}
+
+.blog-list-page .home-feed .post-card-item:nth-child(5) {
+  animation-delay: 0.95s;
+}
+
+.blog-list-page .home-feed .post-card-item:nth-child(n+6) {
+  animation-delay: 1.05s;
+}
+
+@keyframes blogCardIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .blog-list-page .home-feed,

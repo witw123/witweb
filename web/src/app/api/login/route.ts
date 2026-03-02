@@ -5,6 +5,8 @@ import { withErrorHandler } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";
 import { assertAuthPayloadSize, assertAuthRateLimit, delayFailedAuth } from "@/lib/auth-guard";
 import { isTurnstileEnabled, verifyTurnstileToken } from "@/lib/captcha";
+import { authConfig } from "@/lib/config";
+import { hasAdminAccess, normalizeRole } from "@/lib/rbac";
 
 const loginSchema = z.object({
   username: z
@@ -14,6 +16,7 @@ const loginSchema = z.object({
     .max(64, "用户名最多 64 位"),
   password: z.string().min(1, "密码不能为空").max(256, "密码最多 256 位"),
   captchaToken: z.string().trim().max(4096).optional(),
+  adminOnly: z.boolean().optional().default(false),
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
@@ -40,10 +43,16 @@ export const POST = withErrorHandler(async (req: Request) => {
     return errorResponses.unauthorized("账号或密码错误");
   }
 
-  const token = await createToken(body.username, user.role || "user");
+  const normalizedRole = normalizeRole(user.role, user.username === authConfig.adminUsername);
+  if (body.adminOnly && !hasAdminAccess(normalizedRole)) {
+    await delayFailedAuth();
+    return errorResponses.forbidden("当前账号无后台登录权限");
+  }
+
+  const token = await createToken(body.username, normalizedRole);
   const baseProfile = (await publicProfile(user.username, user.username)) || {
     username: user.username,
-    role: user.role || "user",
+    role: normalizedRole,
     nickname: user.nickname,
     avatar_url: user.avatar_url,
     cover_url: user.cover_url || "",
@@ -55,6 +64,7 @@ export const POST = withErrorHandler(async (req: Request) => {
 
   const profile = {
     ...baseProfile,
+    role: normalizedRole,
     balance: user.balance ?? 0.0,
   };
 
