@@ -23,6 +23,12 @@ type AboutPayload = {
   updated_by: string;
 };
 
+type PublicProfileLite = {
+  username: string;
+  nickname?: string;
+  avatar_url?: string;
+};
+
 const DEFAULT_CONTENT = `## 自言
 
 - 你好，我是 witw，长期专注于工程实践、AI 应用落地和内容创作系统化。
@@ -88,10 +94,12 @@ function useFadeIn<T extends HTMLElement>() {
 /* ── Component ── */
 export default function AboutPage() {
   const { token, user, isAuthenticated } = useAuth();
+  const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState("");
+  const [adminProfile, setAdminProfile] = useState<PublicProfileLite | null>(null);
   const [about, setAbout] = useState<AboutPayload>({
     title: "关于我",
     subtitle: "技术、产品与持续创作",
@@ -111,8 +119,9 @@ export default function AboutPage() {
   const fadeSkills = useFadeIn<HTMLElement>();
   const fadeRecent = useFadeIn<HTMLElement>();
 
-  const isSuperAdmin = isAuthenticated && (user?.role === "super_admin" || user?.username === "witw");
-  const displayName = user?.nickname || user?.username || about.updated_by || "witw";
+  const isSuperAdmin = isAuthenticated && (user?.role === "super_admin" || user?.username === adminUsername);
+  const displayName = adminProfile?.nickname || adminProfile?.username || about.updated_by || adminUsername;
+  const profileUsername = adminProfile?.username || adminUsername;
 
   const renderedHtml = useMemo(() => {
     const parsed = marked.parse(about.content || DEFAULT_CONTENT, { gfm: true, breaks: true });
@@ -150,6 +159,23 @@ export default function AboutPage() {
       .catch(() => setStatus("关于我内容加载失败，请稍后重试。"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/users/${encodeURIComponent(adminUsername)}/profile`)
+      .then((res) => res.json())
+      .then((payload) => {
+        if (!payload?.success || !payload?.data) return;
+        const data = payload.data as PublicProfileLite;
+        setAdminProfile({
+          username: data.username || adminUsername,
+          nickname: data.nickname || "",
+          avatar_url: data.avatar_url || "",
+        });
+      })
+      .catch(() => {
+        // Ignore profile fetch errors and fall back to local defaults.
+      });
+  }, [adminUsername]);
 
   function enterEdit() {
     setEditLinks(about.links.length > 0 ? about.links.map((l) => ({ ...l })) : []);
@@ -239,10 +265,10 @@ export default function AboutPage() {
       <div className="about-container">
         {/* ── Hero ── */}
         <header className="about-hero about-fade" ref={fadeHero}>
-          <Link href={`/user/${displayName}`} className="about-hero__avatar">
-            {user?.avatar_url ? (
+          <Link href={`/user/${profileUsername}`} className="about-hero__avatar">
+            {adminProfile?.avatar_url ? (
               <Image
-                src={getThumbnailUrl(user.avatar_url, 128)}
+                src={getThumbnailUrl(adminProfile.avatar_url, 128)}
                 alt={displayName}
                 fill
                 className="about-hero__avatar-img"
