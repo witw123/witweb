@@ -142,22 +142,7 @@ export function BlogPostContent({
         </div>
       )}
 
-      {post && (
-        <div className="post-meta-stack mb-6 flex flex-wrap items-center gap-3">
-          <div className="category-row">
-            <span className="category-chip">{post.category_name || "未分类"}</span>
-          </div>
-          {tagList.length > 0 && (
-            <div className="tag-list flex flex-wrap gap-2">
-              {tagList.map((tag) => (
-                <span key={tag} className="tag-pill">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+
 
       {status === "error" && <p>加载失败，请稍后再试。</p>}
 
@@ -176,10 +161,28 @@ export function BlogPostContent({
                 </ul>
               </aside>
             )}
-            <article
-              className="markdown"
-              dangerouslySetInnerHTML={{ __html: markdownHtml }}
-            />
+            <article className="min-w-0">
+              {post && (
+                <div className="post-meta-stack mb-8 flex flex-wrap items-center gap-3">
+                  <div className="category-row">
+                    <span className="category-chip">{post.category_name || "未分类"}</span>
+                  </div>
+                  {tagList.length > 0 && (
+                    <div className="tag-list flex flex-wrap gap-2">
+                      {tagList.map((tag) => (
+                        <span key={tag} className="tag-pill">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div
+                className="markdown"
+                dangerouslySetInnerHTML={{ __html: markdownHtml }}
+              />
+            </article>
           </div>
           {post.created_at && (
             <div className="post-footer text-sm text-muted mt-8 pt-4 border-t border-zinc-800">
