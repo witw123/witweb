@@ -283,6 +283,7 @@ export async function getLocalVideos() {
       size: st.size,
       mtime: Math.floor(st.mtimeMs / 1000),
       url: `/downloads/${name}`,
+      task_id: h?.id || null,
       generated_time: h?.time || Math.floor(st.mtimeMs / 1000),
       duration_seconds: h?.duration_seconds ?? null,
       prompt: h?.prompt || "",

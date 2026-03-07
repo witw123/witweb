@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import BlogPostPage from "@/features/blog/components/BlogPostPage";
-import { postRepository, userRepository } from "@/lib/repositories";
+import { drizzlePostRepository, userRepository } from "@/lib/repositories";
 import { getSiteUrl } from "@/lib/site-url";
+
+export const revalidate = 300;
+export const dynamicParams = true;
 
 function stripMarkdown(source: string): string {
   return source
@@ -23,7 +26,7 @@ export async function generateMetadata({
   const slug = params.slug;
 
   try {
-    const post = await postRepository.getPostDetail(slug);
+    const post = await drizzlePostRepository.getPostDetail(slug);
     if (!post) {
       return {
         title: "文章不存在",
@@ -67,6 +70,11 @@ export async function generateMetadata({
       description: "查看文章详情",
     };
   }
+}
+
+export async function generateStaticParams() {
+  const posts = await drizzlePostRepository.listSitemapPosts();
+  return posts.slice(0, 100).map((post) => ({ slug: post.slug }));
 }
 
 export default function PostPage() {

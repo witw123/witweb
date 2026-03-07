@@ -1,5 +1,5 @@
 import { getAuthIdentity } from "@/lib/http";
-import { postRepository, userRepository } from "@/lib/repositories";
+import { drizzlePostRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
 import { validateBody, validateParams, z } from "@/lib/validate";
@@ -30,7 +30,7 @@ export const GET = withErrorHandler(async (_: Request, { params }: { params: Pro
     role: normalizeRole(profile.role, profile.username === authConfig.adminUsername),
     status: "active",
     last_login: null,
-    blog_count: await postRepository.getPostCountByAuthor(username),
+    blog_count: await drizzlePostRepository.getPostCountByAuthor(username),
   };
 
   return successResponse(detail);
@@ -107,4 +107,3 @@ export const PUT = withErrorHandler(async (req: Request, { params }: { params: P
     role: nextRole,
   });
 });
-

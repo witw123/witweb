@@ -14,9 +14,9 @@ vi.mock("@/lib/postgres-query", () => ({
   pgQuery: mockPgQuery,
 }));
 
-import { GET } from "@/app/api/admin/stats/trends/route";
+import { GET } from "@/app/api/admin/stats/route";
 
-describe("GET /api/admin/stats/trends", () => {
+describe("GET /api/admin/stats?view=trends", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -24,7 +24,7 @@ describe("GET /api/admin/stats/trends", () => {
   it("returns 401 when unauthenticated", async () => {
     mockGetAuthIdentity.mockResolvedValue(null);
 
-    const response = await GET(new Request("http://localhost/api/admin/stats/trends?days=7"));
+    const response = await GET(new Request("http://localhost/api/admin/stats?view=trends&days=7"));
     const body = await response.json();
 
     expect(response.status).toBe(401);
@@ -34,7 +34,7 @@ describe("GET /api/admin/stats/trends", () => {
   it("returns 403 when non-admin", async () => {
     mockGetAuthIdentity.mockResolvedValue({ username: "alice", role: "user" });
 
-    const response = await GET(new Request("http://localhost/api/admin/stats/trends?days=7"));
+    const response = await GET(new Request("http://localhost/api/admin/stats?view=trends&days=7"));
     const body = await response.json();
 
     expect(response.status).toBe(403);
@@ -50,7 +50,7 @@ describe("GET /api/admin/stats/trends", () => {
       .mockResolvedValueOnce([{ day: "2026-02-27", cnt: 5 }])
       .mockResolvedValueOnce([{ day: "2026-02-26", cnt: 4 }, { day: "2026-02-27", cnt: 6 }]);
 
-    const response = await GET(new Request("http://localhost/api/admin/stats/trends?days=7"));
+    const response = await GET(new Request("http://localhost/api/admin/stats?view=trends&days=7"));
     const body = await response.json();
 
     expect(response.status).toBe(200);

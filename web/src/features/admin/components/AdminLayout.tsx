@@ -21,33 +21,31 @@ type PermissionResponse = {
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, token, logout, isAuthenticated, loading } = useAuth();
+  const { user, logout, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const validatedTokenRef = useRef<string | null>(null);
+  const validatedSessionRef = useRef(false);
   const [authCheckWarning, setAuthCheckWarning] = useState("");
   const [authNoticeTone, setAuthNoticeTone] = useState<"success" | "error" | "info">("info");
   const [resolvedRole, setResolvedRole] = useState<AppRole | null>(null);
 
   useEffect(() => {
     if (loading) return;
-    if (!isAuthenticated || !token) {
-      validatedTokenRef.current = null;
-      setResolvedRole(null);
+    if (!isAuthenticated) {
+      validatedSessionRef.current = false;
       router.replace("/admin/login");
       return;
     }
-    if (validatedTokenRef.current === token) return;
+    if (validatedSessionRef.current) return;
 
     const controller = new AbortController();
     void fetch("/api/admin/me/permissions", {
-      headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     })
       .then(async (res) => {
         if (res.ok) {
           const data = (await res.json().catch(() => ({}))) as PermissionResponse;
-          validatedTokenRef.current = token;
+          validatedSessionRef.current = true;
           setAuthNoticeTone("info");
           setAuthCheckWarning("");
           if (typeof data?.data?.role === "string") {
@@ -57,8 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
 
         if (res.status === 401 || res.status === 403) {
-          validatedTokenRef.current = null;
-          setResolvedRole(null);
+          validatedSessionRef.current = false;
           logout();
           router.replace("/admin/login");
           return;
@@ -75,7 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       });
 
     return () => controller.abort();
-  }, [loading, isAuthenticated, token, logout, router]);
+  }, [loading, isAuthenticated, logout, router]);
 
   const role = resolvedRole || normalizeRole(user?.role);
 

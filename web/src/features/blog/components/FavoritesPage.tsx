@@ -1,130 +1,99 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
-import type { UserProfile as AuthUserProfile } from "@/app/providers";
+import { getPaginated } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
 import { PostCard } from "@/features/blog/components/post-list/PostCard";
 import { Pagination } from "@/features/blog/components/pagination/Pagination";
 import { usePostActions } from "@/features/blog/hooks";
-import { clearAllCaches, getFavoritesCache, setFavoritesCache } from "@/utils/memoryStore";
-import { getCachedJson, setCachedJson } from "@/utils/cache";
-import * as blogService from "@/services/blogService";
 import type { PostListItem } from "@/types/blog";
-
-type FavoritesCachePayload = {
-  items: PostListItem[];
-  total: number;
-};
+import { queryKeys } from "@/lib/query-keys";
 
 export default function FavoritesPage() {
-  const [items, setItems] = useState<PostListItem[]>([]);
-  const [status, setStatus] = useState("loading");
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const pageSize = 10;
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
 
-  const profile = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("profile") || "") as AuthUserProfile;
-    } catch {
-      return null;
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/login");
     }
-  })();
+  }, [isAuthenticated, router]);
 
-  const cacheUserKeys = useMemo(() => [profile?.username, token, "anon"].filter(Boolean), [profile?.username, token]);
-  const cacheKeySignature = useMemo(() => cacheUserKeys.join("|"), [cacheUserKeys]);
-  const localCacheKeys = useMemo(
-    () => cacheUserKeys.map((key) => `cache:favorites:${key}:${page}`),
-    [cacheUserKeys, page]
+  const favoritesQuery = useQuery({
+    queryKey: queryKeys.favorites(page, pageSize),
+    queryFn: async () => {
+      const data = await getPaginated<PostListItem>(
+        getVersionedApiPath("/favorites"),
+        { page, size: pageSize }
+      );
+      return {
+        items: Array.isArray(data.items) ? data.items : [],
+        total: data.total || 0,
+      };
+    },
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
+  });
+
+  const items = favoritesQuery.data?.items || [];
+  const total = favoritesQuery.data?.total || 0;
+  const status =
+    favoritesQuery.status === "pending"
+      ? "loading"
+      : favoritesQuery.status === "error"
+        ? "error"
+        : "ready";
+
+  const updatePost = useCallback(
+    (slug: string, updates: Partial<PostListItem>) => {
+      queryClient.setQueryData<{ items: PostListItem[]; total: number }>(
+        queryKeys.favorites(page, pageSize),
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.slug === slug ? { ...item, ...updates } : item
+                ),
+              }
+            : current
+      );
+    },
+    [page, pageSize, queryClient]
   );
 
-  const loadFavorites = useCallback(() => {
-    const authToken = localStorage.getItem("token");
-    if (!authToken) {
-      router.push("/login");
-      return;
-    }
-
-    let cached: FavoritesCachePayload | null = null;
-    for (const key of cacheUserKeys) {
-      cached = (getFavoritesCache(`${key}:${page}`) as FavoritesCachePayload | null) || null;
-      if (cached) break;
-    }
-
-    if (!cached) {
-      for (const key of localCacheKeys) {
-        cached = (getCachedJson(key) as FavoritesCachePayload | null) || null;
-        if (cached) break;
-      }
-    }
-
-    if (cached) {
-      setItems(Array.isArray(cached.items) ? cached.items : []);
-      setTotal(cached.total || 0);
-      setStatus("ready");
-      return;
-    }
-
-    setStatus("loading");
-    blogService
-      .getFavorites(page, pageSize)
-      .then((data) => {
-        const payload = {
-          items: Array.isArray(data.items) ? data.items : [],
-          total: data.total || 0,
-        } satisfies FavoritesCachePayload;
-        setItems(payload.items);
-        setTotal(payload.total);
-        cacheUserKeys.forEach((key) => setFavoritesCache(`${key}:${page}`, payload));
-        localCacheKeys.forEach((key) => setCachedJson(key, payload));
-        setStatus("ready");
-      })
-      .catch(() => setStatus("error"));
-  }, [cacheUserKeys, localCacheKeys, page, pageSize, router]);
-
-  const updatePost = useCallback((slug: string, updates: Partial<PostListItem>) => {
-    setItems((prev) => prev.map((item) => (item.slug === slug ? { ...item, ...updates } : item)));
-  }, []);
-
   const { like, dislike, favorite } = usePostActions({
-    token,
+    isAuthenticated,
     onUpdate: updatePost,
     onAuthRequired: () => router.push("/login"),
   });
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadFavorites();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [loadFavorites]);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
+
     const handler = () => {
-      clearAllCaches();
-      try {
-        Object.keys(localStorage).forEach((key) => {
-          if (
-            key.startsWith("cache:blog:") ||
-            key.startsWith("cache:post:") ||
-            key.startsWith("cache:comments:") ||
-            key.startsWith("cache:favorites:") ||
-            key.startsWith("cache:profile:")
-          ) {
-            localStorage.removeItem(key);
-          }
-        });
-      } catch {}
-      loadFavorites();
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.favorites(page, pageSize),
+      });
     };
+
     window.addEventListener("profile-updated", handler as EventListener);
-    return () => window.removeEventListener("profile-updated", handler as EventListener);
-  }, [cacheKeySignature, loadFavorites]);
+    window.addEventListener("blog-updated", handler as EventListener);
+
+    return () => {
+      window.removeEventListener("profile-updated", handler as EventListener);
+      window.removeEventListener("blog-updated", handler as EventListener);
+    };
+  }, [page, pageSize, queryClient]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -150,7 +119,9 @@ export default function FavoritesPage() {
           <PostCard
             key={post.slug}
             post={post}
-            currentUser={user ? { username: user.username, avatar_url: user.avatar_url } : null}
+            currentUser={
+              user ? { username: user.username, avatar_url: user.avatar_url } : null
+            }
             onLike={like}
             onDislike={dislike}
             onFavorite={favorite}

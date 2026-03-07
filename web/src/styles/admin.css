@@ -89,3 +89,139 @@
   justify-content: flex-end;
   margin-top: 1rem;
 }
+
+.admin-dashboard-state {
+  padding: 2rem;
+  color: #666;
+}
+
+.admin-dashboard-retry {
+  margin-top: 1rem;
+}
+
+.admin-card-header-wrap {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-dashboard-toggle-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-dashboard-trend-grid {
+  margin-bottom: 1rem;
+}
+
+.admin-dashboard-legend-dot {
+  display: inline-block;
+}
+
+.admin-dashboard-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.admin-user-toolbar,
+.admin-audit-toolbar {
+  flex-wrap: wrap;
+}
+
+.admin-user-toolbar {
+  gap: 1rem;
+}
+
+.admin-audit-toolbar {
+  gap: 0.75rem;
+}
+
+.admin-user-search {
+  width: 300px;
+}
+
+.admin-user-batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-user-batch-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.admin-table-col-checkbox {
+  width: 40px;
+}
+
+.admin-user-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-user-role-select {
+  min-width: 130px;
+}
+
+.admin-user-action-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  min-width: 80px;
+}
+
+.admin-user-action-btn-wide {
+  min-width: 92px;
+}
+
+.admin-table-pagination {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.admin-audit-input-actor {
+  width: 220px;
+}
+
+.admin-audit-input-action {
+  width: 260px;
+}
+
+.admin-audit-total {
+  margin-left: auto;
+}
+
+.admin-audit-summary {
+  min-width: 220px;
+}
+
+.admin-audit-detail-cell {
+  max-width: 360px;
+}
+
+.admin-audit-detail-list {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-audit-detail-item {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.admin-audit-detail-label,
+.admin-audit-detail-empty {
+  color: var(--text-secondary);
+}
+
+.admin-audit-detail-empty {
+  font-size: 12px;
+}
+
+.admin-table-pagination-label {
+  padding: 0.5rem 1rem;
+}

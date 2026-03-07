@@ -1,7 +1,10 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { del, get } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
 
 type AgentType = "topic" | "writing" | "publish";
 
@@ -44,51 +47,39 @@ function formatDateTime(value?: string) {
 }
 
 export function AgentTaskList() {
-  const { token } = useAuth();
-  const [runs, setRuns] = useState<RunListItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [deletingId, setDeletingId] = useState("");
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
 
-  const loadRuns = useCallback(
-    async (silent = false) => {
-      if (!token) return;
-      if (!silent) setLoading(true);
-      setRefreshing(true);
-      try {
-        const res = await fetch("/api/agent/runs?page=1&size=50", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json().catch(() => ({}));
-        const items = (data?.data?.items || []) as RunListItem[];
-        setRuns(items);
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
+  const runsQuery = useQuery({
+    queryKey: queryKeys.agentRuns,
+    queryFn: async () => {
+      const result = await get<{ items: RunListItem[] }>(
+        `${getVersionedApiPath("/agent/runs")}?page=1&size=50`
+      );
+      return Array.isArray(result.items) ? result.items : [];
     },
-    [token]
-  );
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
 
-  useEffect(() => {
-    void loadRuns();
-  }, [loadRuns]);
+  const deleteRunMutation = useMutation({
+    mutationFn: async (runId: string) => {
+      await del(getVersionedApiPath(`/agent/runs/${runId}`));
+      return runId;
+    },
+    onSuccess: async (runId) => {
+      queryClient.setQueryData<RunListItem[]>(queryKeys.agentRuns, (current) =>
+        Array.isArray(current) ? current.filter((item) => item.id !== runId) : current
+      );
+      queryClient.removeQueries({ queryKey: queryKeys.agentRunDetail(runId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agentGallery }),
+      ]);
+    },
+  });
 
-  async function removeRun(runId: string) {
-    if (!runId || !token) return;
-    setDeletingId(runId);
-    try {
-      await fetch(`/api/agent/runs/${runId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setRuns((prev) => prev.filter((item) => item.id !== runId));
-    } finally {
-      setDeletingId("");
-    }
-  }
+  const runs = runsQuery.data || [];
 
   const copyId = async (id: string) => {
     try {
@@ -98,7 +89,7 @@ export function AgentTaskList() {
     }
   };
 
-  if (loading && runs.length === 0) {
+  if (runsQuery.isLoading && runs.length === 0) {
     return <div className="py-16 text-center text-sm text-zinc-500">正在加载任务列表...</div>;
   }
 
@@ -109,8 +100,12 @@ export function AgentTaskList() {
           <h3 className="agent-panel-title">任务列表</h3>
           <p className="agent-panel-desc">查看历史生成任务并管理记录。</p>
         </div>
-        <button onClick={() => loadRuns()} disabled={refreshing} className="studio-btn studio-btn-secondary">
-          {refreshing ? "刷新中..." : "刷新"}
+        <button
+          onClick={() => void runsQuery.refetch()}
+          disabled={runsQuery.isFetching}
+          className="studio-btn studio-btn-secondary"
+        >
+          {runsQuery.isFetching ? "刷新中..." : "刷新"}
         </button>
       </div>
 
@@ -123,7 +118,17 @@ export function AgentTaskList() {
               <div className="agent-task-main">
                 <div className="agent-task-top">
                   <h4>{run.goal || "未命名任务"}</h4>
-                  <span className={`studio-badge ${run.status === "done" ? "studio-badge-success" : run.status === "running" ? "studio-badge-warning" : "studio-badge-error"}`}>{statusLabel(run.status)}</span>
+                  <span
+                    className={`studio-badge ${
+                      run.status === "done"
+                        ? "studio-badge-success"
+                        : run.status === "running"
+                          ? "studio-badge-warning"
+                          : "studio-badge-error"
+                    }`}
+                  >
+                    {statusLabel(run.status)}
+                  </span>
                 </div>
                 <div className="agent-task-meta">
                   <span>类型: {typeLabel(run.agent_type)}</span>
@@ -132,15 +137,23 @@ export function AgentTaskList() {
                 </div>
                 <div className="agent-task-id">
                   ID: {run.id}
-                  <button type="button" onClick={() => copyId(run.id)}>复制</button>
+                  <button type="button" onClick={() => void copyId(run.id)}>
+                    复制
+                  </button>
                 </div>
               </div>
               <button
-                onClick={() => removeRun(run.id)}
-                disabled={deletingId === run.id}
+                onClick={() => deleteRunMutation.mutate(run.id)}
+                disabled={
+                  deleteRunMutation.isPending &&
+                  deleteRunMutation.variables === run.id
+                }
                 className="studio-btn studio-btn-secondary"
               >
-                {deletingId === run.id ? "删除中..." : "删除"}
+                {deleteRunMutation.isPending &&
+                deleteRunMutation.variables === run.id
+                  ? "删除中..."
+                  : "删除"}
               </button>
             </article>
           ))}

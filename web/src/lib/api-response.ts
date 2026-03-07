@@ -9,6 +9,7 @@ import {
   type HttpStatusCode,
   isApiError,
 } from "./api-error";
+import { logError } from "./logger";
 
 export interface SuccessResponse<T = unknown> {
   success: true;
@@ -142,13 +143,20 @@ export function handleError(error: unknown): NextResponse<ErrorResponse> {
   }
 
   if (error instanceof Error) {
-    console.error("API Error:", error);
+    logError({
+      source: "api.handle-error",
+      error,
+    });
     return errorResponses.internal(
       process.env.NODE_ENV === "development" ? error.message : undefined
     );
   }
 
-  console.error("Unknown Error:", error);
+  logError({
+    source: "api.handle-error",
+    error,
+    message: "Unknown Error",
+  });
   return errorResponses.internal();
 }
 

@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resizeImageToDataUrl } from "@/utils/image";
 import { useAuth } from "@/app/providers";
+import { logError } from "@/lib/logger";
 import TurnstileWidget from "@/components/TurnstileWidget";
+import { shouldBypassImageOptimization } from "@/utils/url";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -52,7 +54,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/register", {
+      const res = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -70,15 +72,34 @@ export default function RegisterPage() {
           data.error?.details && typeof data.error.details === "object"
             ? Object.values(data.error.details)[0]
             : "";
+        logError({
+          source: "auth.register",
+          error: (detailMessage as string) || data.error?.message || "Register request failed",
+          context: {
+            status: res.status,
+            username,
+            hasNickname: Boolean(nickname.trim()),
+            hasAvatar: Boolean(avatarUrl),
+          },
+        });
         setError((detailMessage as string) || data.error?.message || "注册失败，请稍后重试");
         return;
       }
 
-      if (data.data?.token && data.data?.profile) {
-        login(data.data.token, data.data.profile);
+      if (data.data?.profile) {
+        login(data.data.profile);
       }
       router.push("/");
-    } catch {
+    } catch (error) {
+      logError({
+        source: "auth.register",
+        error,
+        context: {
+          username,
+          hasNickname: Boolean(nickname.trim()),
+          hasAvatar: Boolean(avatarUrl),
+        },
+      });
       setError("网络异常，请检查服务是否启动后重试");
     } finally {
       setLoading(false);
@@ -124,7 +145,7 @@ export default function RegisterPage() {
                   width={64}
                   height={64}
                   className="h-16 w-16 rounded-full border-2 border-accent object-cover"
-                  unoptimized
+                  unoptimized={shouldBypassImageOptimization(avatarUrl)}
                 />
               )}
               <input

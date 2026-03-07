@@ -2,6 +2,7 @@
 import { randomUUID } from "crypto";
 import {
   agentRepository,
+  drizzleAgentRepository,
   type AgentRunRow,
   type AgentStepRow,
   type AgentArtifactRow,
@@ -27,7 +28,7 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 }
 
 async function assertRunOwner(runId: string, username: string): Promise<AgentRunRow> {
-  const run = await agentRepository.getRunByIdAndUser(runId, username);
+  const run = await drizzleAgentRepository.getRunByIdAndUser(runId, username);
   if (!run) {
     throw new Error("run_not_found");
   }
@@ -98,14 +99,14 @@ export async function createRun(
 }
 
 export async function listRuns(username: string, page: number, size: number) {
-  return await agentRepository.listRunsByUser(username, page, size);
+  return await drizzleAgentRepository.listRunsByUser(username, page, size);
 }
 
 export async function getRunDetail(runId: string, username: string) {
   const run = await assertRunOwner(runId, username);
 
-  const steps = (await agentRepository.getRunSteps(runId)) as AgentStepRow[];
-  const artifacts = (await agentRepository.getRunArtifacts(runId)) as AgentArtifactRow[];
+  const steps = (await drizzleAgentRepository.getRunSteps(runId)) as AgentStepRow[];
+  const artifacts = (await drizzleAgentRepository.getRunArtifacts(runId)) as AgentArtifactRow[];
 
   return {
     run,
@@ -137,7 +138,7 @@ export async function continueRun(
   options: { assistantName?: string; customSystemPrompt?: string } = {}
 ) {
   const run = await assertRunOwner(runId, username);
-  const latestContent = await agentRepository.getLatestArtifact(runId, "content");
+  const latestContent = await drizzleAgentRepository.getLatestArtifact(runId, "content");
 
   const runModel = AGENT_MODELS.includes(run.model as AgentModel) ? (run.model as AgentModel) : undefined;
   const selectedModel = model || runModel;
@@ -170,11 +171,11 @@ export async function continueRun(
 
 async function pickArtifactContent(runId: string, kind: ArtifactKind, artifactId?: number) {
   if (artifactId) {
-    const content = await agentRepository.getArtifactContentById(runId, kind, artifactId);
+    const content = await drizzleAgentRepository.getArtifactContentById(runId, kind, artifactId);
     if (content) return content;
   }
 
-  return await agentRepository.getLatestArtifactContent(runId, kind);
+  return await drizzleAgentRepository.getLatestArtifactContent(runId, kind);
 }
 
 export async function exportToPublish(

@@ -1,7 +1,10 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { getPaginated, post, put } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
 import AdminNotice from "./AdminNotice";
 
 type Category = {
@@ -15,140 +18,143 @@ type Category = {
 };
 
 export default function CategoryManagementPage() {
-  const { token } = useAuth();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [noticeTone, setNoticeTone] = useState<"success" | "error" | "info">("info");
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [editSubmitting, setEditSubmitting] = useState(false);
+
   const showError = (msg: string) => {
     setNoticeTone("error");
     setMessage(msg);
   };
+
   const showSuccess = (msg: string) => {
     setNoticeTone("success");
     setMessage(msg);
   };
+
   const clearNotice = () => {
     setNoticeTone("info");
     setMessage("");
   };
 
-  useEffect(() => {
-    if (!token) return;
-    void loadCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.adminCategories,
+    enabled: isAuthenticated,
+    queryFn: () => getPaginated<Category>("/api/admin/categories", { limit: 100 }),
+  });
 
-  function getAuthHeader() {
-    const t = token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
-    const headers: Record<string, string> = {};
-    if (t) headers.Authorization = `Bearer ${t}`;
-    return headers;
-  }
+  const refreshCategories = async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminCategories });
+  };
 
-  async function loadCategories() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/admin/categories?limit=100", {
-        headers: getAuthHeader(),
+  const createMutation = useMutation({
+    mutationFn: () =>
+      post<{ id: number }>("/api/admin/categories", {
+        name: name.trim(),
+        slug: slug.trim(),
+        description: description.trim(),
+      }),
+    onSuccess: async () => {
+      setName("");
+      setSlug("");
+      setDescription("");
+      showSuccess("创建成功");
+      await refreshCategories();
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "创建失败");
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: (item: Category) =>
+      put<{ updated: true }>(`/api/admin/categories/${item.id}`, {
+        is_active: item.is_active ? 0 : 1,
+      }),
+    onSuccess: async () => {
+      showSuccess("状态更新成功");
+      await refreshCategories();
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "更新失败");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (item: Category) => {
+      const response = await fetch(`/api/admin/categories/${item.id}`, {
+        method: "DELETE",
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        setCategories([]);
-        showError(data.error?.message || "加载分类失败");
-        return;
-      }
-      setCategories((data.data?.items || []) as Category[]);
-      clearNotice();
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  async function createCategory() {
+      if (!response.ok && response.status !== 204) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: { message?: string };
+        };
+        throw new Error(payload.error?.message || "删除失败");
+      }
+    },
+    onSuccess: async () => {
+      setPendingDeleteId(null);
+      showSuccess("删除成功");
+      await refreshCategories();
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "删除失败");
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: (category: Category) =>
+      put<{ updated: true }>(`/api/admin/categories/${category.id}`, {
+        name: category.name.trim(),
+        slug: category.slug.trim(),
+        description: (category.description || "").trim(),
+      }),
+    onSuccess: async () => {
+      setEditingCategory(null);
+      showSuccess("更新成功");
+      await refreshCategories();
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "更新失败");
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: (ids: number[]) =>
+      post<{ reordered: true }>("/api/admin/categories/reorder", { ids }),
+    onSuccess: async () => {
+      showSuccess("排序已更新");
+      await refreshCategories();
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "排序失败");
+    },
+  });
+
+  const categories = useMemo(
+    () => categoriesQuery.data?.items || [],
+    [categoriesQuery.data?.items]
+  );
+  const loading = categoriesQuery.isLoading;
+
+  const createCategory = async () => {
     if (!name.trim()) {
       showError("分类名称不能为空");
       return;
     }
 
-    try {
-      setSubmitting(true);
-      clearNotice();
+    clearNotice();
+    await createMutation.mutateAsync();
+  };
 
-      const res = await fetch("/api/admin/categories", {
-        method: "POST",
-        headers: {
-          ...getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          slug: slug.trim(),
-          description: description.trim(),
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        showError(data.error?.message || "创建失败");
-        return;
-      }
-
-      setName("");
-      setSlug("");
-      setDescription("");
-      showSuccess("创建成功");
-      await loadCategories();
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function toggleActive(item: Category) {
-    const res = await fetch(`/api/admin/categories/${item.id}`, {
-      method: "PUT",
-      headers: {
-        ...getAuthHeader(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ is_active: item.is_active ? 0 : 1 }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      showError(data.error?.message || "更新失败");
-      return;
-    }
-
-    showSuccess("状态更新成功");
-    await loadCategories();
-  }
-
-  async function removeCategory(item: Category) {
-    const res = await fetch(`/api/admin/categories/${item.id}`, {
-      method: "DELETE",
-      headers: getAuthHeader(),
-    });
-
-    if (!res.ok && res.status !== 204) {
-      const data = await res.json().catch(() => ({}));
-      showError(data.error?.message || "删除失败");
-      return;
-    }
-
-    setPendingDeleteId(null);
-    showSuccess("删除成功");
-    await loadCategories();
-  }
-
-  async function submitEditCategory() {
+  const submitEditCategory = async () => {
     if (!editingCategory) return;
     if (!editingCategory.name.trim()) {
       showError("分类名称不能为空");
@@ -159,64 +165,29 @@ export default function CategoryManagementPage() {
       return;
     }
 
-    try {
-      setEditSubmitting(true);
-      const res = await fetch(`/api/admin/categories/${editingCategory.id}`, {
-        method: "PUT",
-        headers: {
-          ...getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: editingCategory.name.trim(),
-          slug: editingCategory.slug.trim(),
-          description: (editingCategory.description || "").trim(),
-        }),
-      });
+    await editMutation.mutateAsync(editingCategory);
+  };
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        showError(data.error?.message || "更新失败");
-        return;
-      }
-
-      showSuccess("更新成功");
-      setEditingCategory(null);
-      await loadCategories();
-    } finally {
-      setEditSubmitting(false);
-    }
-  }
-
-  async function move(item: Category, direction: -1 | 1) {
-    const index = categories.findIndex((c) => c.id === item.id);
+  const move = async (item: Category, direction: -1 | 1) => {
+    const index = categories.findIndex((entry) => entry.id === item.id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= categories.length) return;
 
-    const next = categories.slice();
-    const [current] = next.splice(index, 1);
-    next.splice(target, 0, current);
-    setCategories(next);
+    const reordered = categories.slice();
+    const [current] = reordered.splice(index, 1);
+    reordered.splice(target, 0, current);
 
-    const res = await fetch("/api/admin/categories/reorder", {
-      method: "POST",
-      headers: {
-        ...getAuthHeader(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ids: next.map((c) => c.id) }),
-    });
+    queryClient.setQueryData(
+      queryKeys.adminCategories,
+      categoriesQuery.data ? { ...categoriesQuery.data, items: reordered } : categoriesQuery.data
+    );
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      showError(data.error?.message || "排序失败");
-      await loadCategories();
-      return;
+    try {
+      await reorderMutation.mutateAsync(reordered.map((entry) => entry.id));
+    } catch {
+      await refreshCategories();
     }
-
-    showSuccess("排序已更新");
-    await loadCategories();
-  }
+  };
 
   return (
     <div>
@@ -233,8 +204,8 @@ export default function CategoryManagementPage() {
           <input className="admin-input" placeholder="分类名称（如：AI）" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="admin-input" placeholder="别名（可选，如：ai）" value={slug} onChange={(e) => setSlug(e.target.value)} />
           <input className="admin-input" placeholder="描述（可选）" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <button className="btn-admin btn-admin-primary" type="button" onClick={createCategory} disabled={submitting}>
-            {submitting ? "创建中..." : "创建"}
+          <button className="btn-admin btn-admin-primary" type="button" onClick={() => void createCategory()} disabled={createMutation.isPending}>
+            {createMutation.isPending ? "创建中..." : "创建"}
           </button>
         </div>
         <AdminNotice message={message} tone={noticeTone} />
@@ -280,7 +251,7 @@ export default function CategoryManagementPage() {
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                      <button className="btn-admin btn-admin-secondary" type="button" onClick={() => void toggleActive(item)}>
+                      <button className="btn-admin btn-admin-secondary" type="button" onClick={() => void toggleMutation.mutateAsync(item)}>
                         {item.is_active ? "停用" : "启用"}
                       </button>
                       <button className="btn-admin btn-admin-secondary" type="button" onClick={() => setEditingCategory(item)}>
@@ -289,7 +260,7 @@ export default function CategoryManagementPage() {
 
                       {pendingDeleteId === item.id ? (
                         <>
-                          <button className="btn-admin btn-admin-danger" type="button" onClick={() => void removeCategory(item)}>
+                          <button className="btn-admin btn-admin-danger" type="button" onClick={() => void deleteMutation.mutateAsync(item)}>
                             确认删除
                           </button>
                           <button className="btn-admin btn-admin-secondary" type="button" onClick={() => setPendingDeleteId(null)}>
@@ -348,11 +319,11 @@ export default function CategoryManagementPage() {
                 />
               </div>
               <div className="modal-actions">
-                <button className="btn-admin btn-admin-secondary" onClick={() => setEditingCategory(null)} disabled={editSubmitting}>
+                <button className="btn-admin btn-admin-secondary" onClick={() => setEditingCategory(null)} disabled={editMutation.isPending}>
                   取消
                 </button>
-                <button className="btn-admin btn-admin-primary" onClick={() => void submitEditCategory()} disabled={editSubmitting}>
-                  {editSubmitting ? "保存中..." : "保存修改"}
+                <button className="btn-admin btn-admin-primary" onClick={() => void submitEditCategory()} disabled={editMutation.isPending}>
+                  {editMutation.isPending ? "保存中..." : "保存修改"}
                 </button>
               </div>
             </div>

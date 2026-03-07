@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { get, getPaginated } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
+import { useVideoOutputs } from "./hooks/useVideoOutputs";
 
 interface Task {
   id: string;
@@ -11,6 +16,7 @@ interface Task {
   created_at: string;
   error?: string;
   failure_reason?: string;
+  results?: Array<{ url: string }>;
 }
 
 const statusLabels: Record<string, string> = {
@@ -21,66 +27,82 @@ const statusLabels: Record<string, string> = {
 };
 
 export function TaskList() {
-  const { token } = useAuth();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { isAuthenticated } = useAuth();
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [actionStatus, setActionStatus] = useState<Record<string, string>>({});
+  const [finalizingTaskId, setFinalizingTaskId] = useState<string | null>(null);
+  const { finalizeOutput } = useVideoOutputs(isAuthenticated);
 
-  const fetchTasks = useCallback(async (silent = false) => {
-    if (!token) return;
-    if (!silent) setRefreshing(true);
+  const tasksQuery = useQuery({
+    queryKey: queryKeys.videoTasks({ limit: 30 }),
+    queryFn: async () => {
+      const list = await getPaginated<Task>(
+        getVersionedApiPath("/video/tasks"),
+        { page: 1, limit: 30 }
+      );
 
-    try {
-      const res = await fetch("/api/video/tasks?limit=30", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      const all = Array.isArray(data.tasks) ? (data.tasks as Task[]) : [];
-      const active = all.filter((t) => t.status === "pending" || t.status === "running");
+      const active = list.items.filter(
+        (task) => task.status === "pending" || task.status === "running"
+      );
 
-      const updated = await Promise.all(
-        active.map(async (t) => {
+      const updatedActive = await Promise.all(
+        active.map(async (task) => {
           try {
-            const detailRes = await fetch(`/api/video/tasks/${t.id}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!detailRes.ok) return t;
-            return (await detailRes.json()) as Task;
+            return await get<Task>(getVersionedApiPath(`/video/tasks/${task.id}`));
           } catch {
-            return t;
+            return task;
           }
         })
       );
 
-      setTasks(updated.filter((t) => t.status === "pending" || t.status === "running"));
-      setLastUpdated(new Date());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-      if (!silent) setRefreshing(false);
-    }
-  }, [token]);
+      const activeMap = new Map(updatedActive.map((task) => [task.id, task]));
+      return list.items.map((task) => activeMap.get(task.id) || task);
+    },
+    enabled: isAuthenticated,
+    refetchInterval: autoRefresh ? 5000 : false,
+    refetchOnWindowFocus: false,
+    staleTime: 5000,
+  });
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  const tasks = tasksQuery.data || [];
+  const lastUpdated = tasksQuery.dataUpdatedAt
+    ? new Date(tasksQuery.dataUpdatedAt)
+    : null;
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const timer = setInterval(() => fetchTasks(true), 5000);
-    return () => clearInterval(timer);
-  }, [autoRefresh, fetchTasks]);
-
-  const copyId = async (id: string) => {
+  async function copyId(id: string) {
     try {
       await navigator.clipboard.writeText(id);
     } catch {}
-  };
+  }
 
-  if (loading) {
+  async function handleFinalize(task: Task) {
+    setActionStatus((prev) => ({ ...prev, [task.id]: "" }));
+    setFinalizingTaskId(task.id);
+
+    try {
+      const result = await finalizeOutput({ id: task.id, prompt: task.prompt || "" });
+      const hasFile = Boolean(
+        result &&
+          typeof result === "object" &&
+          "file" in result &&
+          typeof (result as { file?: string }).file === "string"
+      );
+
+      setActionStatus((prev) => ({
+        ...prev,
+        [task.id]: hasFile ? "已落盘到作品库。" : "任务尚未生成可落盘结果。",
+      }));
+    } catch (error) {
+      setActionStatus((prev) => ({
+        ...prev,
+        [task.id]: error instanceof Error ? error.message : "落盘失败，请稍后重试。",
+      }));
+    } finally {
+      setFinalizingTaskId(null);
+    }
+  }
+
+  if (tasksQuery.isLoading) {
     return <div className="py-16 text-center text-sm text-[#888]">正在加载任务...</div>;
   }
 
@@ -89,50 +111,64 @@ export function TaskList() {
       <div className="studio-section-head">
         <div>
           <h3 className="studio-section-title">任务列表</h3>
-          <p className="studio-section-desc">查看当前进行中的任务进度与状态。</p>
+          <p className="studio-section-desc">
+            查看最近任务状态，并把已完成任务落盘到作品库。
+          </p>
         </div>
       </div>
 
       <div className="studio-toolbar justify-between">
         <div className="text-xs text-[#888]">
           当前任务：<span className="text-white">{tasks.length}</span>
-          {lastUpdated && <span className="ml-3">更新时间：{lastUpdated.toLocaleTimeString()}</span>}
+          {lastUpdated && (
+            <span className="ml-3">更新时间：{lastUpdated.toLocaleTimeString()}</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className={`studio-btn studio-btn-secondary !px-3 !py-2 !text-xs ${autoRefresh ? "active" : ""}`}
-            onClick={() => setAutoRefresh((v) => !v)}
+            className={`studio-btn studio-btn-secondary !px-3 !py-2 !text-xs ${
+              autoRefresh ? "active" : ""
+            }`}
+            onClick={() => setAutoRefresh((value) => !value)}
           >
             自动刷新：{autoRefresh ? "开" : "关"}
           </button>
           <button
             type="button"
             className="studio-btn studio-btn-secondary !px-3 !py-2 !text-xs"
-            onClick={() => fetchTasks()}
-            disabled={refreshing}
+            onClick={() => void tasksQuery.refetch()}
+            disabled={tasksQuery.isFetching}
           >
-            {refreshing ? "刷新中..." : "立即刷新"}
+            {tasksQuery.isFetching ? "刷新中..." : "立即刷新"}
           </button>
         </div>
       </div>
 
       {tasks.length === 0 ? (
         <div className="studio-empty">
-          <p className="text-sm">当前没有进行中的任务。</p>
+          <p className="text-sm">暂无任务记录。</p>
         </div>
       ) : (
         <div className="space-y-4">
           {tasks.map((task) => (
             <div key={task.id} className="studio-card">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <h4 className="line-clamp-1 flex-1 text-sm font-semibold text-white">{task.prompt || "未命名任务"}</h4>
-                <span className="studio-badge studio-badge-info">{statusLabels[task.status] || "处理中"}</span>
+                <h4 className="line-clamp-1 flex-1 text-sm font-semibold text-white">
+                  {task.prompt || "未命名任务"}
+                </h4>
+                <span className="studio-badge studio-badge-info">
+                  {statusLabels[task.status] || "处理中"}
+                </span>
               </div>
 
               <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-[#888]">
                 <span>ID：{task.id}</span>
-                <button type="button" className="text-[#8fb8ff] hover:text-white" onClick={() => copyId(task.id)}>
+                <button
+                  type="button"
+                  className="text-[#8fb8ff] hover:text-white"
+                  onClick={() => void copyId(task.id)}
+                >
                   复制 ID
                 </button>
                 <span>{new Date(task.created_at).toLocaleString()}</span>
@@ -143,8 +179,27 @@ export function TaskList() {
                 <span className="font-medium text-white">{task.progress}%</span>
               </div>
               <div className="studio-progress">
-                <div className="studio-progress-bar" style={{ width: `${task.progress}%` }} />
+                <div
+                  className="studio-progress-bar"
+                  style={{ width: `${task.progress}%` }}
+                />
               </div>
+
+              {task.status === "succeeded" && (
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="studio-btn studio-btn-secondary !px-3 !py-2 !text-xs"
+                    onClick={() => void handleFinalize(task)}
+                    disabled={finalizingTaskId === task.id}
+                  >
+                    {finalizingTaskId === task.id ? "落盘中..." : "落盘到作品库"}
+                  </button>
+                  {actionStatus[task.id] && (
+                    <span className="text-xs text-[#8fb8ff]">{actionStatus[task.id]}</span>
+                  )}
+                </div>
+              )}
 
               {(task.error || task.failure_reason) && (
                 <div className="studio-status studio-status-error mt-4">

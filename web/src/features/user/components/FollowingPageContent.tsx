@@ -1,58 +1,59 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
-import { useAuth } from "@/app/providers";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import type { SuccessResponse } from "@/lib/api-response";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/app/providers";
+import { del, getPaginated } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
 import type { FollowingItem } from "@/types/user";
-
-function readSuccessData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== "object") return null;
-  const parsed = payload as Partial<SuccessResponse<T>>;
-  if (parsed.success !== true) return null;
-  return parsed.data ?? null;
-}
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
 export default function FollowingPageContent() {
-  const { token } = useAuth();
+  const { isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const username = searchParams.get("username");
+  const scope = username || "self";
+  const queryClient = useQueryClient();
 
-  const [items, setItems] = useState<FollowingItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const followingQuery = useQuery({
+    queryKey: queryKeys.following(scope),
+    queryFn: () =>
+      getPaginated<FollowingItem>(getVersionedApiPath("/following"), {
+        username: username || undefined,
+        page: 1,
+        size: 50,
+      }),
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
 
-  const loadItems = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const url = username
-        ? `/api/following?username=${encodeURIComponent(username)}&page=1&size=50`
-        : `/api/following?page=1&size=50`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json().catch(() => ({}));
-      const payload = readSuccessData<{ items: FollowingItem[] }>(data);
-      setItems(payload?.items || []);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, username]);
+  const unfollowMutation = useMutation({
+    mutationFn: (targetUsername: string) =>
+      del<void>(getVersionedApiPath(`/follow/${targetUsername}`)),
+    onSuccess: (_, targetUsername) => {
+      queryClient.setQueryData(
+        queryKeys.following(scope),
+        (current: { items: FollowingItem[] } | undefined) =>
+          current
+            ? {
+                ...current,
+                items: current.items.filter((item) => item.username !== targetUsername),
+              }
+            : current
+      );
+    },
+  });
 
-  useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
+  const items = followingQuery.data?.items || [];
+  const loading = followingQuery.isLoading;
 
   const handleUnfollow = async (targetUsername: string) => {
-    if (!token) return;
+    if (!isAuthenticated) return;
     if (!confirm("确定要取消关注吗？")) return;
-    const res = await fetch(`/api/follow/${targetUsername}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setItems((prev) => prev.filter((item) => item.username !== targetUsername));
-    }
+    await unfollowMutation.mutateAsync(targetUsername);
   };
 
   return (
@@ -74,14 +75,7 @@ export default function FollowingPageContent() {
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <Link href={`/user/${user.username}`}>
                     {user.avatar_url ? (
-                      <Image
-                        src={user.avatar_url}
-                        alt={user.nickname || user.username}
-                        width={52}
-                        height={52}
-                        className="h-14 w-14 rounded-full bg-zinc-800 object-cover"
-                        unoptimized
-                      />
+                      <FollowingAvatar user={user} />
                     ) : (
                       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800 text-lg font-bold text-zinc-400">
                         {user.nickname?.[0] || user.username?.[0]}
@@ -114,3 +108,18 @@ export default function FollowingPageContent() {
   );
 }
 
+function FollowingAvatar({ user }: { user: FollowingItem }) {
+  const avatarSrc = getThumbnailUrl(user.avatar_url || "", 128);
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
+
+  return (
+    <Image
+      src={avatarSrc}
+      alt={user.nickname || user.username}
+      width={52}
+      height={52}
+      className="h-14 w-14 rounded-full bg-zinc-800 object-cover"
+      unoptimized={avatarUnoptimized}
+    />
+  );
+}

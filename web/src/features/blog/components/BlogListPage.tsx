@@ -1,42 +1,31 @@
 ﻿"use client";
 
-import { useState, useCallback, useEffect, useMemo, type CSSProperties } from "react";
+import { useState, useCallback, useMemo, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
-import { usePosts, usePostActions } from "../hooks";
+import { usePosts, usePostActions, useTags } from "../hooks";
 import { HeroSection } from "./hero/HeroSection";
 import { SearchBar } from "./search";
 import { PostList } from "./post-list";
 import { Pagination } from "./pagination/Pagination";
 import { Loading } from "@/components/ui/Loading";
 
-const PAGE_SIZE = 5;
+// Adjust PAGE_SIZE to 6 so it's divisible by 2 and 3 for the grid layout
+const PAGE_SIZE = 6;
 
 export default function BlogListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, token } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   // 筛选状态
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
-  const [allTags, setAllTags] = useState<Array<{ tag: string; count: number }>>([]);
   const selectedCategory = searchParams.get("category") || "";
   const hasCategoryFilter = Boolean(selectedCategory);
-
-  // 获取所有标签
-  useEffect(() => {
-    fetch("/api/tags")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.data?.tags) {
-          setAllTags(data.data.tags.slice(0, 12));
-        }
-      })
-      .catch((err) => console.error("Failed to fetch tags:", err));
-  }, []);
+  const { tags: allTags } = useTags(12);
 
   // 数据获取
   const { posts, status, error, updatePost, totalPages } = usePosts({
@@ -45,7 +34,6 @@ export default function BlogListPage() {
     query: submittedQuery,
     tag: selectedTag,
     category: selectedCategory,
-    token,
   });
 
   // 行为处理
@@ -54,7 +42,7 @@ export default function BlogListPage() {
   }, [router]);
 
   const { like, dislike, favorite } = usePostActions({
-    token,
+    isAuthenticated,
     onUpdate: updatePost,
     onAuthRequired: handleAuthRequired,
   });

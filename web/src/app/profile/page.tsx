@@ -1,10 +1,9 @@
-﻿import { Suspense } from "react";
-import ProfilePage from "@/features/user/components/ProfilePage";
+import dynamic from "next/dynamic";
+
+const ProfilePage = dynamic(() => import("@/features/user/components/ProfilePage"), {
+  loading: () => <div className="app-loading-fallback">加载中...</div>,
+});
 
 export default function ProfileRoute() {
-  return (
-    <Suspense fallback={<div className="app-loading-fallback">加载中...</div>}>
-      <ProfilePage />
-    </Suspense>
-  );
+  return <ProfilePage />;
 }

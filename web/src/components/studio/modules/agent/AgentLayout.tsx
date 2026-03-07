@@ -25,7 +25,7 @@ export function AgentLayout({ initialTab = "create" }: AgentLayoutProps) {
       <div className="agent-head">
         <div>
           <h2 className="agent-title">AI 创作代理</h2>
-          <p className="agent-subtitle"></p>
+          <p className="agent-subtitle">围绕选题、写作和发布流程组织你的内容创作。</p>
         </div>
       </div>
 

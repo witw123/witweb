@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { SuccessResponse } from "@/lib/api-response";
+import { getVersionedApiPath } from "@/lib/api-version";
 import type { Category } from "@/types/blog";
 
 type CategoryWithCount = Category & { post_count?: number };
@@ -19,7 +20,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/categories")
+    fetch(getVersionedApiPath("/categories"))
       .then((res) => res.json())
       .then((response) => {
         const data = readSuccessData<{ items: CategoryWithCount[] }>(response);

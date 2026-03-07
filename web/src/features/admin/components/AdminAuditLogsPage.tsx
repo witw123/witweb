@@ -1,6 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/app/providers";
+import { getPaginated } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
 import AdminNotice from "./AdminNotice";
 import { getRoleLabel, normalizeRole } from "@/lib/rbac";
 import { ADMIN_LIST_PAGE_SIZE } from "@/features/admin/constants";
@@ -57,13 +61,13 @@ function detailLabel(key: string): string {
     from: "原角色",
     to: "新角色",
     role: "角色",
-    ids: "ID列表",
+    ids: "ID 列表",
     usernames: "用户名列表",
     updated: "更新数量",
     deleted: "删除数量",
     status: "状态",
     changed: "变更字段",
-    category_id: "分类ID",
+    category_id: "分类 ID",
     key: "配置键",
     name: "名称",
     url: "链接",
@@ -73,69 +77,54 @@ function detailLabel(key: string): string {
 }
 
 export default function AdminAuditLogsPage() {
-  const [items, setItems] = useState<AuditLogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { isAuthenticated } = useAuth();
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [actor, setActor] = useState("");
   const [action, setAction] = useState("");
   const [targetType, setTargetType] = useState("");
   const pageSize = ADMIN_LIST_PAGE_SIZE;
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
+  const filters = useMemo(
+    () => ({
+      page,
+      size: pageSize,
+      actor: actor.trim(),
+      action: action.trim(),
+      targetType: targetType.trim(),
+    }),
+    [action, actor, page, pageSize, targetType],
+  );
 
-  const loadLogs = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const token = localStorage.getItem("token");
-      const params = new URLSearchParams({
-        page: String(page),
-        size: String(pageSize),
-      });
-      if (actor.trim()) params.set("actor", actor.trim());
-      if (action.trim()) params.set("action", action.trim());
-      if (targetType.trim()) params.set("target_type", targetType.trim());
+  const auditLogsQuery = useQuery({
+    queryKey: queryKeys.adminAuditLogs(filters),
+    enabled: isAuthenticated,
+    queryFn: () =>
+      getPaginated<AuditLogItem>("/api/admin/audit-logs", {
+        page: filters.page,
+        size: filters.size,
+        actor: filters.actor,
+        action: filters.action,
+        target_type: filters.targetType,
+      }),
+  });
 
-      const res = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        setItems([]);
-        setTotal(0);
-        setError(data.error?.message || "加载审计日志失败");
-        return;
-      }
-
-      setItems((data.data?.items || []) as AuditLogItem[]);
-      setTotal(Number(data.data?.total || 0));
-    } catch {
-      setItems([]);
-      setTotal(0);
-      setError("加载审计日志失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, actor, action, targetType]);
-
-  useEffect(() => {
-    void loadLogs();
-  }, [loadLogs]);
+  const items = auditLogsQuery.data?.items || [];
+  const total = auditLogsQuery.data?.total || 0;
+  const totalPages = Math.max(1, auditLogsQuery.data?.totalPages || 1);
+  const loading = auditLogsQuery.isLoading;
+  const error = auditLogsQuery.error instanceof Error ? auditLogsQuery.error.message : "";
 
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">审计日志</h1>
-        <p className="page-subtitle">记录后台关键操作，支持按操作人、动作和对象类型筛选</p>
+        <p className="page-subtitle">记录后台关键操作，支持按操作人、动作和对象类型筛选。</p>
       </div>
 
       <div className="admin-card">
-        <div className="card-header" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
+        <div className="card-header admin-audit-toolbar">
           <input
-            className="admin-input"
-            style={{ width: "220px" }}
+            className="admin-input admin-audit-input-actor"
             placeholder="操作人"
             value={actor}
             onChange={(e) => {
@@ -144,8 +133,7 @@ export default function AdminAuditLogsPage() {
             }}
           />
           <input
-            className="admin-input"
-            style={{ width: "260px" }}
+            className="admin-input admin-audit-input-action"
             placeholder="动作代码（可选）"
             value={action}
             onChange={(e) => {
@@ -169,10 +157,10 @@ export default function AdminAuditLogsPage() {
             <option value="friend_link">友链</option>
             <option value="system">系统</option>
           </select>
-          <button className="btn-admin btn-admin-secondary" onClick={() => void loadLogs()}>
+          <button className="btn-admin btn-admin-secondary" onClick={() => void auditLogsQuery.refetch()}>
             刷新
           </button>
-          <div style={{ marginLeft: "auto" }}>共 {total} 条</div>
+          <div className="admin-audit-total">共 {total} 条</div>
         </div>
 
         <AdminNotice message={error} tone="error" />
@@ -202,20 +190,20 @@ export default function AdminAuditLogsPage() {
                       {item.target_type_label || item.target_type}
                       {item.target_id ? ` #${item.target_id}` : ""}
                     </td>
-                    <td style={{ minWidth: 220 }}>{item.summary || "-"}</td>
+                    <td className="admin-audit-summary">{item.summary || "-"}</td>
                     <td>{item.ip_address || "-"}</td>
-                    <td style={{ maxWidth: 360 }}>
+                    <td className="admin-audit-detail-cell">
                       {detail && Object.keys(detail).length > 0 ? (
-                        <div style={{ display: "grid", gap: 4 }}>
+                        <div className="admin-audit-detail-list">
                           {Object.entries(detail).map(([key, value]) => (
-                            <div key={key} style={{ fontSize: 12, lineHeight: 1.35 }}>
-                              <span style={{ color: "var(--text-secondary)" }}>{detailLabel(key)}：</span>
+                            <div key={key} className="admin-audit-detail-item">
+                              <span className="admin-audit-detail-label">{detailLabel(key)}：</span>
                               <span>{formatValue(key, value)}</span>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>无</span>
+                        <span className="admin-audit-detail-empty">无</span>
                       )}
                     </td>
                   </tr>
@@ -226,7 +214,7 @@ export default function AdminAuditLogsPage() {
         )}
 
         {totalPages > 1 && (
-          <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+          <div className="admin-table-pagination">
             <button
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page <= 1}
@@ -234,7 +222,7 @@ export default function AdminAuditLogsPage() {
             >
               上一页
             </button>
-            <span style={{ padding: "0.5rem 1rem" }}>
+            <span className="admin-table-pagination-label">
               第 {page} / {totalPages} 页
             </span>
             <button

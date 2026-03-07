@@ -1,13 +1,15 @@
-﻿import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import RequireAuth from "@/components/RequireAuth";
-import FollowersPageContent from "@/features/user/components/FollowersPageContent";
+
+const FollowersPageContent = dynamic(
+  () => import("@/features/user/components/FollowersPageContent"),
+  { loading: () => <div className="app-loading-fallback">加载中...</div> }
+);
 
 export default function FollowersPage() {
   return (
     <RequireAuth>
-      <Suspense fallback={<div className="app-loading-fallback">加载中...</div>}>
-        <FollowersPageContent />
-      </Suspense>
+      <FollowersPageContent />
     </RequireAuth>
   );
 }

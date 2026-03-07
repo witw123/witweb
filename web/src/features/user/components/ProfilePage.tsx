@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import type { UserProfile as AuthUserProfile } from "@/app/providers";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { uploadImageRequest } from "@/lib/upload-image-client";
 import { compressImageFile, resizeImageToDataUrl } from "@/utils/image";
-import { getThumbnailUrl } from "@/utils/url";
-import { clearAllCaches } from "@/utils/memoryStore";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import { PostCard as HomePostCard } from "@/features/blog/components/post-list/PostCard";
 import { usePostActions } from "@/features/blog/hooks";
 import type { PostListItem } from "@/types/blog";
@@ -61,7 +62,7 @@ function formatDate(value?: string) {
 }
 
 export default function ProfilePage({ targetUsername }: { targetUsername?: string }) {
-  const { user: authUser, updateProfile, token } = useAuth();
+  const { user: authUser, updateProfile, isAuthenticated } = useAuth();
   const router = useRouter();
   const [targetProfile, setTargetProfile] = useState<ProfileViewUser | null>(null);
   const [, setLoadingProfile] = useState(false);
@@ -126,6 +127,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const avatarSrc = avatarBase
     ? (avatarBase.startsWith("data:") ? avatarBase : getThumbnailUrl(avatarBase, 256))
     : "";
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
 
   const coverBase = isOwnProfile ? (coverPreview || authUser?.cover_url || "") : (targetProfile?.cover_url || "");
   const coverSrc = coverBase
@@ -150,9 +152,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     if (!username) return;
     setLoadingProfile(true);
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
+      const res = await fetch(getVersionedApiPath(`/users/${encodeURIComponent(username)}/profile`));
       const data = await res.json().catch(() => ({}));
       const profile = readSuccessData<ProfileViewUser>(data);
       if (!profile) return;
@@ -176,7 +176,6 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   }
 
   async function uploadCover(file: File) {
-    if (!token) throw new Error("missing_token");
     const resized = await compressImageFile(file, {
       maxSize: 1280,
       maxBytes: 900 * 1024,
@@ -186,16 +185,16 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     });
     const form = new FormData();
     form.append("file", resized, resized.name || "cover.jpg");
-    const res = await fetch("/api/upload-image", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
+    return uploadImageRequest({
+      formData: form,
+      source: "profile.upload-cover",
+      context: {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      },
+      fallbackMessage: "upload_failed",
     });
-      const data = await res.json().catch(() => ({}));
-      const payload = readSuccessData<{ url: string }>(data);
-      const url = payload?.url;
-      if (!res.ok || !url) throw new Error("upload_failed");
-      return url;
   }
 
   async function handleCoverChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -217,15 +216,14 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   async function handleSave(nextCover?: string, silent: boolean = false) {
     if (!silent) setStatus("saving");
     try {
-      if (!token) {
+      if (!isAuthenticated) {
         setStatus("error");
         return;
       }
-      const res = await fetch("/api/profile", {
+      const res = await fetch(getVersionedApiPath("/profile"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           nickname,
@@ -243,7 +241,6 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
       if (payload?.profile) {
         updateProfile(toAuthProfile(payload.profile));
       }
-      clearAllCaches();
       try {
         const ts = Date.now().toString();
         localStorage.setItem("profile_updated_at", ts);
@@ -285,7 +282,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     if (!username) return [] as PostListItem[];
     if (!silent) setTabLoading(true);
     try {
-      const res = await fetch(`/api/blog?author=${encodeURIComponent(username)}&page=${page}&size=${pageSize}`);
+      const res = await fetch(
+        `${getVersionedApiPath("/blog")}?author=${encodeURIComponent(username)}&page=${page}&size=${pageSize}`
+      );
       const data = await res.json().catch(() => ({}));
       const payload = readSuccessData<{ items: PostListItem[]; total: number }>(data);
       const items = payload?.items || [];
@@ -304,9 +303,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const loadFavorites = async (silent = false) => {
     if (!silent) setTabLoading(true);
     try {
-      const res = await fetch(`/api/favorites?page=${page}&size=${pageSize}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch(getVersionedApiPath(`/favorites?page=${page}&size=${pageSize}`));
       const data = await res.json().catch(() => ({}));
       const payload = readSuccessData<{ items: PostListItem[]; total: number }>(data);
       setFavorites(payload?.items || []);
@@ -323,7 +320,9 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     if (!username) return;
     if (!silent) setTabLoading(true);
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(username)}/activity?page=${page}&size=${pageSize}`);
+      const res = await fetch(
+        `${getVersionedApiPath(`/users/${encodeURIComponent(username)}/activity`)}?page=${page}&size=${pageSize}`
+      );
       const data = await res.json().catch(() => ({}));
       const payload = readSuccessData<{ items: ActivityItem[]; total: number }>(data);
       const items = payload?.items || [];
@@ -349,9 +348,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   const loadCounts = async () => {
     if (!username) return;
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
+      const res = await fetch(getVersionedApiPath(`/users/${encodeURIComponent(username)}/profile`));
       const data = await res.json().catch(() => ({}));
       const profile = readSuccessData<ProfileViewUser>(data);
       if (profile) {
@@ -380,19 +377,19 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
   };
 
   const { like, dislike, favorite } = usePostActions({
-    token,
+    isAuthenticated,
     onUpdate: updatePostMetrics,
     onAuthRequired: () => router.push("/login"),
   });
 
   async function toggleFollow() {
-    if (!token) return;
+    if (!isAuthenticated) return;
     const isFollowing = activeProfile?.is_following;
     try {
       if (isFollowing) {
-        await fetch(`/api/follow/${username}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+        await fetch(getVersionedApiPath(`/follow/${username}`), { method: "DELETE" });
       } else {
-        await fetch(`/api/follow`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ username }) });
+        await fetch(getVersionedApiPath("/follow"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
       }
       fetchProfile(); // Refresh
     } catch (err) {
@@ -414,7 +411,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
                   width={144}
                   height={144}
                   className="profile-avatar-img"
-                  unoptimized
+                  unoptimized={avatarUnoptimized}
                 />
               ) : (
                 <div className="profile-avatar-fallback">
@@ -460,7 +457,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
               )}
             </div>
 
-            {!isOwnProfile && token && (
+            {!isOwnProfile && isAuthenticated && (
               <div className="profile-identity-actions">
                 <Link
                   href={`/messages?username=${username}`}

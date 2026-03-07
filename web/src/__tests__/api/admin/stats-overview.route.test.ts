@@ -27,9 +27,9 @@ vi.mock("@/lib/repositories", () => ({
   },
 }));
 
-import { GET } from "@/app/api/admin/stats/overview/route";
+import { GET } from "@/app/api/admin/stats/route";
 
-describe("GET /api/admin/stats/overview", () => {
+describe("GET /api/admin/stats?view=overview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -37,7 +37,7 @@ describe("GET /api/admin/stats/overview", () => {
   it("returns 401 when user is not authenticated", async () => {
     mockGetAuthIdentity.mockResolvedValue(null);
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/stats?view=overview"));
     const body = await response.json();
 
     expect(response.status).toBe(401);
@@ -47,7 +47,7 @@ describe("GET /api/admin/stats/overview", () => {
   it("returns 403 when user is not admin", async () => {
     mockGetAuthIdentity.mockResolvedValue({ username: "alice", role: "user" });
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/stats?view=overview"));
     const body = await response.json();
 
     expect(response.status).toBe(403);
@@ -62,7 +62,7 @@ describe("GET /api/admin/stats/overview", () => {
       status === "published" ? 14 : 6
     );
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/stats?view=overview"));
     const body = await response.json();
 
     expect(response.status).toBe(200);

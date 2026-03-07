@@ -1,10 +1,13 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
-import AdminNotice from "./AdminNotice";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { del, get, post, put } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
 import { getRoleLabel, normalizeRole, type AppRole } from "@/lib/rbac";
 import { ADMIN_LIST_PAGE_SIZE } from "@/features/admin/constants";
+import AdminNotice from "./AdminNotice";
 
 type AdminUser = {
   username: string;
@@ -13,17 +16,26 @@ type AdminUser = {
   activity_status?: "active" | "inactive";
 };
 
+type UserListResponse = {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  size: number;
+};
+
+type AdminPermissionsResponse = {
+  role: AppRole;
+};
+
 const activityStatusLabel: Record<"active" | "inactive", string> = {
   active: "活跃",
   inactive: "不活跃",
 };
 
 export default function UserManagementPage() {
-  const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user: currentUser, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [activityFilter, setActivityFilter] = useState("");
@@ -31,113 +43,113 @@ export default function UserManagementPage() {
   const [message, setMessage] = useState("");
   const [noticeTone, setNoticeTone] = useState<"success" | "error" | "info">("info");
   const [pendingDeleteUser, setPendingDeleteUser] = useState<string | null>(null);
-  const [roleDrafts, setRoleDrafts] = useState<Record<string, AppRole>>({});
-  const [selectedUsernames, setSelectedUsernames] = useState<string[]>([]);
+  const [roleDraftOverrides, setRoleDrafts] = useState<Record<string, AppRole>>({});
+  const [selectedUsernamesState, setSelectedUsernames] = useState<string[]>([]);
   const [batchDeleteConfirming, setBatchDeleteConfirming] = useState(false);
-  const [resolvedCurrentRole, setResolvedCurrentRole] = useState<AppRole | null>(null);
-  const currentRole = resolvedCurrentRole || normalizeRole(currentUser?.role);
+
+  const filters = useMemo(
+    () => ({
+      page,
+      limit: ADMIN_LIST_PAGE_SIZE,
+      search: search.trim(),
+      role: roleFilter,
+      activity: activityFilter,
+      sort,
+    }),
+    [page, search, roleFilter, activityFilter, sort],
+  );
+
   const showError = (msg: string) => {
     setNoticeTone("error");
     setMessage(msg);
   };
+
   const showSuccess = (msg: string) => {
     setNoticeTone("success");
     setMessage(msg);
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    void fetch("/api/admin/me/permissions", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json().catch(() => ({})))
-      .then((data) => {
-        const role = data?.data?.role;
-        if (typeof role === "string") setResolvedCurrentRole(normalizeRole(role));
-      })
-      .catch(() => {});
-  }, []);
+  const permissionsQuery = useQuery({
+    queryKey: queryKeys.adminPermissions,
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => get<AdminPermissionsResponse>("/api/admin/me/permissions"),
+  });
 
-  const loadUsers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
+  const usersQuery = useQuery({
+    queryKey: queryKeys.adminUsers(filters),
+    enabled: isAuthenticated,
+    queryFn: async () => {
       const params = new URLSearchParams({
-        page: String(page),
-        limit: String(ADMIN_LIST_PAGE_SIZE),
+        page: String(filters.page),
+        limit: String(filters.limit),
       });
-      if (search.trim()) params.set("search", search.trim());
-      if (roleFilter) params.set("role", roleFilter);
-      if (activityFilter) params.set("activity", activityFilter);
-      if (sort) params.set("sort", sort);
-
-      const response = await fetch(`/api/admin/users?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data.success) {
-        setUsers([]);
-        setTotal(0);
-        showError(data.error?.message || "加载用户失败");
-        return;
-      }
-
-      setUsers(data.data?.items || []);
-      setTotal(data.data?.total || 0);
-      const nextDrafts: Record<string, AppRole> = {};
-      for (const item of (data.data?.items || []) as AdminUser[]) {
-        nextDrafts[item.username] = normalizeRole(item.role);
-      }
-      setRoleDrafts(nextDrafts);
-      setSelectedUsernames((prev) =>
-        prev.filter((username) => (data.data?.items || []).some((item: AdminUser) => item.username === username))
-      );
-    } catch {
-      setUsers([]);
-      setTotal(0);
-      showError("加载用户失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search, roleFilter, activityFilter, sort]);
-
-  useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+      if (filters.search) params.set("search", filters.search);
+      if (filters.role) params.set("role", filters.role);
+      if (filters.activity) params.set("activity", filters.activity);
+      if (filters.sort) params.set("sort", filters.sort);
+      return get<UserListResponse>(`/api/admin/users?${params.toString()}`);
+    },
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handler = () => {
-      void loadUsers();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminUsers(filters) });
     };
     window.addEventListener("profile-updated", handler as EventListener);
     return () => window.removeEventListener("profile-updated", handler as EventListener);
-  }, [loadUsers]);
+  }, [filters, queryClient]);
 
-  const handleDelete = async (username: string) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/users/${username}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const currentRole = permissionsQuery.data?.role || normalizeRole(currentUser?.role);
 
-      if (response.ok) {
-        showSuccess(`用户 ${username} 删除成功`);
-        setPendingDeleteUser(null);
-        void loadUsers();
-        return;
-      }
+  const deleteMutation = useMutation({
+    mutationFn: (username: string) => del<{ ok: true }>(`/api/admin/users/${username}`),
+    onSuccess: async () => {
+      setPendingDeleteUser(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminUsers(filters) });
+    },
+  });
 
-      const data = await response.json().catch(() => ({}));
-      showError(data.error?.message || "删除失败");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      showError(`删除失败: ${message}`);
+  const updateRoleMutation = useMutation({
+    mutationFn: (input: { username: string; role: AppRole }) =>
+      put<{ ok: true }>(`/api/admin/users/${input.username}`, { role: input.role }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminUsers(filters) });
+    },
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: (usernames: string[]) =>
+      post<{ ok: true; deleted: number }>(
+        "/api/admin/users",
+        { action: "delete", usernames },
+      ),
+    onSuccess: async () => {
+      setSelectedUsernames([]);
+      setBatchDeleteConfirming(false);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminUsers(filters) });
+    },
+  });
+
+  const users = useMemo(() => usersQuery.data?.items || [], [usersQuery.data?.items]);
+  const selectedUsernames = useMemo(
+    () =>
+      selectedUsernamesState.filter((username) =>
+        users.some((item) => item.username === username)
+      ),
+    [selectedUsernamesState, users]
+  );
+  const roleDrafts = useMemo(() => {
+    const nextDrafts: Record<string, AppRole> = {};
+    for (const item of users) {
+      nextDrafts[item.username] =
+        roleDraftOverrides[item.username] || normalizeRole(item.role);
     }
-  };
+    return nextDrafts;
+  }, [roleDraftOverrides, users]);
+  const total = usersQuery.data?.total || 0;
+  const loading = usersQuery.isLoading;
 
   const roleOptionsByActor: Record<AppRole, AppRole[]> = {
     super_admin: ["super_admin", "admin", "content_reviewer", "operator", "user", "bot"],
@@ -157,47 +169,24 @@ export default function UserManagementPage() {
     return false;
   };
 
+  const handleDelete = async (username: string) => {
+    try {
+      await deleteMutation.mutateAsync(username);
+      showSuccess(`用户 ${username} 删除成功`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "删除失败");
+    }
+  };
+
   const handleUpdateRole = async (target: AdminUser) => {
     const nextRole = roleDrafts[target.username];
     if (!nextRole) return;
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/users/${target.username}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ role: nextRole }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        showError(data.error?.message || "角色更新失败");
-        return;
-      }
+      await updateRoleMutation.mutateAsync({ username: target.username, role: nextRole });
       showSuccess(`用户 ${target.username} 角色已更新为 ${getRoleLabel(nextRole)}`);
-      void loadUsers();
-    } catch (error: unknown) {
+    } catch (error) {
       showError(error instanceof Error ? error.message : "角色更新失败");
     }
-  };
-
-  const toggleSelect = (username: string, checked: boolean) => {
-    setSelectedUsernames((prev) => {
-      if (checked) return Array.from(new Set([...prev, username]));
-      return prev.filter((item) => item !== username);
-    });
-  };
-
-  const toggleSelectAllCurrentPage = (checked: boolean) => {
-    const selectable = users
-      .filter((item) => item.username !== "witw" && item.role !== "admin" && item.role !== "super_admin")
-      .map((item) => item.username);
-    if (!checked) {
-      setSelectedUsernames((prev) => prev.filter((username) => !selectable.includes(username)));
-      return;
-    }
-    setSelectedUsernames((prev) => Array.from(new Set([...prev, ...selectable])));
   };
 
   const handleBatchDelete = async () => {
@@ -205,41 +194,18 @@ export default function UserManagementPage() {
       showError("请先选择至少一个用户");
       return;
     }
-
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "delete",
-          usernames: selectedUsernames,
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        showError(data.error?.message || "批量删除失败");
-        return;
-      }
-
-      showSuccess(`批量删除完成，共删除 ${data.data?.deleted ?? 0} 个用户`);
-      setSelectedUsernames([]);
-      setBatchDeleteConfirming(false);
-      void loadUsers();
-    } catch (error: unknown) {
+      const data = await batchDeleteMutation.mutateAsync(selectedUsernames);
+      showSuccess(`批量删除完成，共删除 ${data.deleted ?? 0} 个用户`);
+    } catch (error) {
       showError(error instanceof Error ? error.message : "批量删除失败");
     }
   };
 
-  const allCurrentPageSelected =
-    users.filter((item) => item.username !== "witw" && item.role !== "admin" && item.role !== "super_admin").length > 0 &&
-    users
-      .filter((item) => item.username !== "witw" && item.role !== "admin" && item.role !== "super_admin")
-      .every((item) => selectedUsernames.includes(item.username));
+  const selectableUsers = users
+    .filter((item) => item.username !== "witw" && item.role !== "admin" && item.role !== "super_admin")
+    .map((item) => item.username);
+  const allCurrentPageSelected = selectableUsers.length > 0 && selectableUsers.every((item) => selectedUsernames.includes(item));
 
   return (
     <div>
@@ -251,7 +217,7 @@ export default function UserManagementPage() {
       <div className="admin-card">
         <AdminNotice message={message} tone={noticeTone} />
 
-        <div className="card-header" style={{ flexWrap: "wrap", gap: "1rem" }}>
+        <div className="card-header admin-user-toolbar">
           <input
             type="text"
             placeholder="搜索用户..."
@@ -260,17 +226,9 @@ export default function UserManagementPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="admin-input"
-            style={{ width: "300px" }}
+            className="admin-input admin-user-search"
           />
-          <select
-            value={roleFilter}
-            onChange={(e) => {
-              setRoleFilter(e.target.value);
-              setPage(1);
-            }}
-            className="admin-select"
-          >
+          <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} className="admin-select">
             <option value="">全部角色</option>
             <option value="super_admin">{getRoleLabel("super_admin")}</option>
             <option value="content_reviewer">{getRoleLabel("content_reviewer")}</option>
@@ -279,26 +237,12 @@ export default function UserManagementPage() {
             <option value="user">{getRoleLabel("user")}</option>
             <option value="bot">{getRoleLabel("bot")}</option>
           </select>
-          <select
-            value={activityFilter}
-            onChange={(e) => {
-              setActivityFilter(e.target.value);
-              setPage(1);
-            }}
-            className="admin-select"
-          >
+          <select value={activityFilter} onChange={(e) => { setActivityFilter(e.target.value); setPage(1); }} className="admin-select">
             <option value="">全部活跃状态</option>
             <option value="active">活跃（近30天）</option>
             <option value="inactive">不活跃（近30天）</option>
           </select>
-          <select
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value);
-              setPage(1);
-            }}
-            className="admin-select"
-          >
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }} className="admin-select">
             <option value="created_at_desc">注册时间（新到旧）</option>
             <option value="created_at_asc">注册时间（旧到新）</option>
             <option value="username_asc">用户名（A-Z）</option>
@@ -322,10 +266,8 @@ export default function UserManagementPage() {
           <div>共 {total} 个用户</div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-            已选 {selectedUsernames.length} 个用户
-          </span>
+        <div className="admin-user-batch-bar">
+          <span className="admin-user-batch-count">已选 {selectedUsernames.length} 个用户</span>
           <button
             className="btn-admin btn-admin-danger"
             type="button"
@@ -341,11 +283,7 @@ export default function UserManagementPage() {
             {batchDeleteConfirming ? "确认批量删除" : "批量删除"}
           </button>
           {batchDeleteConfirming && (
-            <button
-              className="btn-admin btn-admin-secondary"
-              type="button"
-              onClick={() => setBatchDeleteConfirming(false)}
-            >
+            <button className="btn-admin btn-admin-secondary" type="button" onClick={() => setBatchDeleteConfirming(false)}>
               取消
             </button>
           )}
@@ -355,11 +293,17 @@ export default function UserManagementPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{ width: 40 }}>
+                <th className="admin-table-col-checkbox">
                   <input
                     type="checkbox"
                     checked={allCurrentPageSelected}
-                    onChange={(e) => toggleSelectAllCurrentPage(e.target.checked)}
+                    onChange={(e) => {
+                      if (!e.target.checked) {
+                        setSelectedUsernames((prev) => prev.filter((username) => !selectableUsers.includes(username)));
+                        return;
+                      }
+                      setSelectedUsernames((prev) => Array.from(new Set([...prev, ...selectableUsers])));
+                    }}
                   />
                 </th>
                 <th>用户名</th>
@@ -373,17 +317,19 @@ export default function UserManagementPage() {
               {users.map((user) => (
                 <tr key={user.username}>
                   <td>
-                    {user.username !== "witw" && user.role !== "admin" && user.role !== "super_admin" && (
+                    {selectableUsers.includes(user.username) && (
                       <input
                         type="checkbox"
                         checked={selectedUsernames.includes(user.username)}
-                        onChange={(e) => toggleSelect(user.username, e.target.checked)}
+                        onChange={(e) =>
+                          setSelectedUsernames((prev) =>
+                            e.target.checked ? Array.from(new Set([...prev, user.username])) : prev.filter((item) => item !== user.username),
+                          )
+                        }
                       />
                     )}
                   </td>
-                  <td>
-                    <strong>{user.username}</strong>
-                  </td>
+                  <td><strong>{user.username}</strong></td>
                   <td>
                     <span className={`badge badge-${user.role === "admin" || user.role === "super_admin" ? "danger" : user.role === "bot" ? "warning" : "success"}`}>
                       {getRoleLabel(normalizeRole(user.role))}
@@ -397,9 +343,8 @@ export default function UserManagementPage() {
                   </td>
                   <td>
                     {canManageTarget(user) && (
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <div className="admin-user-actions">
                         <select
-                          className="admin-select"
                           value={roleDrafts[user.username] || normalizeRole(user.role)}
                           onChange={(e) =>
                             setRoleDrafts((prev) => ({
@@ -407,44 +352,26 @@ export default function UserManagementPage() {
                               [user.username]: normalizeRole(e.target.value),
                             }))
                           }
-                          style={{ minWidth: 130 }}
+                          className="admin-select admin-user-role-select"
                         >
                           {roleOptionsByActor[currentRole].map((role) => (
-                            <option key={role} value={role}>
-                              {getRoleLabel(role)}
-                            </option>
+                            <option key={role} value={role}>{getRoleLabel(role)}</option>
                           ))}
                         </select>
-                        <button
-                          onClick={() => void handleUpdateRole(user)}
-                          className="btn-admin btn-admin-secondary"
-                          style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem", minWidth: 92 }}
-                        >
+                        <button onClick={() => void handleUpdateRole(user)} className="btn-admin btn-admin-secondary admin-user-action-btn admin-user-action-btn-wide">
                           保存角色
                         </button>
                         {pendingDeleteUser === user.username ? (
                           <>
-                            <button
-                              onClick={() => void handleDelete(user.username)}
-                              className="btn-admin btn-admin-danger"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem", minWidth: 80 }}
-                            >
+                            <button onClick={() => void handleDelete(user.username)} className="btn-admin btn-admin-danger admin-user-action-btn">
                               确认删除
                             </button>
-                            <button
-                              onClick={() => setPendingDeleteUser(null)}
-                              className="btn-admin btn-admin-secondary"
-                              style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}
-                            >
+                            <button onClick={() => setPendingDeleteUser(null)} className="btn-admin btn-admin-secondary admin-user-action-btn">
                               取消
                             </button>
                           </>
                         ) : (
-                          <button
-                            onClick={() => setPendingDeleteUser(user.username)}
-                            className="btn-admin btn-admin-danger"
-                            style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem", minWidth: 80 }}
-                          >
+                          <button onClick={() => setPendingDeleteUser(user.username)} className="btn-admin btn-admin-danger admin-user-action-btn">
                             删除
                           </button>
                         )}
@@ -458,22 +385,10 @@ export default function UserManagementPage() {
         )}
 
         {total > ADMIN_LIST_PAGE_SIZE && (
-          <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="btn-admin btn-admin-secondary"
-            >
-              上一页
-            </button>
-            <span style={{ padding: "0.5rem 1rem" }}>第 {page} 页</span>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page * ADMIN_LIST_PAGE_SIZE >= total}
-              className="btn-admin btn-admin-secondary"
-            >
-              下一页
-            </button>
+          <div className="admin-table-pagination">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-admin btn-admin-secondary">上一页</button>
+            <span className="admin-table-pagination-label">第 {page} 页</span>
+            <button onClick={() => setPage((p) => p + 1)} disabled={page * ADMIN_LIST_PAGE_SIZE >= total} className="btn-admin btn-admin-secondary">下一页</button>
           </div>
         )}
       </div>

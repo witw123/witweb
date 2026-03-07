@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { postRepository } from "@/lib/repositories";
+import { drizzlePostRepository } from "@/lib/repositories";
 import { getSiteUrl } from "@/lib/site-url";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const posts = await postRepository.listSitemapPosts();
+    const posts = await drizzlePostRepository.listSitemapPosts();
 
     const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
       url: `${base}/post/${post.slug}`,

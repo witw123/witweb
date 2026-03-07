@@ -1,55 +1,64 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { post } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
 
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
 export function CharacterLab() {
-  const { token } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<"upload" | "create">("upload");
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [status, setStatus] = useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
 
   const [uploadData, setUploadData] = useState({ url: "", timestamps: "0,3" });
   const [createData, setCreateData] = useState({ pid: "", timestamps: "0,3" });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) return;
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (!isAuthenticated) throw new Error("请先登录");
 
-    const endpoint = mode === "upload" ? "/api/video/upload-character" : "/api/video/create-character";
-    const payload = mode === "upload" ? uploadData : createData;
+      const endpoint =
+        mode === "upload"
+          ? getVersionedApiPath("/video/upload-character")
+          : getVersionedApiPath("/video/create-character");
+      const payload = mode === "upload" ? uploadData : createData;
 
-    setLoading(true);
-    setStatus(null);
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+      return post<{ task_id?: string; id?: string }>(endpoint, payload);
+    },
+    onMutate: () => {
+      setStatus(null);
+    },
+    onSuccess: async (data) => {
+      const taskId = data.task_id || data.id || "";
+      setStatus({
+        type: "success",
+        msg: `角色任务已提交，任务 ID：${taskId}`,
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || "提交失败");
-      setStatus({ type: "success", msg: `角色任务已提交，任务 ID：${data.data?.task_id || data.data?.id}` });
-    } catch (err: unknown) {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.videoTasks() });
+    },
+    onError: (err) => {
       setStatus({ type: "error", msg: errorMessage(err, "提交失败") });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
   return (
     <section className="studio-subpage">
       <div className="studio-section-head">
         <div>
           <h3 className="studio-section-title">角色管理</h3>
-          <p className="studio-section-desc">上传角色素材，或基于已有视频 PID 创建角色。</p>
+          <p className="studio-section-desc">
+            上传角色素材，或基于已有视频 PID 创建角色。
+          </p>
         </div>
       </div>
 
@@ -71,14 +80,24 @@ export function CharacterLab() {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitMutation.mutateAsync();
+          }}
+          className="space-y-5"
+        >
           <div>
-            <label className="studio-label">{mode === "upload" ? "素材链接" : "视频 PID"}</label>
+            <label className="studio-label">
+              {mode === "upload" ? "素材链接" : "视频 PID"}
+            </label>
             <input
               type="text"
               required
               className="studio-input"
-              placeholder={mode === "upload" ? "请输入视频 URL 或 Base64..." : "请输入视频 PID..."}
+              placeholder={
+                mode === "upload" ? "请输入视频 URL 或 Base64..." : "请输入视频 PID..."
+              }
               value={mode === "upload" ? uploadData.url : createData.pid}
               onChange={(e) =>
                 mode === "upload"
@@ -95,26 +114,40 @@ export function CharacterLab() {
               required
               className="studio-input"
               placeholder="0,3"
-              value={mode === "upload" ? uploadData.timestamps : createData.timestamps}
+              value={
+                mode === "upload" ? uploadData.timestamps : createData.timestamps
+              }
               onChange={(e) =>
                 mode === "upload"
                   ? setUploadData({ ...uploadData, timestamps: e.target.value })
                   : setCreateData({ ...createData, timestamps: e.target.value })
               }
             />
-            <p className="mt-2 text-xs text-[#666]">格式：开始秒数,结束秒数（最多 3 秒）</p>
+            <p className="mt-2 text-xs text-[#666]">
+              格式：开始秒数,结束秒数（最长 3 秒）
+            </p>
           </div>
 
           {status && (
-            <div className={`studio-status ${status.type === "success" ? "studio-status-success" : "studio-status-error"}`}>
+            <div
+              className={`studio-status ${
+                status.type === "success"
+                  ? "studio-status-success"
+                  : "studio-status-error"
+              }`}
+            >
               <div className="studio-status-dot" />
               {status.msg}
             </div>
           )}
 
           <div className="studio-action-row">
-            <button type="submit" disabled={loading} className="studio-btn studio-btn-primary min-w-[180px] py-3">
-              {loading ? "提交中..." : "提交角色任务"}
+            <button
+              type="submit"
+              disabled={submitMutation.isPending}
+              className="studio-btn studio-btn-primary min-w-[180px] py-3"
+            >
+              {submitMutation.isPending ? "提交中..." : "提交角色任务"}
             </button>
           </div>
         </form>

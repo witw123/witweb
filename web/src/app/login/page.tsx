@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { logError } from "@/lib/logger";
 import { useAuth } from "../providers";
 import TurnstileWidget from "@/components/TurnstileWidget";
 
@@ -34,7 +35,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, captchaToken }),
@@ -45,14 +46,27 @@ export default function LoginPage() {
           data.error?.details && typeof data.error.details === "object"
             ? Object.values(data.error.details)[0]
             : "";
+        logError({
+          source: "auth.login",
+          error: (detailMessage as string) || data.error?.message || "Login request failed",
+          context: {
+            status: res.status,
+            username,
+          },
+        });
         setError((detailMessage as string) || data.error?.message || "登录失败，请稍后重试");
         return;
       }
-      if (data.data?.token && data.data?.profile) {
-        login(data.data.token, data.data.profile);
+      if (data.data?.profile) {
+        login(data.data.profile);
       }
       router.push("/");
-    } catch {
+    } catch (error) {
+      logError({
+        source: "auth.login",
+        error,
+        context: { username },
+      });
       setError("网络异常，请检查服务是否启动后重试");
     } finally {
       setLoading(false);

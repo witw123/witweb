@@ -34,7 +34,7 @@ export function PostList({
   }
 
   return (
-    <div className="list mt-5 grid gap-4">
+    <div className="post-card-grid mt-5">
       {posts.map((post) => (
         <PostCard
           key={post.slug}

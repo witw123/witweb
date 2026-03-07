@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
-import { getThumbnailUrl } from "@/utils/url";
-import type { SuccessResponse } from "@/lib/api-response";
+import { get } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
 type Conversation = {
   id: number;
@@ -17,37 +20,20 @@ type Conversation = {
   };
 };
 
-function readSuccessData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== "object") return null;
-  const parsed = payload as Partial<SuccessResponse<T>>;
-  if (parsed.success !== true) return null;
-  return parsed.data ?? null;
-}
-
 export default function PersonalSidebar() {
   const [activeItem, setActiveItem] = useState("friends");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const { token } = useAuth();
-
-  useEffect(() => {
-    if (!token) return;
-    fetch("/api/messages/conversations", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch");
-        return res.json();
-      })
-      .then((payload) => {
-        const items = readSuccessData<Conversation[]>(payload) || [];
-        setConversations(items);
-      })
-      .catch((err) => console.error("Failed to load conversations", err));
-  }, [token]);
+  const { isAuthenticated } = useAuth();
+  const conversationsQuery = useQuery({
+    queryKey: queryKeys.messageConversations,
+    queryFn: () => get<Conversation[]>(getVersionedApiPath("/messages")),
+    enabled: isAuthenticated,
+    staleTime: 15 * 1000,
+  });
+  const conversations = conversationsQuery.data || [];
 
   return (
     <div className="flex h-full flex-col border-r border-[#333] bg-[#0a0a0a]">
-      <div className="h-14 shrink-0 px-3 flex items-center">
+      <div className="flex h-14 shrink-0 items-center px-3">
         <button className="w-full truncate rounded-md border border-[#333] bg-[#111] px-3 py-2 text-left text-sm text-[#a1a1a1] transition-colors hover:border-[#444] hover:text-[#ededed]">
           搜索或开始新的对话
         </button>
@@ -107,12 +93,15 @@ type DMItemProps = {
 };
 
 function DMItem({ username, activity, avatarUrl, unreadCount }: DMItemProps) {
+  const avatarSrc = avatarUrl ? getThumbnailUrl(avatarUrl, 64) : "";
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
+
   return (
     <div className="group flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 transition-all duration-200 hover:bg-[#111]">
       <div className="relative shrink-0">
         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#333] bg-[#111] font-medium text-[#a1a1a1]">
           {avatarUrl ? (
-            <Image src={getThumbnailUrl(avatarUrl, 64)} alt={username} width={36} height={36} className="h-full w-full object-cover" unoptimized />
+            <Image src={avatarSrc} alt={username} width={36} height={36} className="h-full w-full object-cover" unoptimized={avatarUnoptimized} />
           ) : (
             username[0].toUpperCase()
           )}

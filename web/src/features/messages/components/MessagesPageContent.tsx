@@ -5,215 +5,81 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { useSearchParams } from "next/navigation";
-import { getThumbnailUrl } from "@/utils/url";
-import type { SuccessResponse } from "@/lib/api-response";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
+import { useConversations, useMessages, useNotifications, useSendMessage } from "../hooks";
+import type { TabType } from "../types";
 
-interface Conversation {
-  id: number;
-  last_message: string;
-  last_time: string;
-  unread_count: number;
-  other_user: {
-    username: string;
-    nickname: string;
-    avatar_url: string;
-  };
+function MessageAvatar({ src, alt }: { src: string; alt: string }) {
+  const avatarSrc = getThumbnailUrl(src, 64);
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
+
+  return (
+    <Image
+      src={avatarSrc}
+      alt={alt}
+      width={40}
+      height={40}
+      className="w-full h-full object-cover"
+      unoptimized={avatarUnoptimized}
+    />
+  );
 }
-
-interface PrivateMessage {
-  id: number;
-  sender: string;
-  content: string;
-  created_at: string;
-}
-
-interface Notification {
-  id?: number;
-  sender: string;
-  sender_nickname: string;
-  sender_avatar: string;
-  content?: string;
-  created_at: string;
-  post_title: string;
-  post_slug: string;
-}
-
-type TabType = "chat" | "replies" | "at" | "likes" | "system";
-
-function readSuccessData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== "object") return null;
-  const parsed = payload as Partial<SuccessResponse<T>>;
-  if (parsed.success !== true) return null;
-  return parsed.data ?? null;
-}
-
-type PublicProfile = {
-  username: string;
-  nickname?: string;
-  avatar_url?: string;
-};
 
 export default function MessagesPageContent() {
-  const { token, user, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const targetUsername = searchParams.get("username");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
-  const [messages, setMessages] = useState<PrivateMessage[]>([]);
   const [inputText, setInputText] = useState("");
-  const [sendError, setSendError] = useState("");
-  const [convLoading, setConvLoading] = useState(true);
-  const [pendingConv, setPendingConv] = useState<Conversation | null>(null);
-
   const [activeSidebarTab, setActiveSidebarTab] = useState<TabType>("chat");
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notifLoading, setNotifLoading] = useState(false);
+  const {
+    conversations,
+    displayConversations,
+    setPendingConv,
+    selectedConvId,
+    setSelectedConvId,
+    loading: convLoading,
+    refreshConversations,
+  } = useConversations(isAuthenticated, targetUsername);
+  const { messages, refreshMessages } = useMessages(isAuthenticated, selectedConvId);
+  const {
+    notifications,
+    loading: notifLoading,
+    fetchNotifications,
+    markRead,
+  } = useNotifications(isAuthenticated);
+  const { sendError, setSendError, sendMessage, sending } =
+    useSendMessage(isAuthenticated);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
   const lastSelectedConvId = useRef<number | null>(null);
   const lastMessagesCount = useRef<number>(0);
 
-  const fetchConversations = async (autoSelectUsername?: string) => {
-    if (!token) return;
-    try {
-      const res = await fetch("/api/messages/conversations", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const payload = await res.json().catch(() => ({}));
-      const list = readSuccessData<Conversation[]>(payload) || [];
-      if (!Array.isArray(list)) {
-        setConversations([]);
-        return;
-      }
-
-      if (autoSelectUsername && !pendingConv) {
-        const found = list.find((c) => c.other_user.username === autoSelectUsername);
-        if (found) {
-          setSelectedConvId(found.id);
-        } else {
-          try {
-            const profileRes = await fetch(`/api/users/${encodeURIComponent(autoSelectUsername)}/profile`);
-            const profileData = await profileRes.json().catch(() => ({}));
-            const profile = readSuccessData<PublicProfile>(profileData);
-            if (profile?.username) {
-              const tempConv: Conversation = {
-                id: -1,
-                last_message: "点击此处开始发送第一条消息吧",
-                last_time: new Date().toISOString(),
-                unread_count: 0,
-                other_user: {
-                  username: profile.username,
-                  nickname: profile.nickname || profile.username,
-                  avatar_url: profile.avatar_url || ""
-                }
-              };
-              setPendingConv(tempConv);
-              setSelectedConvId(-1);
-            }
-          } catch {}
-        }
-      }
-
-      setConversations(list);
-    } catch {}
-    setConvLoading(false);
-  };
-
-  const fetchNotifications = async (type: string) => {
-    if (!token) return;
-    setNotifLoading(true);
-    try {
-      const res = await fetch(`/api/messages/notifications?type=${type}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const payload = await res.json().catch(() => ({}));
-      const data = readSuccessData<{ items: Notification[] }>(payload);
-      const list = data?.items || [];
-      setNotifications(list);
-    } catch {
-      setNotifications([]);
-    } finally {
-      setNotifLoading(false);
-    }
-  };
-
-  const fetchMessages = async (id: number) => {
-    if (!token) return;
-    if (id === -1) {
-      setMessages([]);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/messages/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const payload = await res.json().catch(() => ({}));
-      const list = readSuccessData<PrivateMessage[]>(payload) || [];
-      setMessages(list);
-    } catch {
-      setMessages([]);
-    }
-  };
-
   const handleSend = async () => {
-    if (!token || !inputText.trim() || selectedConvId === null) return;
-    setSendError("");
+    const result = await sendMessage({
+      selectedConvId,
+      content: inputText,
+      conversations: displayConversations,
+    });
+    if (!result) return;
 
-    const conv = displayConversations.find(c => c.id === selectedConvId);
-    if (!conv) return;
-
-    try {
-      const res = await fetch("/api/messages/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          receiver: conv.other_user.username,
-          content: inputText
-        })
-      });
-      const payload = await res.json().catch(() => ({}));
-      const resData = readSuccessData<{ conversation_id: number }>(payload);
-      if (!res.ok || !resData) {
-        const err = payload as { error?: { message?: string } };
-        setSendError(err?.error?.message || "发送失败，请稍后重试。");
-        return;
-      }
       setInputText("");
 
-      if (resData.conversation_id) {
+      if (result.conversation_id) {
         setPendingConv(null);
-        setSelectedConvId(resData.conversation_id);
-        fetchMessages(resData.conversation_id);
+        setSelectedConvId(result.conversation_id);
+        void refreshMessages();
       } else {
-        fetchMessages(selectedConvId);
+        void refreshMessages();
       }
-      fetchConversations();
-    } catch {}
+      void refreshConversations();
   };
 
   useEffect(() => {
-    fetchConversations(targetUsername || undefined);
-    const interval = setInterval(() => fetchConversations(), 10000);
-    return () => clearInterval(interval);
-  }, [token, targetUsername]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const displayConversations = [...conversations];
-  if (pendingConv && !conversations.find(c => c.other_user.username === pendingConv.other_user.username)) {
-    displayConversations.unshift(pendingConv);
-  }
-
-  useEffect(() => {
-    if (selectedConvId) {
+    if (selectedConvId !== null) {
       setSendError("");
-      fetchMessages(selectedConvId);
-      const interval = setInterval(() => fetchMessages(selectedConvId), 5000);
-      return () => clearInterval(interval);
     }
-  }, [selectedConvId, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedConvId, setSendError]);
 
   useEffect(() => {
     if (messages.length === lastMessagesCount.current && selectedConvId === lastSelectedConvId.current) return;
@@ -241,13 +107,10 @@ export default function MessagesPageContent() {
 
   useEffect(() => {
     if (activeSidebarTab !== "chat") {
-      fetchNotifications(activeSidebarTab);
-      fetch("/api/messages/read-notifications", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => {});
+      void fetchNotifications(activeSidebarTab);
+      void markRead();
     }
-  }, [activeSidebarTab, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSidebarTab, fetchNotifications, markRead]);
 
   const selectedConv = displayConversations.find(c => c.id === selectedConvId);
 
@@ -306,13 +169,9 @@ export default function MessagesPageContent() {
                   >
                     <div className="chat-avatar-box">
                       {conv.other_user.avatar_url ? (
-                        <Image
-                          src={getThumbnailUrl(conv.other_user.avatar_url, 64)}
+                        <MessageAvatar
+                          src={conv.other_user.avatar_url}
                           alt={conv.other_user.nickname || conv.other_user.username}
-                          width={40}
-                          height={40}
-                          className="w-full h-full object-cover"
-                          unoptimized
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-400">
@@ -351,26 +210,18 @@ export default function MessagesPageContent() {
                           <div className="chat-avatar-box">
                             {isMine ? (
                               user?.avatar_url ? (
-                                <Image
-                                  src={getThumbnailUrl(user.avatar_url, 64)}
+                                <MessageAvatar
+                                  src={user.avatar_url}
                                   alt={user?.username || "me"}
-                                  width={40}
-                                  height={40}
-                                  className="w-full h-full object-cover"
-                                  unoptimized
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-400 font-bold">{user?.username?.[0]?.toUpperCase()}</div>
                               )
                             ) : (
                               selectedConv.other_user.avatar_url ? (
-                                <Image
-                                  src={getThumbnailUrl(selectedConv.other_user.avatar_url, 64)}
+                                <MessageAvatar
+                                  src={selectedConv.other_user.avatar_url}
                                   alt={selectedConv.other_user.nickname || selectedConv.other_user.username}
-                                  width={40}
-                                  height={40}
-                                  className="w-full h-full object-cover"
-                                  unoptimized
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-400 font-bold">{selectedConv.other_user.username[0].toUpperCase()}</div>
@@ -409,9 +260,9 @@ export default function MessagesPageContent() {
                       <button
                         className="chat-send-action"
                         onClick={handleSend}
-                        disabled={!inputText.trim()}
+                        disabled={!inputText.trim() || sending}
                       >
-                        发送
+                        {sending ? "发送中..." : "发送"}
                       </button>
                     </div>
                   </div>
@@ -441,13 +292,9 @@ export default function MessagesPageContent() {
                   <div key={idx} className="notif-item">
                     <div className="notif-avatar">
                       {notif.sender_avatar ? (
-                        <Image
-                          src={getThumbnailUrl(notif.sender_avatar, 64)}
+                        <MessageAvatar
+                          src={notif.sender_avatar}
                           alt={notif.sender_nickname}
-                          width={40}
-                          height={40}
-                          className="w-full h-full object-cover"
-                          unoptimized
                         />
                       ) : (
                         <div className="avatar-fallback">{notif.sender_nickname[0].toUpperCase()}</div>

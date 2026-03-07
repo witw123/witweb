@@ -6,7 +6,9 @@ import Image from "next/image";
 import { marked } from "marked";
 import createDOMPurify from "dompurify";
 import { useAuth } from "@/app/providers";
-import { getThumbnailUrl } from "@/utils/url";
+import { put } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
 /* ── Types ── */
 type AboutLink = { label: string; url: string };
@@ -93,7 +95,7 @@ function useFadeIn<T extends HTMLElement>() {
 
 /* ── Component ── */
 export default function AboutPage() {
-  const { token, user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -122,6 +124,8 @@ export default function AboutPage() {
   const isSuperAdmin = isAuthenticated && (user?.role === "super_admin" || user?.username === adminUsername);
   const displayName = adminProfile?.nickname || adminProfile?.username || about.updated_by || adminUsername;
   const profileUsername = adminProfile?.username || adminUsername;
+  const adminAvatarSrc = adminProfile?.avatar_url ? getThumbnailUrl(adminProfile.avatar_url, 128) : "";
+  const adminAvatarUnoptimized = shouldBypassImageOptimization(adminAvatarSrc);
 
   const renderedHtml = useMemo(() => {
     const parsed = marked.parse(about.content || DEFAULT_CONTENT, { gfm: true, breaks: true });
@@ -137,7 +141,7 @@ export default function AboutPage() {
   }, [about.updated_at]);
 
   useEffect(() => {
-    fetch("/api/about")
+    fetch(getVersionedApiPath("/about"))
       .then((res) => res.json())
       .then((payload) => {
         if (!payload?.success || !payload?.data) {
@@ -161,7 +165,7 @@ export default function AboutPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`/api/users/${encodeURIComponent(adminUsername)}/profile`)
+    fetch(getVersionedApiPath(`/users/${encodeURIComponent(adminUsername)}/profile`))
       .then((res) => res.json())
       .then((payload) => {
         if (!payload?.success || !payload?.data) return;
@@ -194,8 +198,14 @@ export default function AboutPage() {
   }
 
   async function handleSave() {
-    if (!token) { setStatus("请先登录后再操作。"); return; }
-    if (!about.title.trim() || !about.content.trim()) { setStatus("标题和内容不能为空。"); return; }
+    if (!isAuthenticated) {
+      setStatus("请先登录后再操作。");
+      return;
+    }
+    if (!about.title.trim() || !about.content.trim()) {
+      setStatus("标题和内容不能为空。");
+      return;
+    }
 
     const validLinks = editLinks.filter((l) => l.label.trim() && l.url.trim());
     const validSkills = editSkills
@@ -207,25 +217,13 @@ export default function AboutPage() {
     setStatus("");
 
     try {
-      const res = await fetch("/api/about", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
+      const data = await put<AboutPayload>(getVersionedApiPath("/about"), {
           title: about.title,
           subtitle: about.subtitle,
           content: about.content,
           links: validLinks,
           skills: validSkills,
-        }),
       });
-
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.success) {
-        setStatus(payload?.error?.message || "保存失败，请稍后重试。");
-        return;
-      }
-
-      const data = payload.data as AboutPayload;
       setAbout((prev) => ({
         ...prev,
         title: data.title,
@@ -268,11 +266,11 @@ export default function AboutPage() {
           <Link href={`/user/${profileUsername}`} className="about-hero__avatar">
             {adminProfile?.avatar_url ? (
               <Image
-                src={getThumbnailUrl(adminProfile.avatar_url, 128)}
+                src={adminAvatarSrc}
                 alt={displayName}
                 fill
                 className="about-hero__avatar-img"
-                unoptimized
+                unoptimized={adminAvatarUnoptimized}
               />
             ) : (
               <span className="about-hero__avatar-fallback">
@@ -380,7 +378,7 @@ export default function AboutPage() {
                 </button>
               </div>
               {editLinks.length === 0 && (
-                <p className="about-editor__hint">暂无链接，点击"+ 添加"新增一条。</p>
+                <p className="about-editor__hint">暂无链接，点击“+ 添加”新增一条。</p>
               )}
               <div className="about-editor__links-list">
                 {editLinks.map((link, index) => (

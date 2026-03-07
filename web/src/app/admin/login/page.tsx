@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import TurnstileWidget from "@/components/TurnstileWidget";
+import { getVersionedApiPath } from "@/lib/api-version";
 
 export default function AdminLoginPage() {
   const { login, isAuthenticated, loading } = useAuth();
@@ -21,12 +22,7 @@ export default function AdminLoginPage() {
     if (loading) return;
     if (!isAuthenticated) return;
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    void fetch("/api/admin/stats/overview", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    void fetch(getVersionedApiPath("/admin/stats/overview"))
       .then((res) => {
         if (res.ok) {
           router.replace("/admin");
@@ -51,7 +47,7 @@ export default function AdminLoginPage() {
 
     setLoadingSubmit(true);
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, captchaToken, adminOnly: true }),
@@ -66,7 +62,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      login(data.data.token, data.data.profile);
+      login(data.data.profile);
       router.replace("/admin");
     } catch {
       setError("网络异常，登录失败，请稍后重试");

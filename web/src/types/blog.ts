@@ -16,6 +16,8 @@ export interface Post {
   title: string;
   slug: string;
   content: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
   created_at: string;
   updated_at: string;
   author: string;
@@ -121,6 +123,8 @@ export interface PostListItem {
   title: string;
   slug: string;
   content: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
   created_at: string;
   author: string;
   tags: string | null;
@@ -231,6 +235,8 @@ export interface CreatePostRequest {
   content: string;
   tags?: string;
   category_id?: number | null;
+  excerpt?: string | null;
+  cover_image_url?: string | null;
 }
 
 /**
@@ -241,6 +247,8 @@ export interface UpdatePostRequest {
   content: string;
   tags: string;
   category_id?: number | null;
+  excerpt?: string | null;
+  cover_image_url?: string | null;
 }
 
 /**

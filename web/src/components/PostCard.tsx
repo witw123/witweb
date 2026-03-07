@@ -1,16 +1,17 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ThumbsUpIcon, ThumbsDownIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
-import { getThumbnailUrl } from "@/utils/url";
-import type { SuccessResponse } from "@/lib/api-response";
+import { ThumbsUpIcon, BookmarkIcon, MessageCircleIcon } from "@/components/Icons";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { post as postRequest } from "@/lib/api-client";
+import { useAuth } from "@/app/providers";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import type { PostListItem } from "@/types/blog";
 
 type PostCardProps = {
   post: PostListItem;
-  token?: string | null;
   onUpdate?: (updatedPost: PostListItem) => void;
   highlight?: string;
 };
@@ -23,183 +24,184 @@ type PostMetricsData = {
   favorited?: boolean;
 };
 
-export default function PostCard({ post, token, onUpdate, highlight = "" }: PostCardProps) {
+export default function PostCard({ post, onUpdate, highlight = "" }: PostCardProps) {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const titleText = post.title || "";
-  const rawPreview = (post.content || "").replace(/\s+/g, " ").trim();
+
+  // Use excerpt if available, otherwise use content preview
+  const rawPreview = post.excerpt || (post.content || "").replace(/\s+/g, " ").trim();
   const preview =
     rawPreview.length > 0
-      ? `${rawPreview.slice(0, 160)}${rawPreview.length > 160 ? "..." : ""}`
+      ? `${rawPreview.slice(0, 120)}${rawPreview.length > 120 ? "..." : ""}`
       : "暂无预览";
+
   const tagList = (post.tags || "")
     .split(/[,，]/)
     .map((tag: string) => tag.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 3);
+
   const normalizedQuery = highlight.trim().toLowerCase();
   const matchIndex = normalizedQuery
     ? titleText.toLowerCase().indexOf(normalizedQuery)
     : -1;
+
   const postAvatar = post.author_avatar || "";
   const avatarUrl = getThumbnailUrl(postAvatar, 64);
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarUrl);
+
+  // Cover image handling
+  const coverUrl = post.cover_image_url;
+  const coverUnoptimized = coverUrl ? shouldBypassImageOptimization(coverUrl) : false;
+
+  // Format date
+  const postDate = new Date(post.created_at);
+  const dateStr = postDate.toLocaleDateString("zh-CN", {
+    month: "short",
+    day: "numeric",
+  });
+
+  async function handleAction(
+    action: "like" | "dislike" | "favorite",
+    event: React.MouseEvent<HTMLButtonElement>
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const data = await postRequest<PostMetricsData>(
+        getVersionedApiPath(`/blog/${post.slug}/${action}`)
+      );
+      onUpdate?.({
+        ...post,
+        like_count: data.like_count ?? post.like_count,
+        dislike_count: data.dislike_count ?? post.dislike_count,
+        comment_count: data.comment_count ?? post.comment_count,
+        favorite_count: data.favorite_count ?? post.favorite_count,
+        favorited_by_me: data.favorited ?? post.favorited_by_me,
+      });
+    } catch {
+      // Keep the card interaction non-blocking.
+    }
+  }
 
   return (
-    <div className="card block no-underline text-inherit h-full flex flex-col">
-      <Link href={`/post/${post.slug}`} className="block no-underline text-inherit flex-1">
-        <div className="card-head flex justify-between items-start mb-2">
-          <div className="author flex items-center gap-2">
+    <article className="group card post-card-hover h-full flex flex-col overflow-hidden transition-all duration-200 hover:border-white/15 hover:bg-zinc-900/30 cursor-pointer">
+      {/* Cover image */}
+      {coverUrl ? (
+        <Link href={`/post/${post.slug}`} className="block relative aspect-[2.2/1] overflow-hidden -mt-4 -mx-4 mb-4">
+          <Image
+            src={coverUrl}
+            alt={titleText}
+            fill
+            sizes="(max-width: 768px) 100vw, 500px"
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            unoptimized={coverUnoptimized}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        </Link>
+      ) : null}
+
+      {/* Content */}
+      <div className="flex flex-1 flex-col">
+        {/* Author & Date */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
             {postAvatar ? (
               <Image
                 src={avatarUrl}
                 alt={post.author_name}
-                width={24}
-                height={24}
+                width={28}
+                height={28}
                 loading="lazy"
-                className="w-6 h-6 rounded-full"
-                unoptimized
+                className="w-7 h-7 rounded-full ring-2 ring-white/10"
+                unoptimized={avatarUnoptimized}
               />
             ) : (
-              <div className="avatar-fallback w-6 h-6 text-xs">{post.author_name?.[0] || "U"}</div>
+              <div className="avatar-fallback w-7 h-7 text-xs ring-2 ring-white/10">
+                {post.author_name?.[0] || "U"}
+              </div>
             )}
-            <span className="text-sm font-medium">{post.author_name || post.author || "未知作者"}</span>
+            <span className="text-sm font-medium text-zinc-300">{post.author_name || post.author || "未知作者"}</span>
           </div>
-          <span className="text-xs text-muted">{new Date(post.created_at).toLocaleString()}</span>
+          <time className="text-xs text-zinc-500" dateTime={post.created_at}>
+            {dateStr}
+          </time>
         </div>
 
-        <h2 className="text-xl font-bold mb-2 leading-tight">
-          {matchIndex >= 0 ? (
-            <>
-              {titleText.slice(0, matchIndex)}
-              <span className="highlight">
-                {titleText.slice(matchIndex, matchIndex + normalizedQuery.length)}
-              </span>
-              {titleText.slice(matchIndex + normalizedQuery.length)}
-            </>
-          ) : (
-            titleText
-          )}
-        </h2>
+        {/* Title */}
+        <Link href={`/post/${post.slug}`} className="block flex-1 no-underline text-inherit">
+          <h2 className="text-lg font-bold mb-2 leading-snug text-zinc-100 group-hover:text-blue-400 transition-colors line-clamp-2">
+            {matchIndex >= 0 ? (
+              <>
+                {titleText.slice(0, matchIndex)}
+                <span className="highlight bg-yellow-500/30 text-yellow-200">
+                  {titleText.slice(matchIndex, matchIndex + normalizedQuery.length)}
+                </span>
+                {titleText.slice(matchIndex + normalizedQuery.length)}
+              </>
+            ) : (
+              titleText
+            )}
+          </h2>
 
-        <p className="excerpt text-muted text-sm mb-4 line-clamp-2 leading-relaxed">
-          {preview}
-        </p>
-      </Link>
+          {/* Excerpt */}
+          <p className="text-sm text-zinc-400 mb-3 line-clamp-2 leading-relaxed">
+            {preview}
+          </p>
+        </Link>
 
-      <div className="post-card-footer flex justify-between items-center mt-auto pt-3 border-t border-white/5">
-        <div className="tag-list">
-          {tagList.map((tag: string) => (
-            <span key={tag} className="tag-pill">#{tag}</span>
-          ))}
-        </div>
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
+          {/* Tags */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {tagList.map((tag: string) => (
+              <span key={tag} className="tag-pill text-xs">#{tag}</span>
+            ))}
+          </div>
 
-        <div className="post-card-actions flex gap-1">
-          <button
-            className="btn-ghost btn-sm"
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (!token) {
-                router.push("/login");
-                return;
-              }
-              fetch(`/api/blog/${post.slug}/like`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-              })
-                .then((res) => res.json())
-                .then((payload) => {
-                  const data = (payload as SuccessResponse<PostMetricsData> | undefined)?.data;
-                  if (!data) return;
-                  onUpdate?.({
-                    ...post,
-                    like_count: data.like_count ?? post.like_count,
-                    dislike_count: data.dislike_count ?? post.dislike_count,
-                    comment_count: data.comment_count ?? post.comment_count,
-                    favorite_count: data.favorite_count ?? post.favorite_count,
-                  });
-                })
-                .catch(() => { });
-            }}
-          >
-            <ThumbsUpIcon className="inline" /> {post.like_count ?? 0}
-          </button>
-          <button
-            className="btn-ghost btn-sm"
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (!token) {
-                router.push("/login");
-                return;
-              }
-              fetch(`/api/blog/${post.slug}/dislike`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-              })
-                .then((res) => res.json())
-                .then((payload) => {
-                  const data = (payload as SuccessResponse<PostMetricsData> | undefined)?.data;
-                  if (!data) return;
-                  onUpdate?.({
-                    ...post,
-                    like_count: data.like_count ?? post.like_count,
-                    dislike_count: data.dislike_count ?? post.dislike_count,
-                    comment_count: data.comment_count ?? post.comment_count,
-                    favorite_count: data.favorite_count ?? post.favorite_count,
-                  });
-                })
-                .catch(() => { });
-            }}
-          >
-            <ThumbsDownIcon className="inline" /> {post.dislike_count ?? 0}
-          </button>
-          <button
-            className={`btn-ghost btn-sm ${post.favorited_by_me ? "text-accent" : ""}`}
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (!token) {
-                router.push("/login");
-                return;
-              }
-              fetch(`/api/blog/${post.slug}/favorite`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-              })
-                .then((res) => res.json())
-                .then((payload) => {
-                  const data = (payload as SuccessResponse<PostMetricsData> | undefined)?.data;
-                  if (!data) return;
-                  onUpdate?.({
-                    ...post,
-                    like_count: data.like_count ?? post.like_count,
-                    dislike_count: data.dislike_count ?? post.dislike_count,
-                    comment_count: data.comment_count ?? post.comment_count,
-                    favorite_count: data.favorite_count ?? post.favorite_count,
-                    favorited_by_me: data.favorited ?? post.favorited_by_me,
-                  });
-                })
-                .catch(() => { });
-            }}
-          >
-            <BookmarkIcon filled={post.favorited_by_me} className="inline" /> {post.favorite_count ?? 0}
-          </button>
-          <button
-            className="btn-ghost btn-sm"
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              router.push(`/post/${post.slug}#comments`);
-            }}
-          >
-            <MessageCircleIcon className="inline" /> {post.comment_count ?? 0}
-          </button>
+          {/* Actions */}
+          <div className="flex items-center gap-0.5">
+            <button
+              className="btn-ghost btn-sm px-2 text-zinc-500 hover:text-blue-400"
+              type="button"
+              onClick={(event) => void handleAction("like", event)}
+            >
+              <ThumbsUpIcon className="inline w-4 h-4" />
+              <span className="ml-1 text-xs">{post.like_count ?? 0}</span>
+            </button>
+            <button
+              className="btn-ghost btn-sm px-2 text-zinc-500 hover:text-blue-400"
+              type="button"
+              onClick={(event) => void handleAction("favorite", event)}
+            >
+              <BookmarkIcon
+                filled={post.favorited_by_me}
+                className={`inline w-4 h-4 ${post.favorited_by_me ? "text-blue-400" : ""}`}
+              />
+              <span className="ml-1 text-xs">{post.favorite_count ?? 0}</span>
+            </button>
+            <button
+              className="btn-ghost btn-sm px-2 text-zinc-500 hover:text-blue-400"
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                router.push(`/post/${post.slug}#comments`);
+              }}
+            >
+              <MessageCircleIcon className="inline w-4 h-4" />
+              <span className="ml-1 text-xs">{post.comment_count ?? 0}</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
-

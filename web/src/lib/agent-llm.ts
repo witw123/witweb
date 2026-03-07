@@ -1,5 +1,6 @@
 ﻿import "server-only";
 import { ApiError, ErrorCode } from "@/lib/api-error";
+import { agentConfig } from "@/lib/config";
 
 export type AgentType = "topic" | "writing" | "publish";
 export const AGENT_MODELS = ["gemini-3-pro", "gemini-2.5-pro", "gemini-2.5-flash"] as const;
@@ -387,9 +388,9 @@ export async function generateAgentDraft(
     customSystemPrompt?: string;
   } = {}
 ): Promise<AgentDraftBundle> {
-  const endpoint = process.env.AGENT_LLM_ENDPOINT?.trim();
-  const apiKey = process.env.AGENT_LLM_API_KEY?.trim();
-  const envModel = process.env.AGENT_LLM_MODEL?.trim() || "gemini-3-pro";
+  const endpoint = agentConfig.endpoint;
+  const apiKey = agentConfig.apiKey;
+  const envModel = agentConfig.model || "gemini-3-pro";
   const model = (options.model || envModel) as AgentModel;
 
   if (!endpoint) {
@@ -498,9 +499,9 @@ export async function generateRadarAnalysis(
     model?: AgentModel;
   } = {}
 ): Promise<RadarAnalysisResult> {
-  const endpoint = process.env.AGENT_LLM_ENDPOINT?.trim();
-  const apiKey = process.env.AGENT_LLM_API_KEY?.trim();
-  const envModel = process.env.AGENT_LLM_MODEL?.trim() || "gemini-3-pro";
+  const endpoint = agentConfig.endpoint;
+  const apiKey = agentConfig.apiKey;
+  const envModel = agentConfig.model || "gemini-3-pro";
   const model = (options.model || envModel) as AgentModel;
 
   if (!endpoint) {

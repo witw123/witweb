@@ -74,6 +74,8 @@ NEXT_PUBLIC_TURNSTILE_ENABLED=true
 ```bash
 npm run db:migrate:status
 npm run db:migrate
+npm run db:drizzle:generate
+npm run db:drizzle:studio
 ```
 
 ### 5. 启动开发服务
@@ -233,5 +235,13 @@ sudo certbot --nginx -d your-domain.com
 ## 安全与文档
 
 - 安全修复与配置建议：`docs/SECURITY_FIXES.md`
+- API 参考：`docs/API_REFERENCE.md`
+- API 版本控制：`docs/API_VERSIONING.md`
+- API 弃用清单：`docs/API_DEPRECATION_TRACKER.md`
+- 架构与开发工作流：`docs/ARCHITECTURE_AND_WORKFLOW.md`
+- 项目评估与迭代路线：`docs/PROJECT_ASSESSMENT_AND_ROADMAP.md`
+- ORM 引入策略：`docs/ORM_STRATEGY.md`
+- 状态管理策略：`docs/STATE_MANAGEMENT_STRATEGY.md`
+- 状态管理迁移进度：`docs/STATE_MANAGEMENT_PROGRESS.md`
 - `AUTH_SECRET`、`ENCRYPTION_KEY` 在生产环境必须配置且足够强。
 - 不要提交 `.env.local`。

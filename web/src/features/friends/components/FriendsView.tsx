@@ -1,10 +1,14 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
-import type { SuccessResponse } from "@/lib/api-response";
+import { getPaginated } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
 import type { FollowerItem, FollowingItem } from "@/types/user";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
 type Friend = {
   id: number;
@@ -16,75 +20,67 @@ type Friend = {
   discriminator?: string;
 };
 
-function readSuccessData<T>(payload: unknown): T | null {
-  if (!payload || typeof payload !== "object") return null;
-  const parsed = payload as Partial<SuccessResponse<T>>;
-  if (parsed.success !== true) return null;
-  return parsed.data ?? null;
-}
-
 export default function FriendsView() {
   const [activeTab, setActiveTab] = useState<"online" | "all" | "pending" | "blocked" | "add">("all");
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const { token } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const followingQuery = useQuery({
+    queryKey: queryKeys.following("friends"),
+    queryFn: () =>
+      getPaginated<FollowingItem>(getVersionedApiPath("/following"), {
+        page: 1,
+        size: 100,
+      }),
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
+  const followersQuery = useQuery({
+    queryKey: queryKeys.followers("friends"),
+    queryFn: () =>
+      getPaginated<FollowerItem>(getVersionedApiPath("/followers"), {
+        page: 1,
+        size: 100,
+      }),
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!token) return;
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const [followingRes, followersRes] = await Promise.all([
-          fetch("/api/following?size=100", { headers }),
-          fetch("/api/followers?size=100", { headers }),
-        ]);
+  const friends = useMemo(() => {
+    const followingItems = followingQuery.data?.items || [];
+    const followerItems = followersQuery.data?.items || [];
+    const map = new Map<string, Friend>();
+    let idx = 1;
 
-        if (!followingRes.ok || !followersRes.ok) return;
+    followingItems.forEach((u) => {
+      map.set(u.username, {
+        id: idx++,
+        username: u.username,
+        avatar_url: u.avatar_url,
+        status: u.username === "witw" ? "online" : "offline",
+        activity: u.bio,
+        type: u.is_mutual ? "friend" : "outgoing",
+        discriminator: "0000",
+      });
+    });
 
-        const followingResponse = await followingRes.json().catch(() => ({}));
-        const followersResponse = await followersRes.json().catch(() => ({}));
-        const followingData = readSuccessData<{ items: FollowingItem[] }>(followingResponse) || { items: [] };
-        const followersData = readSuccessData<{ items: FollowerItem[] }>(followersResponse) || { items: [] };
-
-        const map = new Map<string, Friend>();
-        let idx = 1;
-
-        (followingData.items || []).forEach((u) => {
-          map.set(u.username, {
-            id: idx++,
-            username: u.username,
-            avatar_url: u.avatar_url,
-            status: u.username === "witw" ? "online" : "offline",
-            activity: u.bio,
-            type: u.is_mutual ? "friend" : "outgoing",
-            discriminator: "0000",
-          });
-        });
-
-        (followersData.items || []).forEach((u) => {
-          if (map.has(u.username)) {
-            const existing = map.get(u.username)!;
-            if (u.is_following) existing.type = "friend";
-            return;
-          }
-          map.set(u.username, {
-            id: idx++,
-            username: u.username,
-            avatar_url: u.avatar_url,
-            status: u.username === "witw" ? "online" : "offline",
-            activity: u.bio,
-            type: "incoming",
-            discriminator: "0000",
-          });
-        });
-
-        setFriends(Array.from(map.values()));
-      } catch (error) {
-        console.error("Failed to fetch friends", error);
+    followerItems.forEach((u) => {
+      const existing = map.get(u.username);
+      if (existing) {
+        if (u.is_following) existing.type = "friend";
+        return;
       }
-    }
+      map.set(u.username, {
+        id: idx++,
+        username: u.username,
+        avatar_url: u.avatar_url,
+        status: u.username === "witw" ? "online" : "offline",
+        activity: u.bio,
+        type: "incoming",
+        discriminator: "0000",
+      });
+    });
 
-    void fetchData();
-  }, [token]);
+    return Array.from(map.values());
+  }, [followersQuery.data?.items, followingQuery.data?.items]);
 
   const filteredFriends = useMemo(
     () =>
@@ -159,7 +155,7 @@ export default function FriendsView() {
           <h3 className="mb-4 text-xl font-bold text-[#ededed]">好友动态</h3>
           <div className="rounded-lg border border-[#333] bg-[#111] p-8 text-center">
             <h4 className="mb-2 font-bold text-[#ededed]">现在很安静....</h4>
-            <p className="text-sm text-[#a1a1a1]">当好友开始活动时（例如游戏中或语音聊天中），状态会显示在这里。</p>
+            <p className="text-sm text-[#a1a1a1]">当好友开始活动时，状态会显示在这里。</p>
           </div>
         </div>
       </div>
@@ -181,13 +177,16 @@ function TabButton({ label, isActive, onClick }: { label: string; isActive: bool
 }
 
 function FriendItem({ friend }: { friend: Friend }) {
+  const avatarSrc = friend.avatar_url ? getThumbnailUrl(friend.avatar_url, 80) : "";
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
+
   return (
     <div className="group flex cursor-pointer items-center justify-between rounded-lg border-t border-[#333]/50 p-3 transition-colors hover:bg-[#111]">
       <div className="flex items-center gap-4">
         <div className="relative">
           <div className={`flex h-10 w-10 items-center justify-center rounded-full ${friend.avatar_url ? "" : "bg-[#0070f3]"} font-medium text-white`}>
             {friend.avatar_url ? (
-              <Image src={friend.avatar_url} alt={friend.username} width={40} height={40} className="h-full w-full rounded-full object-cover" unoptimized />
+              <Image src={avatarSrc} alt={friend.username} width={40} height={40} className="h-full w-full rounded-full object-cover" unoptimized={avatarUnoptimized} />
             ) : (
               friend.username[0].toUpperCase()
             )}

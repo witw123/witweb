@@ -1,55 +1,20 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
-import { useRouter } from "next/navigation";
+import type { RadarSource } from "./hooks/useRadarSources";
+import { useRadarSources } from "./hooks/useRadarSources";
+import { useRadarItems, type RadarItem } from "./hooks/useRadarItems";
+import { useRadarTopics } from "./hooks/useRadarTopics";
 
-type RadarSource = {
-  id: number;
+type RadarTab = "discover" | "sources" | "automation" | "library";
+type SourceFormMode = "existing" | "new";
+type SourceFormState = {
   name: string;
   url: string;
   type: "rss" | "html" | "api";
-  parser_config_json?: string;
-  enabled: number;
-  last_fetch_status?: "idle" | "ok" | "failed";
-  last_fetch_error?: string;
-  last_fetched_at?: string | null;
-  last_fetch_count?: number;
-  updated_at: string;
-};
-
-type RadarItem = {
-  id: number;
-  source_id: number;
-  source_name: string;
-  title: string;
-  url: string;
-  summary: string;
-  published_at: string;
-  score: number;
-};
-
-type RadarTab = "discover" | "sources" | "automation" | "library";
-
-type RadarAnalysisResult = {
-  summary: string;
-  keywords: string[];
-  angles: string[];
-  risks: string[];
-  markdown: string;
-};
-
-type RadarTopic = {
-  id: number;
-  kind: "item" | "analysis";
-  title: string;
-  summary: string;
-  content: string;
-  source_name: string;
-  source_url: string;
-  score: number;
-  tags?: string[];
-  created_at: string;
+  parser: string;
+  enabled: boolean;
 };
 
 function formatDate(value?: string) {
@@ -74,308 +39,258 @@ function sourceHealthText(source: RadarSource) {
 }
 
 export function RadarLayout() {
-  const { token, logout, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const authHeaders = useMemo<Record<string, string>>(() => {
-    if (token) return { Authorization: `Bearer ${token}` } as Record<string, string>;
-    return {} as Record<string, string>;
-  }, [token]);
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
   const [tab, setTab] = useState<RadarTab>("discover");
-  const [sources, setSources] = useState<RadarSource[]>([]);
-  const [items, setItems] = useState<RadarItem[]>([]);
-  const [analysis, setAnalysis] = useState<RadarAnalysisResult | null>(null);
-  const [topics, setTopics] = useState<RadarTopic[]>([]);
+  const [error, setError] = useState("");
 
   const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [topicQ, setTopicQ] = useState("");
+  const [appliedTopicQ, setAppliedTopicQ] = useState("");
   const [analysisQ, setAnalysisQ] = useState("");
   const [analysisFocus, setAnalysisFocus] = useState("");
   const [analysisLimit, setAnalysisLimit] = useState("30");
 
-  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
-  const [sourceName, setSourceName] = useState("");
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [sourceType, setSourceType] = useState<"rss" | "html" | "api">("rss");
-  const [sourceParser, setSourceParser] = useState("");
-  const [sourceEnabled, setSourceEnabled] = useState(true);
+  const [sourceFormMode, setSourceFormMode] = useState<SourceFormMode>("existing");
+  const [selectedSourceIdState, setSelectedSourceId] = useState<number | null>(null);
+  const [sourceForm, setSourceForm] = useState<SourceFormState>({
+    name: "",
+    url: "",
+    type: "rss",
+    parser: "",
+    enabled: true,
+  });
 
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    sources,
+    loadingSources,
+    refreshSources,
+    saveSource,
+    savingSource,
+    deleteSource,
+    deletingSource,
+    fetchNow,
+    fetchingNow,
+  } = useRadarSources(isAuthenticated);
 
-  const sourceList = useMemo(() => [...sources].sort((a, b) => b.enabled - a.enabled), [sources]);
+  const {
+    items,
+    loadingItems,
+    refreshItems,
+    clearItems,
+    clearingItems,
+    analyze,
+    analyzing,
+    analysisResult,
+  } = useRadarItems(isAuthenticated, { q: appliedQ, limit: 120 });
+
+  const {
+    topics,
+    loadingTopics,
+    refreshTopics,
+    saveTopic,
+    savingTopic,
+    deleteTopic,
+    deletingTopic,
+  } = useRadarTopics(isAuthenticated, { q: appliedTopicQ, limit: 120 });
+
+  const sourceList = useMemo(
+    () => [...sources].sort((a, b) => b.enabled - a.enabled),
+    [sources]
+  );
+
+  const toSourceForm = (source?: RadarSource | null): SourceFormState => ({
+    name: source?.name || "",
+    url: source?.url || "",
+    type: source?.type || "rss",
+    parser: source?.parser_config_json || "",
+    enabled: source ? source.enabled === 1 : true,
+  });
+
+  const selectedSourceId = useMemo(() => {
+    if (sourceFormMode === "new" || sourceList.length === 0) return null;
+    if (
+      selectedSourceIdState != null &&
+      sourceList.some((item) => item.id === selectedSourceIdState)
+    ) {
+      return selectedSourceIdState;
+    }
+    return sourceList[0].id;
+  }, [selectedSourceIdState, sourceFormMode, sourceList]);
 
   const selectedSource = useMemo(
     () => sourceList.find((item) => item.id === selectedSourceId) || null,
     [sourceList, selectedSourceId]
   );
-  const handleUnauthorized = useCallback(() => {
-    setError("登录已失效，请重新登录");
-    logout();
-    router.push("/login");
-  }, [logout, router]);
-
-  const resetSourceForm = useCallback(() => {
-    setSelectedSourceId(null);
-    setSourceName("");
-    setSourceUrl("");
-    setSourceType("rss");
-    setSourceParser("");
-    setSourceEnabled(true);
-  }, []);
-
-  const loadSources = useCallback(async () => {
-    const res = await fetch("/api/radar/sources", { headers: authHeaders });
-    if (res.status === 401) return handleUnauthorized();
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.success) {
-      const list = data.data.items || [];
-      setSources(list);
-      if (list.length > 0 && (selectedSourceId == null || !list.some((item: RadarSource) => item.id === selectedSourceId))) {
-        setSelectedSourceId(list[0].id);
-      }
-      if (list.length === 0) resetSourceForm();
+  const activeSourceForm = useMemo(() => {
+    if (sourceFormMode === "new") return sourceForm;
+    if (
+      selectedSourceIdState == null &&
+      selectedSource &&
+      sourceForm.name === "" &&
+      sourceForm.url === ""
+    ) {
+      return toSourceForm(selectedSource);
     }
-  }, [authHeaders, handleUnauthorized, resetSourceForm, selectedSourceId]);
+    return sourceForm;
+  }, [selectedSource, selectedSourceIdState, sourceForm, sourceFormMode]);
 
-  const loadItems = useCallback(async (keyword = q) => {
-    const params = new URLSearchParams();
-    params.set("limit", "120");
-    if (keyword.trim()) params.set("q", keyword.trim());
+  const sourceName = activeSourceForm.name;
+  const sourceUrl = activeSourceForm.url;
+  const sourceType = activeSourceForm.type;
+  const sourceParser = activeSourceForm.parser;
+  const sourceEnabled = activeSourceForm.enabled;
+  const setSourceName = (value: string) =>
+    setSourceForm((prev) => ({ ...prev, name: value }));
+  const setSourceUrl = (value: string) =>
+    setSourceForm((prev) => ({ ...prev, url: value }));
+  const setSourceType = (value: "rss" | "html" | "api") =>
+    setSourceForm((prev) => ({ ...prev, type: value }));
+  const setSourceParser = (value: string) =>
+    setSourceForm((prev) => ({ ...prev, parser: value }));
+  const setSourceEnabled = (value: boolean) =>
+    setSourceForm((prev) => ({ ...prev, enabled: value }));
 
-    const res = await fetch(`/api/radar/items?${params.toString()}`, { headers: authHeaders });
-    if (res.status === 401) return handleUnauthorized();
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.success) setItems(data.data.items || []);
-  }, [authHeaders, handleUnauthorized, q]);
+  const resetSourceForm = () => {
+    setSourceFormMode("new");
+    setSelectedSourceId(null);
+    setSourceForm(toSourceForm(null));
+  };
 
-  const loadTopics = useCallback(async (keyword = topicQ) => {
-    const params = new URLSearchParams();
-    params.set("limit", "120");
-    if (keyword.trim()) params.set("q", keyword.trim());
+  const selectSource = (source: RadarSource) => {
+    setSourceFormMode("existing");
+    setSelectedSourceId(source.id);
+    setSourceForm(toSourceForm(source));
+  };
 
-    const res = await fetch(`/api/radar/topics?${params.toString()}`, { headers: authHeaders });
-    if (res.status === 401) return handleUnauthorized();
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.success) setTopics(data.data.items || []);
-  }, [authHeaders, handleUnauthorized, topicQ]);
-
-  const initialize = useCallback(async () => {
-    if (authLoading || !token) return;
-    setLoading(true);
+  async function initialize() {
     setError("");
     try {
-      await Promise.all([loadSources(), loadItems(""), loadTopics("")]);
+      await Promise.all([refreshSources(), refreshItems(), refreshTopics()]);
     } catch {
       setError("加载失败，请稍后重试");
-    } finally {
-      setLoading(false);
     }
-  }, [authLoading, loadItems, loadSources, loadTopics, token]);
+  }
 
-  useEffect(() => {
-    void initialize();
-  }, [initialize]);
-
-  useEffect(() => {
-    if (!selectedSource) return;
-    setSourceName(selectedSource.name);
-    setSourceUrl(selectedSource.url);
-    setSourceType(selectedSource.type);
-    setSourceParser(selectedSource.parser_config_json || "{}");
-    setSourceEnabled(selectedSource.enabled === 1);
-  }, [selectedSourceId, selectedSource]);
-
-  async function saveSource() {
-    if (!sourceName.trim() || !sourceUrl.trim()) return;
+  async function handleSaveSource() {
+    if (!activeSourceForm.name.trim() || !activeSourceForm.url.trim()) return;
     setError("");
 
-    if (sourceParser.trim()) {
+    if (activeSourceForm.parser.trim()) {
       try {
-        JSON.parse(sourceParser);
+        JSON.parse(activeSourceForm.parser);
       } catch {
         setError("Parser 配置必须是合法 JSON");
         return;
       }
     }
 
-    const body = {
-      name: sourceName.trim(),
-      url: sourceUrl.trim(),
-      type: sourceType,
-      parser_config_json: sourceParser.trim() || "{}",
-      enabled: sourceEnabled,
-    };
-
-    const endpoint = selectedSourceId ? `/api/radar/sources/${selectedSourceId}` : "/api/radar/sources";
-    const method = selectedSourceId ? "PATCH" : "POST";
-
-    const res = await fetch(endpoint, {
-      method,
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.success) {
-      setError(data?.error?.message || "保存来源失败");
-      return;
+    try {
+      await saveSource({
+        sourceId: sourceFormMode === "existing" ? selectedSourceId : null,
+        payload: {
+          name: activeSourceForm.name.trim(),
+          url: activeSourceForm.url.trim(),
+          type: activeSourceForm.type,
+          parser_config_json: activeSourceForm.parser.trim() || "{}",
+          enabled: activeSourceForm.enabled,
+        },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存来源失败");
     }
-
-    await loadSources();
   }
 
-  async function removeSource(sourceId: number) {
-    await fetch(`/api/radar/sources/${sourceId}`, { method: "DELETE", headers: authHeaders });
-    await loadSources();
-  }
-
-  async function fetchNow(sourceId?: number) {
-    setFetching(true);
+  async function handleRemoveSource(sourceId: number) {
     setError("");
     try {
-      const res = await fetch("/api/radar/fetch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify(sourceId ? { source_id: sourceId } : {}),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) {
-        setError(data?.error?.message || "抓取失败，请检查来源可达性");
-        return;
-      }
-      await Promise.all([loadItems()]);
-    } catch {
-      setError("抓取失败，请检查来源可达性");
-    } finally {
-      setFetching(false);
+      await deleteSource(sourceId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除来源失败");
     }
   }
 
-  async function search() {
-    await loadItems(q);
+  async function handleFetchNow(sourceId?: number) {
+    setError("");
+    try {
+      await fetchNow(sourceId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "抓取失败，请检查来源可达性");
+    }
   }
 
-  async function clearItems() {
+  async function handleClearItems() {
     const ok = window.confirm("确认清空热点列表吗？此操作会删除当前账号的雷达抓取结果。");
     if (!ok) return;
-
-    const res = await fetch("/api/radar/items", { method: "DELETE", headers: authHeaders });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.success) {
-      setError(data?.error?.message || "清空失败，请稍后重试");
-      return;
+    setError("");
+    try {
+      await clearItems(undefined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "清空失败，请稍后重试");
     }
-    setItems([]);
-    setAnalysis(null);
   }
 
   async function saveTopicFromItem(item: RadarItem) {
-    setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/radar/topics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({
-          kind: "item",
-          title: item.title,
-          summary: item.summary,
-          source_name: item.source_name,
-          source_url: item.url,
-          score: item.score,
-        }),
+      await saveTopic({
+        kind: "item",
+        title: item.title,
+        summary: item.summary,
+        source_name: item.source_name,
+        source_url: item.url,
+        score: item.score,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) {
-        setError(data?.error?.message || "保存选题失败");
-        return;
-      }
-      await loadTopics();
-    } catch {
-      setError("保存选题失败，请稍后重试");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存选题失败");
     }
   }
 
   async function runAnalysis() {
-    setAnalyzing(true);
     setError("");
     try {
       const limit = Number(analysisLimit || "30");
-      const res = await fetch("/api/radar/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({
-          limit: Number.isFinite(limit) ? limit : 30,
-          q: analysisQ.trim() || undefined,
-          focus: analysisFocus.trim() || undefined,
-          source_id: selectedSourceId || undefined,
-        }),
+      await analyze({
+        limit: Number.isFinite(limit) ? limit : 30,
+        q: analysisQ.trim() || undefined,
+        focus: analysisFocus.trim() || undefined,
+        sourceId: selectedSourceId,
       });
-      if (res.status === 401) return handleUnauthorized();
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) {
-        setError(data?.error?.message || "AI 分析失败");
-        return;
-      }
-      setAnalysis(data.data.analysis || null);
-    } catch {
-      setError("AI 分析失败，请稍后重试");
-    } finally {
-      setAnalyzing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI 分析失败");
     }
   }
 
   async function saveAnalysisTopic() {
-    if (!analysis) return;
-    setSaving(true);
+    if (!analysisResult) return;
     setError("");
     try {
-      const res = await fetch("/api/radar/topics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({
-          kind: "analysis",
-          title: `AI 分析结论 ${new Date().toLocaleDateString("zh-CN")}`,
-          summary: analysis.summary,
-          content: analysis.markdown,
-          source_name: selectedSource?.name || "全部来源",
-          source_url: "",
-          score: 0,
-          tags: analysis.keywords,
-        }),
+      await saveTopic({
+        kind: "analysis",
+        title: `AI 分析结论 ${new Date().toLocaleDateString("zh-CN")}`,
+        summary: analysisResult.summary,
+        content: analysisResult.markdown,
+        source_name: selectedSource?.name || "全部来源",
+        source_url: "",
+        score: 0,
+        tags: analysisResult.keywords,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) {
-        setError(data?.error?.message || "保存分析失败");
-        return;
-      }
-      await loadTopics();
       setTab("library");
-    } catch {
-      setError("保存分析失败，请稍后重试");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存分析失败");
     }
   }
 
-  async function removeTopic(topicId: number) {
+  async function handleRemoveTopic(topicId: number) {
     const ok = window.confirm("确认删除这个已保存选题吗？");
     if (!ok) return;
     setError("");
-    await fetch(`/api/radar/topics/${topicId}`, {
-      method: "DELETE",
-      headers: authHeaders,
-    });
-    await loadTopics();
-  }
-
-  async function searchTopics() {
-    await loadTopics(topicQ);
+    try {
+      await deleteTopic(topicId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除选题失败");
+    }
   }
 
   const stats = useMemo(() => {
@@ -384,22 +299,38 @@ export function RadarLayout() {
       sources: sources.length,
       enabledSources,
       items: items.length,
-      analyzed: analysis ? 1 : 0,
+      analyzed: analysisResult ? 1 : 0,
       selectedSource: selectedSourceId ? 1 : 0,
       topics: topics.length,
     };
-  }, [sources, items, analysis, selectedSourceId, topics]);
+  }, [sources, items, analysisResult, selectedSourceId, topics]);
+
+  const loading = authLoading || loadingSources || loadingItems || loadingTopics;
+
+  if (!isAuthenticated && !authLoading) {
+    return <div className="studio-empty">请先登录后使用。</div>;
+  }
 
   return (
     <section className="radar-shell radar-shell-v2">
       <div className="studio-section-head radar-head-v2">
         <div>
           <h2 className="agent-title">选题雷达</h2>
-          <p className="agent-subtitle">抓取热点，筛选选题，并用 AI 直接产出分析结论。</p>
+          <p className="agent-subtitle">
+            抓取热点，筛选选题，并用 AI 直接产出分析结论。
+          </p>
         </div>
         <div className="radar-head-actions">
-          <button className="studio-btn studio-btn-secondary" onClick={() => initialize()} disabled={loading}>刷新</button>
-          <button className="studio-btn studio-btn-primary" onClick={() => fetchNow()} disabled={fetching || loading}>{fetching ? "抓取中..." : "抓取全部来源"}</button>
+          <button className="studio-btn studio-btn-secondary" onClick={() => void initialize()} disabled={loading}>
+            刷新
+          </button>
+          <button
+            className="studio-btn studio-btn-primary"
+            onClick={() => void handleFetchNow()}
+            disabled={fetchingNow || loading}
+          >
+            {fetchingNow ? "抓取中..." : "抓取全部来源"}
+          </button>
         </div>
       </div>
 
@@ -423,13 +354,13 @@ export function RadarLayout() {
         <section className="studio-panel studio-panel-glass">
           <h3 className="studio-title-3">热点发现</h3>
           <div className="radar-action-row mt-3">
-            <input className="studio-input" placeholder="按关键词筛选标题/摘要" value={q} onChange={(e) => setQ(e.target.value)} />
-            <button className="studio-btn studio-btn-secondary" onClick={search}>筛选</button>
-            <button className="studio-btn studio-btn-secondary" onClick={clearItems}>清空热点</button>
+            <input className="studio-input" placeholder="按关键词筛选标题或摘要" value={q} onChange={(e) => setQ(e.target.value)} />
+            <button className="studio-btn studio-btn-secondary" onClick={() => setAppliedQ(q)}>筛选</button>
+            <button className="studio-btn studio-btn-secondary" onClick={() => void handleClearItems()} disabled={clearingItems}>清空热点</button>
           </div>
 
           <div className="mt-4 space-y-3">
-            {items.length === 0 && <div className="text-sm text-zinc-500">暂无热点，先抓取来源</div>}
+            {items.length === 0 && !loadingItems && <div className="text-sm text-zinc-500">暂无热点，先抓取来源</div>}
             {items.map((item) => (
               <article key={item.id} className="radar-item-card">
                 <a href={item.url} target="_blank" rel="noreferrer" className="radar-item-title">{item.title}</a>
@@ -440,7 +371,7 @@ export function RadarLayout() {
                   <span>{formatDate(item.published_at)}</span>
                 </div>
                 <div className="radar-item-actions">
-                  <button className="studio-btn studio-btn-secondary" onClick={() => saveTopicFromItem(item)} disabled={saving}>
+                  <button className="studio-btn studio-btn-secondary" onClick={() => void saveTopicFromItem(item)} disabled={savingTopic}>
                     保存选题
                   </button>
                 </div>
@@ -458,9 +389,9 @@ export function RadarLayout() {
               <button className="studio-btn studio-btn-secondary" onClick={resetSourceForm}>新建</button>
             </div>
             <div className="mt-3 space-y-2">
-              {sourceList.length === 0 && <div className="text-sm text-zinc-500">暂无来源</div>}
+              {sourceList.length === 0 && !loadingSources && <div className="text-sm text-zinc-500">暂无来源</div>}
               {sourceList.map((source) => (
-                <button key={source.id} className={`radar-list-item ${selectedSourceId === source.id ? "is-active" : ""}`} onClick={() => setSelectedSourceId(source.id)}>
+                <button key={source.id} className={`radar-list-item ${selectedSourceId === source.id ? "is-active" : ""}`} onClick={() => selectSource(source)}>
                   <span className="title">{source.name}</span>
                   <span className="meta">{source.type.toUpperCase()} · {source.enabled ? "启用" : "停用"}</span>
                   <span className={`meta ${source.last_fetch_status === "failed" ? "is-failed" : source.last_fetch_status === "ok" ? "is-ok" : ""}`}>
@@ -485,11 +416,11 @@ export function RadarLayout() {
               <label className="radar-check"><input type="checkbox" checked={sourceEnabled} onChange={(e) => setSourceEnabled(e.target.checked)} />启用该来源</label>
             </div>
             <div className="radar-form-actions mt-3">
-              <button className="studio-btn studio-btn-primary" onClick={saveSource}>{selectedSourceId ? "保存修改" : "创建来源"}</button>
+              <button className="studio-btn studio-btn-primary" onClick={() => void handleSaveSource()} disabled={savingSource}>{selectedSourceId ? "保存修改" : "创建来源"}</button>
               {selectedSourceId ? (
                 <>
-                  <button className="studio-btn studio-btn-secondary" onClick={() => fetchNow(selectedSourceId)} disabled={fetching}>抓取该来源</button>
-                  <button className="studio-btn studio-btn-secondary" onClick={() => removeSource(selectedSourceId)}>删除</button>
+                  <button className="studio-btn studio-btn-secondary" onClick={() => void handleFetchNow(selectedSourceId)} disabled={fetchingNow}>抓取该来源</button>
+                  <button className="studio-btn studio-btn-secondary" onClick={() => void handleRemoveSource(selectedSourceId)} disabled={deletingSource}>删除</button>
                 </>
               ) : null}
             </div>
@@ -506,7 +437,7 @@ export function RadarLayout() {
             <div className="mt-3 space-y-2">
               <input
                 className="studio-input"
-                placeholder="分析重点（例如：AI 产品机会、商业化、内容方向）"
+                placeholder="分析重点，例如 AI 产品机会、商业化、内容方向"
                 value={analysisFocus}
                 onChange={(e) => setAnalysisFocus(e.target.value)}
               />
@@ -527,10 +458,10 @@ export function RadarLayout() {
               />
             </div>
             <div className="radar-form-actions mt-3">
-              <button className="studio-btn studio-btn-primary" onClick={runAnalysis} disabled={analyzing || loading}>
+              <button className="studio-btn studio-btn-primary" onClick={() => void runAnalysis()} disabled={analyzing || loading}>
                 {analyzing ? "分析中..." : "开始 AI 分析"}
               </button>
-              <button className="studio-btn studio-btn-secondary" onClick={saveAnalysisTopic} disabled={!analysis || saving}>
+              <button className="studio-btn studio-btn-secondary" onClick={() => void saveAnalysisTopic()} disabled={!analysisResult || savingTopic}>
                 保存分析结果
               </button>
             </div>
@@ -539,19 +470,19 @@ export function RadarLayout() {
 
           <section className="studio-panel studio-panel-glass radar-detail-panel">
             <h3 className="studio-title-3">分析结果</h3>
-            {!analysis ? (
+            {!analysisResult ? (
               <div className="text-sm text-zinc-500 mt-3">暂无结果，点击“开始 AI 分析”生成。</div>
             ) : (
               <div className="radar-ai-result mt-3">
-                <p className="radar-ai-summary">{analysis.summary}</p>
-                {analysis.keywords.length > 0 ? (
+                <p className="radar-ai-summary">{analysisResult.summary}</p>
+                {analysisResult.keywords.length > 0 ? (
                   <div className="radar-ai-tags">
-                    {analysis.keywords.map((keyword) => (
+                    {analysisResult.keywords.map((keyword) => (
                       <span key={keyword} className="radar-ai-tag">{keyword}</span>
                     ))}
                   </div>
                 ) : null}
-                <pre className="radar-ai-markdown">{analysis.markdown}</pre>
+                <pre className="radar-ai-markdown">{analysisResult.markdown}</pre>
               </div>
             )}
           </section>
@@ -562,13 +493,13 @@ export function RadarLayout() {
         <section className="studio-panel studio-panel-glass">
           <h3 className="studio-title-3">选题库</h3>
           <div className="radar-action-row mt-3">
-            <input className="studio-input" placeholder="按标题/摘要/正文筛选已保存选题" value={topicQ} onChange={(e) => setTopicQ(e.target.value)} />
-            <button className="studio-btn studio-btn-secondary" onClick={searchTopics}>筛选</button>
-            <button className="studio-btn studio-btn-secondary" onClick={() => loadTopics("")}>重置</button>
+            <input className="studio-input" placeholder="按标题、摘要或正文筛选已保存选题" value={topicQ} onChange={(e) => setTopicQ(e.target.value)} />
+            <button className="studio-btn studio-btn-secondary" onClick={() => setAppliedTopicQ(topicQ)}>筛选</button>
+            <button className="studio-btn studio-btn-secondary" onClick={() => setAppliedTopicQ("")}>重置</button>
           </div>
 
           <div className="mt-4 space-y-3">
-            {topics.length === 0 && <div className="text-sm text-zinc-500">暂无已保存选题</div>}
+            {topics.length === 0 && !loadingTopics && <div className="text-sm text-zinc-500">暂无已保存选题</div>}
             {topics.map((topic) => (
               <article key={topic.id} className="radar-item-card radar-topic-card">
                 <div className="radar-topic-head">
@@ -588,7 +519,7 @@ export function RadarLayout() {
                       查看原文
                     </a>
                   ) : null}
-                  <button className="studio-btn studio-btn-secondary" onClick={() => removeTopic(topic.id)}>
+                  <button className="studio-btn studio-btn-secondary" onClick={() => void handleRemoveTopic(topic.id)} disabled={deletingTopic}>
                     删除
                   </button>
                 </div>

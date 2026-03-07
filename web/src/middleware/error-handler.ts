@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   ApiError,
-  isApiError,
   ErrorCode,
-  type ErrorCodeType,
   HttpStatus,
-  errorResponse,
   apiErrorResponse,
+  errorResponse,
   handleError,
+  isApiError,
+  type ErrorCodeType,
 } from "@/lib/api-response";
+import { logError } from "@/lib/logger";
 
 export type ApiHandler = (
   req: NextRequest,
@@ -39,12 +40,14 @@ export function createApiRoute<THandlers extends FlexibleHandlerMap>(
   handlers: THandlers
 ): THandlers {
   const wrappedHandlers: FlexibleHandlerMap = {};
+
   for (const [method, handler] of Object.entries(handlers)) {
     if (handler) {
       const apiMethod = method as ApiMethod;
       wrappedHandlers[apiMethod] = withErrorHandler(handler as FlexibleApiHandler);
     }
   }
+
   return wrappedHandlers as THandlers;
 }
 
@@ -71,7 +74,7 @@ export function assertExists<T>(
 
 export function assertAuthenticated(
   user: string | null | undefined,
-  message = "请先登录"
+  message = "Please log in first"
 ): asserts user is string {
   if (!user) {
     throw ApiError.unauthorized(message);
@@ -80,7 +83,7 @@ export function assertAuthenticated(
 
 export function assertAuthorized(
   condition: boolean,
-  message = "权限不足"
+  message = "Insufficient permissions"
 ): void {
   if (!condition) {
     throw ApiError.forbidden(message);
@@ -89,12 +92,14 @@ export function assertAuthorized(
 
 export async function getOrThrow<T>(
   getter: () => Promise<T | null | undefined> | T | null | undefined,
-  resourceName = "资源"
+  resourceName = "Resource"
 ): Promise<T> {
   const result = await getter();
+
   if (result === null || result === undefined) {
-    throw new ApiError(ErrorCode.NOT_FOUND, `${resourceName}不存在`);
+    throw new ApiError(ErrorCode.NOT_FOUND, `${resourceName} not found`);
   }
+
   return result;
 }
 
@@ -102,23 +107,27 @@ export function handleDatabaseError(error: unknown): ApiError {
   if (error instanceof Error) {
     if (error.message.includes("UNIQUE constraint failed")) {
       const field = error.message.match(/UNIQUE constraint failed: (\w+)\.(\w+)/);
-      return ApiError.conflict("资源已存在", field ? { field: field[2] } : undefined);
+      return ApiError.conflict("Resource already exists", field ? { field: field[2] } : undefined);
     }
 
     if (error.message.includes("FOREIGN KEY constraint failed")) {
-      return ApiError.badRequest("关联资源不存在");
+      return ApiError.badRequest("Related resource does not exist");
     }
 
     if (error.message.includes("NOT NULL constraint failed")) {
       const field = error.message.match(/NOT NULL constraint failed: (\w+)\.(\w+)/);
-      return ApiError.validation("必填字段不能为空", field ? { field: field[2] } : undefined);
+      return ApiError.validation("Required field cannot be empty", field ? { field: field[2] } : undefined);
     }
 
-    console.error("Database Error:", error);
-    return ApiError.internal("数据库操作失败");
+    logError({
+      source: "api.database",
+      error,
+    });
+
+    return ApiError.internal("Database operation failed");
   }
 
-  return ApiError.internal("未知错误");
+  return ApiError.internal("Unknown database error");
 }
 
 export async function withDbHandler<T>(operation: () => Promise<T>): Promise<T> {
@@ -155,10 +164,10 @@ export function createErrorMiddleware(options: ErrorMiddlewareOptions = {}) {
 
 export {
   ApiError,
-  isApiError,
   ErrorCode,
   HttpStatus,
-  errorResponse,
   apiErrorResponse,
+  errorResponse,
   handleError,
+  isApiError,
 };

@@ -106,10 +106,34 @@
   padding-bottom: 64px;
 }
 
+/* Modified for two-column CMS layout */
 .publish-shell .blog-page-card {
-  max-width: 760px;
-  margin: 0 auto;
+  /* Removed max-width constraint, now uses full container width */
+  background: transparent;
+  border: none;
+  padding: 0;
 }
+
+
+
+.publish-seamless-title {
+  width: 100%;
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  margin-bottom: 24px;
+  padding: 0;
+}
+
+.publish-seamless-title::placeholder {
+  color: rgba(161, 161, 170, 0.4);
+}
+
 
 .publish-actions-row {
   display: flex;

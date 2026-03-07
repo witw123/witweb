@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run type-check)",
+      "Bash(npm test -- --run)",
+      "WebSearch",
+      "Bash(python3 skills/ui-ux-pro-max/scripts/search.py \"blog editor markdown writing content management SaaS\" --design-system -p \"WitWeb Publish\" -f markdown)",
+      "Bash(python skills/ui-ux-pro-max/scripts/search.py \"blog editor markdown writing content management SaaS\" --design-system -p \"WitWeb Publish\" -f markdown)",
+      "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"blog editor markdown writing content management SaaS\" --design-system -p \"WitWeb Publish\" -f markdown)",
+      "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"editor toolbar form autosave\" --domain ux -n 10)",
+      "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"writing content creation\" --domain ux -n 5)",
+      "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"dashboard stats metrics\" --domain chart -n 5)",
+      "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"editor code monospace technical\" --domain typography -n 3)",
+      "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"form state keyboard\" --stack nextjs -n 5)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm run build)",
+      "Bash(npm run db:migrate)"
+    ]
+  }
+}

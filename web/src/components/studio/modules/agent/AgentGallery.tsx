@@ -1,7 +1,11 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { get } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
 
 type RunListItem = {
   id: string;
@@ -49,34 +53,30 @@ function excerpt(markdown: string, max = 180) {
 }
 
 export function AgentGallery() {
-  const { token } = useAuth();
-  const [items, setItems] = useState<GalleryItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { isAuthenticated } = useAuth();
 
-  const loadGallery = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    setError("");
+  const galleryQuery = useQuery({
+    queryKey: queryKeys.agentGallery,
+    queryFn: async () => {
+      const listData = await get<{ items: RunListItem[] }>(
+        `${getVersionedApiPath("/agent/runs")}?page=1&size=30`
+      );
 
-    try {
-      const listRes = await fetch("/api/agent/runs?page=1&size=30", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const listData = await listRes.json().catch(() => ({}));
-      const runs = ((listData?.data?.items || []) as RunListItem[]).filter((run) => run.status === "done");
+      const runs = (Array.isArray(listData.items) ? listData.items : []).filter(
+        (run) => run.status === "done"
+      );
 
-      const topRuns = runs.slice(0, 16);
       const details = await Promise.all(
-        topRuns.map(async (run) => {
-          const detailRes = await fetch(`/api/agent/runs/${run.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const detailData = await detailRes.json().catch(() => ({}));
-          if (!detailRes.ok || !detailData?.success) return null;
-          const artifacts = (detailData?.data?.artifacts || []) as Artifact[];
+        runs.slice(0, 16).map(async (run) => {
+          const detailData = await get<{ artifacts: Artifact[] }>(
+            getVersionedApiPath(`/agent/runs/${run.id}`)
+          );
+          const artifacts = Array.isArray(detailData.artifacts)
+            ? detailData.artifacts
+            : [];
 
-          const title = getArtifactText(artifacts, "title") || run.goal || "未命名作品";
+          const title =
+            getArtifactText(artifacts, "title") || run.goal || "未命名作品";
           const content = getArtifactText(artifacts, "content");
           const tags = getArtifactText(artifacts, "tags");
 
@@ -93,19 +93,16 @@ export function AgentGallery() {
         })
       );
 
-      setItems(details.filter(Boolean) as GalleryItem[]);
-    } catch {
-      setError("作品库加载失败，请稍后重试");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+      return details.filter(Boolean) as GalleryItem[];
+    },
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
 
-  useEffect(() => {
-    void loadGallery();
-  }, [loadGallery]);
-
-  const hasItems = useMemo(() => items.length > 0, [items]);
+  const items = useMemo(() => galleryQuery.data || [], [galleryQuery.data]);
+  const error =
+    galleryQuery.error instanceof Error ? "作品库加载失败，请稍后重试" : "";
+  const hasItems = items.length > 0;
 
   return (
     <div className="agent-gallery-page">
@@ -114,16 +111,25 @@ export function AgentGallery() {
           <h3 className="agent-panel-title">作品库</h3>
           <p className="agent-panel-desc">展示 AI 已生成的文章结果。</p>
         </div>
-        <button type="button" className="studio-btn studio-btn-secondary" onClick={loadGallery} disabled={loading}>
-          {loading ? "刷新中..." : "刷新"}
+        <button
+          type="button"
+          className="studio-btn studio-btn-secondary"
+          onClick={() => void galleryQuery.refetch()}
+          disabled={galleryQuery.isFetching}
+        >
+          {galleryQuery.isFetching ? "刷新中..." : "刷新"}
         </button>
       </div>
 
       {error && <div className="studio-status studio-status-error">{error}</div>}
 
-      {!hasItems && !loading && !error && <div className="studio-empty">暂无可展示作品</div>}
+      {!hasItems && !galleryQuery.isLoading && !error && (
+        <div className="studio-empty">暂无可展示作品</div>
+      )}
 
-      {loading && !hasItems && <div className="studio-empty">正在加载作品...</div>}
+      {galleryQuery.isLoading && !hasItems && (
+        <div className="studio-empty">正在加载作品...</div>
+      )}
 
       {hasItems && (
         <div className="agent-gallery-grid">
@@ -137,7 +143,11 @@ export function AgentGallery() {
                 <span>{item.model}</span>
               </div>
 
-              {item.tags && <div className="agent-gallery-tags">#{item.tags.replace(/,/g, " #")}</div>}
+              {item.tags && (
+                <div className="agent-gallery-tags">
+                  #{item.tags.replace(/,/g, " #")}
+                </div>
+              )}
             </article>
           ))}
         </div>

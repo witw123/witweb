@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider } from "./providers";
 import AppShell from "@/components/AppShell";
+import ErrorMonitoringProvider from "@/components/ErrorMonitoringProvider";
+import QueryProvider from "@/components/QueryProvider";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { getSiteUrl } from "@/lib/site-url";
+import { AuthProvider } from "./providers";
 
 const siteUrl = getSiteUrl();
+const siteDescription = "WitWeb community platform for publishing, discussion, and creative tools.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -12,7 +16,7 @@ export const metadata: Metadata = {
     default: "witweb",
     template: "%s | witweb",
   },
-  description: "WitWeb 社区：文章、分类、收藏、互动与创作。",
+  description: siteDescription,
   alternates: {
     canonical: "/",
   },
@@ -21,13 +25,13 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "witweb",
     title: "witweb",
-    description: "WitWeb 社区：文章、分类、收藏、互动与创作。",
+    description: siteDescription,
     locale: "zh_CN",
   },
   twitter: {
     card: "summary_large_image",
     title: "witweb",
-    description: "WitWeb 社区：文章、分类、收藏、互动与创作。",
+    description: siteDescription,
   },
   robots: {
     index: true,
@@ -40,7 +44,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN">
       <body>
         <AuthProvider>
-          <AppShell>{children}</AppShell>
+          <QueryProvider>
+            <ErrorMonitoringProvider>
+              <ErrorBoundary>
+                <AppShell>{children}</AppShell>
+              </ErrorBoundary>
+            </ErrorMonitoringProvider>
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>

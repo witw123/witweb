@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useAuth } from "@/app/providers";
+import { getVersionedApiPath } from "@/lib/api-version";
 
 // Generate a unique visitor ID and store it in localStorage
 function getVisitorId(): string {
@@ -26,7 +27,7 @@ export default function VisitTracker() {
         const visitorId = getVisitorId();
         const pageUrl = window.location.pathname;
 
-        await fetch("/api/track-visit", {
+        await fetch(getVersionedApiPath("/track-visit"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

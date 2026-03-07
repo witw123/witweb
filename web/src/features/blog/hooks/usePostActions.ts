@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { getVersionedApiPath } from "@/lib/api-version";
 import type { PostListItem } from "@/types/blog";
 import { post } from "@/lib/api-client";
 import { emitPostMetricsUpdated } from "../utils/postMetricsSync";
 
 interface UsePostActionsOptions {
-  token: string | null;
+  isAuthenticated: boolean;
   onUpdate: (slug: string, updates: Partial<PostListItem>) => void;
   onAuthRequired: () => void;
 }
@@ -27,17 +28,17 @@ type LocalState = {
   favorited?: boolean;
 };
 
-export function usePostActions({ token, onUpdate, onAuthRequired }: UsePostActionsOptions) {
+export function usePostActions({ isAuthenticated, onUpdate, onAuthRequired }: UsePostActionsOptions) {
   const stateRef = useRef<Record<string, LocalState>>({});
   const pendingRef = useRef<Set<string>>(new Set());
 
   const ensureAuth = useCallback(() => {
-    if (!token) {
+    if (!isAuthenticated) {
       onAuthRequired();
       return false;
     }
     return true;
-  }, [token, onAuthRequired]);
+  }, [isAuthenticated, onAuthRequired]);
 
   const handleAction = useCallback(async (
     slug: string,
@@ -67,9 +68,7 @@ export function usePostActions({ token, onUpdate, onAuthRequired }: UsePostActio
     emitPostMetricsUpdated({ slug, ...optimisticUpdates });
 
     try {
-      const result = await post<ActionResult>(`/api/blog/${slug}/${action}`, undefined, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const result = await post<ActionResult>(getVersionedApiPath(`/blog/${slug}/${action}`));
 
       stateRef.current[slug] = {
         ...stateRef.current[slug],
@@ -101,7 +100,7 @@ export function usePostActions({ token, onUpdate, onAuthRequired }: UsePostActio
     } finally {
       pendingRef.current.delete(pendingKey);
     }
-  }, [ensureAuth, token, onUpdate]);
+  }, [ensureAuth, onUpdate]);
 
   const like = useCallback((post: PostListItem) =>
     handleAction(post.slug, "like", post),

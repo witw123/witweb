@@ -1,8 +1,12 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
-import AdminNotice from "./AdminNotice";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/app/providers";
+import { del, get, post, put } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
 import { ADMIN_LIST_PAGE_SIZE } from "@/features/admin/constants";
+import AdminNotice from "./AdminNotice";
 
 type BlogItem = {
   id: number;
@@ -26,11 +30,27 @@ type Category = {
   name: string;
 };
 
+type BlogListResponse = {
+  items: BlogItem[];
+  total: number;
+  page: number;
+  size: number;
+};
+
+type AdminCategoriesResponse = {
+  items: Category[];
+  total: number;
+  page: number;
+  size: number;
+};
+
+type BatchAction = "publish" | "draft" | "delete" | "restore" | "destroy";
+
 export default function BlogManagementPage() {
-  const [blogs, setBlogs] = useState<BlogItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
+
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [recycleMode, setRecycleMode] = useState(false);
@@ -41,300 +61,205 @@ export default function BlogManagementPage() {
   const [sort, setSort] = useState("created_at_desc");
   const [message, setMessage] = useState("");
   const [noticeTone, setNoticeTone] = useState<"success" | "error" | "info">("info");
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIdsState, setSelectedIds] = useState<number[]>([]);
   const [batchDeleteConfirming, setBatchDeleteConfirming] = useState(false);
-
   const [editingBlog, setEditingBlog] = useState<BlogDetail | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [pendingDestroyId, setPendingDestroyId] = useState<number | null>(null);
+
+  const filters = useMemo(
+    () => ({
+      page,
+      limit: ADMIN_LIST_PAGE_SIZE,
+      search: search.trim(),
+      status: recycleMode ? "deleted" : statusFilter,
+      username: authorFilter.trim(),
+      tag: tagFilter.trim(),
+      dateFrom,
+      dateTo: dateTo ? `${dateTo}T23:59:59.999Z` : "",
+      sort,
+    }),
+    [page, search, recycleMode, statusFilter, authorFilter, tagFilter, dateFrom, dateTo, sort],
+  );
+
   const showError = (msg: string) => {
     setNoticeTone("error");
     setMessage(msg);
   };
+
   const showSuccess = (msg: string) => {
     setNoticeTone("success");
     setMessage(msg);
   };
 
-  const loadBlogs = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
+  const clearNotice = () => {
+    setNoticeTone("info");
+    setMessage("");
+  };
+
+  const blogsQuery = useQuery({
+    queryKey: queryKeys.adminBlogs(filters),
+    enabled: isAuthenticated,
+    queryFn: async () => {
       const params = new URLSearchParams({
-        page: String(page),
-        limit: String(ADMIN_LIST_PAGE_SIZE),
+        page: String(filters.page),
+        limit: String(filters.limit),
       });
-      if (search.trim()) params.set("search", search.trim());
-      if (recycleMode) {
-        params.set("status", "deleted");
-      } else if (statusFilter) {
-        params.set("status", statusFilter);
-      }
-      if (authorFilter.trim()) params.set("username", authorFilter.trim());
-      if (tagFilter.trim()) params.set("tag", tagFilter.trim());
-      if (dateFrom) params.set("date_from", dateFrom);
-      if (dateTo) params.set("date_to", `${dateTo}T23:59:59.999Z`);
-      if (sort) params.set("sort", sort);
+      if (filters.search) params.set("search", filters.search);
+      if (filters.status) params.set("status", filters.status);
+      if (filters.username) params.set("username", filters.username);
+      if (filters.tag) params.set("tag", filters.tag);
+      if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+      if (filters.dateTo) params.set("date_to", filters.dateTo);
+      if (filters.sort) params.set("sort", filters.sort);
+      return get<BlogListResponse>(`/api/admin/blogs?${params.toString()}`);
+    },
+  });
 
-      const response = await fetch(`/api/admin/blogs?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data.success) {
-        setBlogs([]);
-        setTotal(0);
-        showError(data.error?.message || "加载文章失败");
-        return;
-      }
-
-      setBlogs(data.data?.items || []);
-      setTotal(data.data?.total || 0);
-      setSelectedIds((prev) => prev.filter((id) => (data.data?.items || []).some((item: BlogItem) => item.id === id)));
-    } catch {
-      setBlogs([]);
-      setTotal(0);
-      showError("加载文章失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search, statusFilter, recycleMode, authorFilter, tagFilter, dateFrom, dateTo, sort]);
-
-  const loadCategories = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/admin/categories?limit=100", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        setCategories([]);
-        return;
-      }
-      setCategories(data.data?.items || []);
-    } catch {
-      setCategories([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadBlogs();
-  }, [loadBlogs]);
-
-  useEffect(() => {
-    void loadCategories();
-  }, [loadCategories]);
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.adminCategories,
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      return get<AdminCategoriesResponse>(`/api/admin/categories?limit=100`);
+    },
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handler = () => {
-      void loadBlogs();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminBlogs(filters) });
     };
     window.addEventListener("profile-updated", handler as EventListener);
     return () => window.removeEventListener("profile-updated", handler as EventListener);
-  }, [loadBlogs]);
+  }, [filters, queryClient]);
 
-  const handleEdit = async (blogId: number) => {
-    try {
-      setEditLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/blogs/${blogId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        showError(data.error?.message || "获取文章详情失败");
-        return;
-      }
-      setEditingBlog(data.data);
+  const editMutation = useMutation({
+    mutationFn: async (blogId: number) => {
+      return get<BlogDetail>(`/api/admin/blogs/${blogId}`);
+    },
+    onSuccess: (data) => {
+      setEditingBlog(data);
       setIsEditModalOpen(true);
-    } finally {
-      setEditLoading(false);
-    }
-  };
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "获取文章详情失败");
+    },
+  });
 
-  const handleSaveEdit = async () => {
-    if (!editingBlog) return;
-
-    try {
-      setEditLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/blogs/${editingBlog.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: editingBlog.title,
-          content: editingBlog.content,
-          tags: editingBlog.tags,
-          category_id: editingBlog.category_id || null,
-        }),
+  const saveEditMutation = useMutation({
+    mutationFn: async (blog: BlogDetail) => {
+      return put<{ ok: true }>(`/api/admin/blogs/${blog.id}`, {
+        title: blog.title,
+        content: blog.content,
+        tags: blog.tags,
+        category_id: blog.category_id || null,
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        showError(data.error?.message || "更新失败");
-        return;
-      }
+    },
+    onSuccess: async () => {
       showSuccess("更新成功");
       setIsEditModalOpen(false);
-      void loadBlogs();
-    } finally {
-      setEditLoading(false);
-    }
-  };
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminBlogs(filters) });
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "更新失败");
+    },
+  });
+
+  const rowActionMutation = useMutation({
+    mutationFn: async (input: { type: "delete" | "destroy" | "restore" | "status"; blogId: number; status?: "published" | "draft" }) => {
+      if (input.type === "delete") {
+        return del<{ ok: true }>(`/api/admin/blogs/${input.blogId}`);
+      }
+      if (input.type === "destroy") {
+        return del<{ ok: true }>(`/api/admin/blogs/${input.blogId}?hard=1`);
+      }
+      if (input.type === "restore") {
+        return put<{ ok: true }>(`/api/admin/blogs/${input.blogId}`, { status: "draft" });
+      }
+      return put<{ ok: true }>(`/api/admin/blogs/${input.blogId}`, { status: input.status });
+    },
+    onSuccess: async () => {
+      setPendingDeleteId(null);
+      setPendingDestroyId(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminBlogs(filters) });
+    },
+  });
+
+  const batchActionMutation = useMutation({
+    mutationFn: async (payload: { action: BatchAction; ids: number[] }) => {
+      return post<{ ok: true; updated?: number; deleted?: number }>(
+        "/api/admin/blogs",
+        payload,
+      );
+    },
+    onSuccess: async () => {
+      setSelectedIds([]);
+      setBatchDeleteConfirming(false);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminBlogs(filters) });
+    },
+  });
+
+  const blogs = useMemo(() => blogsQuery.data?.items || [], [blogsQuery.data?.items]);
+  const selectedIds = useMemo(
+    () => selectedIdsState.filter((id) => blogs.some((blog) => blog.id === id)),
+    [blogs, selectedIdsState]
+  );
+  const total = blogsQuery.data?.total || 0;
+  const categories = categoriesQuery.data?.items || [];
+  const loading = blogsQuery.isLoading;
 
   const handleDelete = async (blogId: number, title: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/blogs/${blogId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        showSuccess(`文章《${title}》已移入回收站`);
-        setPendingDeleteId(null);
-        void loadBlogs();
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      showError(data.error?.message || "删除失败");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      showError(`删除失败: ${message}`);
+      await rowActionMutation.mutateAsync({ type: "delete", blogId });
+      showSuccess(`文章《${title}》已移入回收站`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "删除失败");
     }
   };
 
   const handleRestore = async (blogId: number, title: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/blogs/${blogId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: "draft" }),
-      });
-
-      if (response.ok) {
-        showSuccess(`文章《${title}》已恢复为草稿`);
-        void loadBlogs();
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      showError(data.error?.message || "恢复失败");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      showError(`恢复失败: ${message}`);
+      await rowActionMutation.mutateAsync({ type: "restore", blogId });
+      showSuccess(`文章《${title}》已恢复为草稿`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "恢复失败");
     }
   };
 
   const handleDestroy = async (blogId: number, title: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/blogs/${blogId}?hard=1`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        showSuccess(`文章《${title}》已永久删除`);
-        setPendingDestroyId(null);
-        void loadBlogs();
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      showError(data.error?.message || "永久删除失败");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      showError(`永久删除失败: ${message}`);
+      await rowActionMutation.mutateAsync({ type: "destroy", blogId });
+      showSuccess(`文章《${title}》已永久删除`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "永久删除失败");
     }
   };
 
   const handleStatusChange = async (blogId: number, newStatus: "published" | "draft") => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/blogs/${blogId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (response.ok) {
-        showSuccess("状态更新成功");
-        void loadBlogs();
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      showError(data.error?.message || "更新失败");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      showError(`更新失败: ${message}`);
+      await rowActionMutation.mutateAsync({ type: "status", blogId, status: newStatus });
+      showSuccess("状态更新成功");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "更新失败");
     }
   };
 
-  const toggleSelect = (id: number, checked: boolean) => {
-    setSelectedIds((prev) => {
-      if (checked) return Array.from(new Set([...prev, id]));
-      return prev.filter((item) => item !== id);
-    });
-  };
-
-  const toggleSelectAllCurrentPage = (checked: boolean) => {
-    if (!checked) {
-      setSelectedIds((prev) => prev.filter((id) => !blogs.some((blog) => blog.id === id)));
-      return;
-    }
-
-    setSelectedIds((prev) => Array.from(new Set([...prev, ...blogs.map((blog) => blog.id)])));
-  };
-
-  const runBatchAction = async (action: "publish" | "draft" | "delete" | "restore" | "destroy") => {
+  const runBatchAction = async (action: BatchAction) => {
     if (selectedIds.length === 0) {
       showError("请先选择至少一篇文章");
       return;
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/admin/blogs", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action,
-          ids: selectedIds,
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        showError(data.error?.message || "批量操作失败");
-        return;
+      const data = await batchActionMutation.mutateAsync({ action, ids: selectedIds });
+      if (action === "delete") showSuccess(`批量操作完成，共移入回收站 ${data.deleted ?? 0} 篇文章`);
+      if (action === "destroy") showSuccess(`批量永久删除完成，共删除 ${data.deleted ?? 0} 篇文章`);
+      if (action === "publish" || action === "draft" || action === "restore") {
+        showSuccess(`批量更新完成，共更新 ${data.updated ?? 0} 篇文章`);
       }
-
-      if (action === "delete") showSuccess(`批量操作完成，共移入回收站 ${data.data?.deleted ?? 0} 篇文章`);
-      if (action === "destroy") showSuccess(`批量永久删除完成，共删除 ${data.data?.deleted ?? 0} 篇文章`);
-      if (action === "publish" || action === "draft" || action === "restore") showSuccess(`批量更新完成，共更新 ${data.data?.updated ?? 0} 篇文章`);
-      setSelectedIds([]);
-      setBatchDeleteConfirming(false);
-      void loadBlogs();
-    } catch (error: unknown) {
+    } catch (error) {
       showError(error instanceof Error ? error.message : "批量操作失败");
     }
   };
@@ -459,6 +384,7 @@ export default function BlogManagementPage() {
                   setDateTo("");
                   setSort("created_at_desc");
                   setPage(1);
+                  clearNotice();
                 }}
               >
                 清空筛选
@@ -499,67 +425,29 @@ export default function BlogManagementPage() {
           <span className="blog-batch-count">已选 {selectedIds.length} 篇</span>
           {!recycleMode && (
             <>
-              <button
-                className="btn-admin btn-admin-secondary"
-                type="button"
-                disabled={selectedIds.length === 0}
-                onClick={() => {
-                  setBatchDeleteConfirming(false);
-                  void runBatchAction("publish");
-                }}
-              >
+              <button className="btn-admin btn-admin-secondary" type="button" disabled={selectedIds.length === 0} onClick={() => void runBatchAction("publish")}>
                 批量发布
               </button>
-              <button
-                className="btn-admin btn-admin-secondary"
-                type="button"
-                disabled={selectedIds.length === 0}
-                onClick={() => {
-                  setBatchDeleteConfirming(false);
-                  void runBatchAction("draft");
-                }}
-              >
+              <button className="btn-admin btn-admin-secondary" type="button" disabled={selectedIds.length === 0} onClick={() => void runBatchAction("draft")}>
                 批量撤回
               </button>
             </>
           )}
           {recycleMode && (
-            <button
-              className="btn-admin btn-admin-secondary"
-              type="button"
-              disabled={selectedIds.length === 0}
-              onClick={() => {
-                setBatchDeleteConfirming(false);
-                void runBatchAction("restore");
-              }}
-            >
+            <button className="btn-admin btn-admin-secondary" type="button" disabled={selectedIds.length === 0} onClick={() => void runBatchAction("restore")}>
               批量恢复为草稿
             </button>
           )}
           {!batchDeleteConfirming ? (
-            <button
-              className="btn-admin btn-admin-danger"
-              type="button"
-              disabled={selectedIds.length === 0}
-              onClick={() => setBatchDeleteConfirming(true)}
-            >
+            <button className="btn-admin btn-admin-danger" type="button" disabled={selectedIds.length === 0} onClick={() => setBatchDeleteConfirming(true)}>
               {recycleMode ? "批量永久删除" : "批量删除"}
             </button>
           ) : (
             <>
-              <button
-                className="btn-admin btn-admin-danger"
-                type="button"
-                disabled={selectedIds.length === 0}
-                onClick={() => void runBatchAction(recycleMode ? "destroy" : "delete")}
-              >
+              <button className="btn-admin btn-admin-danger" type="button" disabled={selectedIds.length === 0} onClick={() => void runBatchAction(recycleMode ? "destroy" : "delete")}>
                 {recycleMode ? "确认批量永久删除" : "确认批量删除"}
               </button>
-              <button
-                className="btn-admin btn-admin-secondary"
-                type="button"
-                onClick={() => setBatchDeleteConfirming(false)}
-              >
+              <button className="btn-admin btn-admin-secondary" type="button" onClick={() => setBatchDeleteConfirming(false)}>
                 取消
               </button>
             </>
@@ -571,11 +459,13 @@ export default function BlogManagementPage() {
             <thead>
               <tr>
                 <th style={{ width: 40 }}>
-                  <input
-                    type="checkbox"
-                    checked={allCurrentPageSelected}
-                    onChange={(e) => toggleSelectAllCurrentPage(e.target.checked)}
-                  />
+                  <input type="checkbox" checked={allCurrentPageSelected} onChange={(e) => {
+                    if (!e.target.checked) {
+                      setSelectedIds((prev) => prev.filter((id) => !blogs.some((blog) => blog.id === id)));
+                      return;
+                    }
+                    setSelectedIds((prev) => Array.from(new Set([...prev, ...blogs.map((blog) => blog.id)])));
+                  }} />
                 </th>
                 <th>标题</th>
                 <th>作者</th>
@@ -592,20 +482,18 @@ export default function BlogManagementPage() {
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(blog.id)}
-                      onChange={(e) => toggleSelect(blog.id, e.target.checked)}
+                      onChange={(e) =>
+                        setSelectedIds((prev) =>
+                          e.target.checked ? Array.from(new Set([...prev, blog.id])) : prev.filter((item) => item !== blog.id),
+                        )
+                      }
                     />
                   </td>
-                  <td>
-                    <strong>{blog.title}</strong>
-                  </td>
+                  <td><strong>{blog.title}</strong></td>
                   <td>{blog.username}</td>
                   <td>{blog.category_name || "未分类"}</td>
                   <td>
-                    <span
-                      className={`badge badge-${
-                        blog.status === "published" ? "success" : blog.status === "deleted" ? "danger" : "warning"
-                      }`}
-                    >
+                    <span className={`badge badge-${blog.status === "published" ? "success" : blog.status === "deleted" ? "danger" : "warning"}`}>
                       {blog.status === "published" ? "已发布" : blog.status === "deleted" ? "已删除" : "草稿"}
                     </span>
                   </td>
@@ -614,90 +502,40 @@ export default function BlogManagementPage() {
                     <div className="blog-row-actions">
                       {!recycleMode && (
                         <>
-                          <button
-                            onClick={() => void handleEdit(blog.id)}
-                            className="btn-admin btn-admin-primary blog-row-action-btn"
-                          >
+                          <button onClick={() => void editMutation.mutateAsync(blog.id)} className="btn-admin btn-admin-primary blog-row-action-btn">
                             编辑
                           </button>
                           {blog.status === "draft" && (
-                            <button
-                              onClick={() => void handleStatusChange(blog.id, "published")}
-                              className="btn-admin btn-admin-secondary blog-row-action-btn"
-                            >
+                            <button onClick={() => void handleStatusChange(blog.id, "published")} className="btn-admin btn-admin-secondary blog-row-action-btn">
                               发布
                             </button>
                           )}
                           {blog.status === "published" && (
-                            <button
-                              onClick={() => void handleStatusChange(blog.id, "draft")}
-                              className="btn-admin btn-admin-secondary blog-row-action-btn"
-                            >
+                            <button onClick={() => void handleStatusChange(blog.id, "draft")} className="btn-admin btn-admin-secondary blog-row-action-btn">
                               撤回
                             </button>
                           )}
-
                           {pendingDeleteId === blog.id ? (
                             <>
-                              <button
-                                onClick={() => void handleDelete(blog.id, blog.title)}
-                                className="btn-admin btn-admin-danger blog-row-action-btn"
-                              >
-                                确认删除
-                              </button>
-                              <button
-                                onClick={() => setPendingDeleteId(null)}
-                                className="btn-admin btn-admin-secondary blog-row-action-btn"
-                              >
-                                取消
-                              </button>
+                              <button onClick={() => void handleDelete(blog.id, blog.title)} className="btn-admin btn-admin-danger blog-row-action-btn">确认删除</button>
+                              <button onClick={() => setPendingDeleteId(null)} className="btn-admin btn-admin-secondary blog-row-action-btn">取消</button>
                             </>
                           ) : (
-                            <button
-                              onClick={() => setPendingDeleteId(blog.id)}
-                              className="btn-admin btn-admin-danger blog-row-action-btn"
-                            >
-                              删除
-                            </button>
+                            <button onClick={() => setPendingDeleteId(blog.id)} className="btn-admin btn-admin-danger blog-row-action-btn">删除</button>
                           )}
                         </>
                       )}
                       {recycleMode &&
                         (pendingDestroyId === blog.id ? (
                           <>
-                            <button
-                              onClick={() => void handleRestore(blog.id, blog.title)}
-                              className="btn-admin btn-admin-secondary blog-row-action-btn"
-                            >
-                              恢复为草稿
-                            </button>
-                            <button
-                              onClick={() => void handleDestroy(blog.id, blog.title)}
-                              className="btn-admin btn-admin-danger blog-row-action-btn"
-                            >
-                              确认永久删除
-                            </button>
-                            <button
-                              onClick={() => setPendingDestroyId(null)}
-                              className="btn-admin btn-admin-secondary blog-row-action-btn"
-                            >
-                              取消
-                            </button>
+                            <button onClick={() => void handleRestore(blog.id, blog.title)} className="btn-admin btn-admin-secondary blog-row-action-btn">恢复为草稿</button>
+                            <button onClick={() => void handleDestroy(blog.id, blog.title)} className="btn-admin btn-admin-danger blog-row-action-btn">确认永久删除</button>
+                            <button onClick={() => setPendingDestroyId(null)} className="btn-admin btn-admin-secondary blog-row-action-btn">取消</button>
                           </>
                         ) : (
                           <>
-                            <button
-                              onClick={() => void handleRestore(blog.id, blog.title)}
-                              className="btn-admin btn-admin-secondary blog-row-action-btn"
-                            >
-                              恢复
-                            </button>
-                            <button
-                              onClick={() => setPendingDestroyId(blog.id)}
-                              className="btn-admin btn-admin-danger blog-row-action-btn"
-                            >
-                              永久删除
-                            </button>
+                            <button onClick={() => void handleRestore(blog.id, blog.title)} className="btn-admin btn-admin-secondary blog-row-action-btn">恢复</button>
+                            <button onClick={() => setPendingDestroyId(blog.id)} className="btn-admin btn-admin-danger blog-row-action-btn">永久删除</button>
                           </>
                         ))}
                     </div>
@@ -710,19 +548,11 @@ export default function BlogManagementPage() {
 
         {total > ADMIN_LIST_PAGE_SIZE && (
           <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="btn-admin btn-admin-secondary"
-            >
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-admin btn-admin-secondary">
               上一页
             </button>
             <span style={{ padding: "0.5rem 1rem" }}>第 {page} 页</span>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page * ADMIN_LIST_PAGE_SIZE >= total}
-              className="btn-admin btn-admin-secondary"
-            >
+            <button onClick={() => setPage((p) => p + 1)} disabled={page * ADMIN_LIST_PAGE_SIZE >= total} className="btn-admin btn-admin-secondary">
               下一页
             </button>
           </div>
@@ -752,19 +582,12 @@ export default function BlogManagementPage() {
                 <label>分类</label>
                 <select
                   value={editingBlog.category_id || ""}
-                  onChange={(e) =>
-                    setEditingBlog({
-                      ...editingBlog,
-                      category_id: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
+                  onChange={(e) => setEditingBlog({ ...editingBlog, category_id: e.target.value ? Number(e.target.value) : null })}
                   className="admin-input"
                 >
                   <option value="">未分类</option>
                   {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
+                    <option key={category.id} value={category.id}>{category.name}</option>
                   ))}
                 </select>
               </div>
@@ -788,15 +611,11 @@ export default function BlogManagementPage() {
                 />
               </div>
               <div className="modal-actions">
-                <button
-                  className="btn-admin btn-admin-secondary"
-                  onClick={() => setIsEditModalOpen(false)}
-                  disabled={editLoading}
-                >
+                <button className="btn-admin btn-admin-secondary" onClick={() => setIsEditModalOpen(false)} disabled={saveEditMutation.isPending}>
                   取消
                 </button>
-                <button className="btn-admin btn-admin-primary" onClick={() => void handleSaveEdit()} disabled={editLoading}>
-                  {editLoading ? "保存中..." : "保存修改"}
+                <button className="btn-admin btn-admin-primary" onClick={() => editingBlog && void saveEditMutation.mutateAsync(editingBlog)} disabled={saveEditMutation.isPending}>
+                  {saveEditMutation.isPending ? "保存中..." : "保存修改"}
                 </button>
               </div>
             </div>

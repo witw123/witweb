@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import { getThumbnailUrl } from "@/utils/url";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import { ThumbsUpIcon, MessageCircleIcon, BookmarkIcon, ThumbsDownIcon } from "@/components/Icons";
 import UserHoverCard from "@/features/blog/components/UserHoverCard";
 import type { PostListItem } from "@/types/blog";
@@ -29,9 +29,33 @@ export default function PostCard({
     .filter(Boolean)
     .map((t: string) => t.trim());
   const avatarUrl = getThumbnailUrl(post.author_avatar, 64);
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarUrl);
+
+  // Use excerpt if available, otherwise use content preview
+  const preview = post.excerpt || (post.content || "").replace(/\s+/g, " ").trim().slice(0, 140);
+
+  // Cover image handling
+  const coverUrl = post.cover_image_url;
+  const coverUnoptimized = coverUrl ? shouldBypassImageOptimization(coverUrl) : false;
 
   return (
     <article className="card post-card post-card-item">
+      {/* Cover image - display if available */}
+      {coverUrl && (
+        <Link href={`/post/${post.slug}`} className="block mb-3 -mt-4 -mx-4">
+          <div className="relative aspect-[21/9] rounded-t-lg overflow-hidden bg-zinc-800">
+            <Image
+              src={coverUrl}
+              alt={post.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 600px"
+              className="object-cover"
+              unoptimized={coverUnoptimized}
+            />
+          </div>
+        </Link>
+      )}
+
       <div className="card-head post-card-head mb-2 flex items-start justify-between">
         <UserHoverCard username={post.author} className="z-10">
           <div className="author flex items-center gap-2">
@@ -43,7 +67,7 @@ export default function PostCard({
                 height={24}
                 loading="lazy"
                 className="h-6 w-6 rounded-full"
-                unoptimized
+                unoptimized={avatarUnoptimized}
               />
             ) : (
               <div className="avatar-fallback flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-xs">
@@ -60,7 +84,7 @@ export default function PostCard({
         <h2 className="post-card-title mb-2 line-clamp-2 text-xl font-bold leading-tight">{post.title}</h2>
 
         <p className="excerpt post-card-excerpt mb-4 text-sm leading-relaxed text-muted line-clamp-3">
-          {(post.content || "").replace(/\s+/g, " ").trim().slice(0, 140)}
+          {preview}
         </p>
       </Link>
 

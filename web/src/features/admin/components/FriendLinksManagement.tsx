@@ -1,8 +1,14 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/app/providers";
+import { del, get, post, put } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
 import AdminNotice from "./AdminNotice";
+import { shouldBypassImageOptimization } from "@/utils/url";
 
 interface FriendLink {
   id: number;
@@ -14,6 +20,10 @@ interface FriendLink {
   is_active: number;
 }
 
+type FriendLinksResponse = {
+  links: FriendLink[];
+};
+
 type FriendLinkForm = {
   name: string;
   url: string;
@@ -24,8 +34,8 @@ type FriendLinkForm = {
 };
 
 export default function FriendLinksManagement() {
-  const [links, setLinks] = useState<FriendLink[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
@@ -71,55 +81,22 @@ export default function FriendLinksManagement() {
     }
   };
 
-  const fetchLinks = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/friend-links", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        setLinks([]);
-        showError(data.error?.message || "加载友链失败");
-        return;
-      }
-      setLinks(data.data?.links || []);
-      clearNotice();
-    } catch {
-      showError("加载友链失败");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const linksQuery = useQuery({
+    queryKey: queryKeys.adminFriendLinks,
+    queryFn: () => get<FriendLinksResponse>(getVersionedApiPath("/friend-links")),
+    enabled: isAuthenticated,
+  });
 
-  useEffect(() => {
-    void fetchLinks();
-  }, []);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem("token");
-      const normalizedAvatar = formData.avatar_url.trim();
-      const payload = {
-        ...formData,
-        avatar_url: normalizedAvatar || null,
-      };
-
-      const res = await fetch("/api/friend-links", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+  const createMutation = useMutation({
+    mutationFn: (payload: FriendLinkForm) =>
+      post<{ id: number; message: string }>(
+        getVersionedApiPath("/friend-links"),
+        {
+          ...payload,
+          avatar_url: payload.avatar_url.trim() || null,
         },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || (data.success !== undefined && !data.success)) {
-        showError(data.error?.message || "保存失败");
-        return;
-      }
-
+      ),
+    onSuccess: async () => {
       setFormData({
         name: "",
         url: "",
@@ -129,10 +106,51 @@ export default function FriendLinksManagement() {
         is_active: 1,
       });
       showSuccess("友链创建成功");
-      void fetchLinks();
-    } catch {
-      showError("保存失败");
-    }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminFriendLinks });
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "保存失败");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: { id: number; data: FriendLinkForm }) =>
+      put<{ message: string }>(
+        getVersionedApiPath(`/friend-links/${payload.id}`),
+        {
+          ...payload.data,
+          avatar_url: payload.data.avatar_url.trim() || null,
+        },
+      ),
+    onSuccess: async () => {
+      setEditModalOpen(false);
+      setEditingId(null);
+      showSuccess("友链更新成功");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminFriendLinks });
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "保存失败");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => del<{ message: string }>(getVersionedApiPath(`/friend-links/${id}`)),
+    onSuccess: async () => {
+      setPendingDeleteId(null);
+      showSuccess("删除成功");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminFriendLinks });
+    },
+    onError: (error) => {
+      showError(error instanceof Error ? error.message : "删除失败");
+    },
+  });
+
+  const links = linksQuery.data?.links || [];
+  const loading = linksQuery.isLoading;
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await createMutation.mutateAsync(formData);
   };
 
   const handleEdit = (link: FriendLink) => {
@@ -146,59 +164,6 @@ export default function FriendLinksManagement() {
       is_active: link.is_active,
     });
     setEditModalOpen(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingId) return;
-    try {
-      const token = localStorage.getItem("token");
-      const normalizedAvatar = editFormData.avatar_url.trim();
-      const payload = {
-        ...editFormData,
-        avatar_url: normalizedAvatar || null,
-      };
-
-      const res = await fetch(`/api/friend-links/${editingId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || (data.success !== undefined && !data.success)) {
-        showError(data.error?.message || "保存失败");
-        return;
-      }
-
-      setEditModalOpen(false);
-      setEditingId(null);
-      showSuccess("友链更新成功");
-      void fetchLinks();
-    } catch {
-      showError("保存失败");
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/friend-links/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || (data.success !== undefined && !data.success)) {
-        showError(data.error?.message || "删除失败");
-        return;
-      }
-      setPendingDeleteId(null);
-      showSuccess("删除成功");
-      void fetchLinks();
-    } catch {
-      showError("删除失败");
-    }
   };
 
   const handleCancelEdit = () => {
@@ -230,41 +195,11 @@ export default function FriendLinksManagement() {
               marginBottom: "0.75rem",
             }}
           >
-            <input
-              type="text"
-              className="admin-input"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="名称 *"
-              required
-            />
-            <input
-              type="url"
-              className="admin-input"
-              value={formData.url}
-              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-              placeholder="网址 *（https://example.com）"
-              required
-            />
-            <input
-              type="url"
-              className="admin-input"
-              value={formData.avatar_url}
-              onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-              placeholder="站点图标 URL（可选）"
-            />
-            <input
-              type="number"
-              className="admin-input"
-              value={formData.sort_order}
-              onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value, 10) || 0 })}
-              placeholder="排序"
-            />
-            <select
-              className="admin-select"
-              value={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: parseInt(e.target.value, 10) })}
-            >
+            <input type="text" className="admin-input" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="名称 *" required />
+            <input type="url" className="admin-input" value={formData.url} onChange={(e) => setFormData({ ...formData, url: e.target.value })} placeholder="网址 *（https://example.com）" required />
+            <input type="url" className="admin-input" value={formData.avatar_url} onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })} placeholder="站点图标 URL（可选）" />
+            <input type="number" className="admin-input" value={formData.sort_order} onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value, 10) || 0 })} placeholder="排序" />
+            <select className="admin-select" value={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: parseInt(e.target.value, 10) })}>
               <option value={1}>启用</option>
               <option value={0}>禁用</option>
             </select>
@@ -280,8 +215,11 @@ export default function FriendLinksManagement() {
           />
 
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button type="submit" className="btn-admin btn-admin-primary">
-              新增友链
+            <button type="submit" className="btn-admin btn-admin-primary" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "保存中..." : "新增友链"}
+            </button>
+            <button type="button" className="btn-admin btn-admin-secondary" onClick={clearNotice}>
+              清空提示
             </button>
           </div>
         </form>
@@ -322,7 +260,7 @@ export default function FriendLinksManagement() {
                         width={34}
                         height={34}
                         style={{ borderRadius: 999, objectFit: "cover" }}
-                        unoptimized
+                        unoptimized={shouldBypassImageOptimization(link.avatar_url || getFallbackIcon(link.url))}
                       />
                     ) : (
                       <div
@@ -363,7 +301,7 @@ export default function FriendLinksManagement() {
                       </button>
                       {pendingDeleteId === link.id ? (
                         <>
-                          <button className="btn-admin btn-admin-danger" onClick={() => void handleDelete(link.id)}>
+                          <button className="btn-admin btn-admin-danger" onClick={() => void deleteMutation.mutateAsync(link.id)}>
                             确认删除
                           </button>
                           <button className="btn-admin btn-admin-secondary" onClick={() => setPendingDeleteId(null)}>
@@ -396,73 +334,28 @@ export default function FriendLinksManagement() {
             <div className="create-key-form">
               <div className="form-group">
                 <label>名称</label>
-                <input
-                  type="text"
-                  className="admin-input"
-                  value={editFormData.name}
-                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                />
+                <input type="text" className="admin-input" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>网址</label>
-                <input
-                  type="url"
-                  className="admin-input"
-                  value={editFormData.url}
-                  onChange={(e) => setEditFormData({ ...editFormData, url: e.target.value })}
-                />
+                <input type="url" className="admin-input" value={editFormData.url} onChange={(e) => setEditFormData({ ...editFormData, url: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>站点图标 URL（可选）</label>
-                <input
-                  type="url"
-                  className="admin-input"
-                  value={editFormData.avatar_url}
-                  onChange={(e) => setEditFormData({ ...editFormData, avatar_url: e.target.value })}
-                />
+                <input type="url" className="admin-input" value={editFormData.avatar_url} onChange={(e) => setEditFormData({ ...editFormData, avatar_url: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>描述</label>
-                <textarea
-                  className="admin-input"
-                  rows={3}
-                  value={editFormData.description}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                />
+                <textarea className="admin-input" rows={3} value={editFormData.description} onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })} />
               </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "0.75rem",
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" }}>
                 <div className="form-group">
                   <label>排序</label>
-                  <input
-                    type="number"
-                    className="admin-input"
-                    value={editFormData.sort_order}
-                    onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        sort_order: parseInt(e.target.value, 10) || 0,
-                      })
-                    }
-                  />
+                  <input type="number" className="admin-input" value={editFormData.sort_order} onChange={(e) => setEditFormData({ ...editFormData, sort_order: parseInt(e.target.value, 10) || 0 })} />
                 </div>
                 <div className="form-group">
                   <label>状态</label>
-                  <select
-                    className="admin-select"
-                    value={editFormData.is_active}
-                    onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        is_active: parseInt(e.target.value, 10),
-                      })
-                    }
-                  >
+                  <select className="admin-select" value={editFormData.is_active} onChange={(e) => setEditFormData({ ...editFormData, is_active: parseInt(e.target.value, 10) })}>
                     <option value={1}>启用</option>
                     <option value={0}>禁用</option>
                   </select>
@@ -472,8 +365,13 @@ export default function FriendLinksManagement() {
                 <button className="btn-admin btn-admin-secondary" type="button" onClick={handleCancelEdit}>
                   取消
                 </button>
-                <button className="btn-admin btn-admin-primary" type="button" onClick={() => void handleSaveEdit()}>
-                  保存修改
+                <button
+                  className="btn-admin btn-admin-primary"
+                  type="button"
+                  disabled={updateMutation.isPending}
+                  onClick={() => editingId && void updateMutation.mutateAsync({ id: editingId, data: editFormData })}
+                >
+                  {updateMutation.isPending ? "保存中..." : "保存修改"}
                 </button>
               </div>
             </div>

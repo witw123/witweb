@@ -1,10 +1,10 @@
-﻿import { Suspense } from "react";
-import MessagesPageContent from "@/features/messages/components/MessagesPageContent";
+import dynamic from "next/dynamic";
+
+const MessagesPageContent = dynamic(
+  () => import("@/features/messages/components/MessagesPageContent"),
+  { loading: () => <div className="app-loading-fallback">加载中...</div> }
+);
 
 export default function MessagesPage() {
-  return (
-    <Suspense fallback={<div className="app-loading-fallback">加载中...</div>}>
-      <MessagesPageContent />
-    </Suspense>
-  );
+  return <MessagesPageContent />;
 }

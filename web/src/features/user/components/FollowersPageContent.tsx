@@ -3,10 +3,12 @@
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
+import { getVersionedApiPath } from "@/lib/api-version";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { SuccessResponse } from "@/lib/api-response";
 import type { FollowerItem } from "@/types/user";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
 function readSuccessData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== "object") return null;
@@ -16,7 +18,7 @@ function readSuccessData<T>(payload: unknown): T | null {
 }
 
 export default function FollowersPageContent() {
-  const { token } = useAuth();
+  const { isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const username = searchParams.get("username");
 
@@ -27,28 +29,27 @@ export default function FollowersPageContent() {
     setLoading(true);
     try {
       const url = username
-        ? `/api/followers?username=${encodeURIComponent(username)}&page=1&size=50`
-        : `/api/followers?page=1&size=50`;
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        ? `${getVersionedApiPath("/followers")}?username=${encodeURIComponent(username)}&page=1&size=50`
+        : `${getVersionedApiPath("/followers")}?page=1&size=50`;
+      const res = await fetch(url);
       const data = await res.json().catch(() => ({}));
       const payload = readSuccessData<{ items: FollowerItem[] }>(data);
       setItems(payload?.items || []);
     } finally {
       setLoading(false);
     }
-  }, [token, username]);
+  }, [username]);
 
   useEffect(() => {
     void loadItems();
   }, [loadItems]);
 
   const handleFollow = async (targetUsername: string) => {
-    if (!token) return;
-    const res = await fetch("/api/follow", {
+    if (!isAuthenticated) return;
+    const res = await fetch(getVersionedApiPath("/follow"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ username: targetUsername }),
     });
@@ -78,14 +79,7 @@ export default function FollowersPageContent() {
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <Link href={`/user/${user.username}`}>
                     {user.avatar_url ? (
-                      <Image
-                        src={user.avatar_url}
-                        alt={user.nickname || user.username}
-                        width={52}
-                        height={52}
-                        className="h-14 w-14 rounded-full bg-zinc-800 object-cover"
-                        unoptimized
-                      />
+                      <FollowerAvatar user={user} />
                     ) : (
                       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800 text-lg font-bold text-zinc-400">
                         {user.nickname?.[0] || user.username?.[0]}
@@ -121,6 +115,22 @@ export default function FollowersPageContent() {
         )}
       </div>
     </div>
+  );
+}
+
+function FollowerAvatar({ user }: { user: FollowerItem }) {
+  const avatarSrc = getThumbnailUrl(user.avatar_url || "", 128);
+  const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
+
+  return (
+    <Image
+      src={avatarSrc}
+      alt={user.nickname || user.username}
+      width={52}
+      height={52}
+      className="h-14 w-14 rounded-full bg-zinc-800 object-cover"
+      unoptimized={avatarUnoptimized}
+    />
   );
 }
 

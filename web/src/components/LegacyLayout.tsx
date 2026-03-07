@@ -2,10 +2,14 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
-import { getThumbnailUrl } from "@/utils/url";
+import { get } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import { hasAdminAccess, normalizeRole } from "@/lib/rbac";
 import Footer from "./Footer";
 import VisitTracker from "./VisitTracker";
@@ -13,28 +17,36 @@ import VisitTracker from "./VisitTracker";
 const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
 export default function LegacyLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, updateProfile, isAuthenticated, token } = useAuth();
+  const { user, logout, updateProfile, isAuthenticated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const isStudio = pathname.startsWith("/studio");
   const isHome = pathname === "/";
   const canAccessAdmin = isAuthenticated && hasAdminAccess(normalizeRole(user?.role, user?.username === adminUsername));
+  const userAvatarSrc = user?.avatar_url ? getThumbnailUrl(user.avatar_url, 64) : "";
+  const userAvatarLargeSrc = user?.avatar_url ? getThumbnailUrl(user.avatar_url, 96) : "";
+  const userAvatarUnoptimized = shouldBypassImageOptimization(userAvatarSrc);
+  const userAvatarLargeUnoptimized = shouldBypassImageOptimization(userAvatarLargeSrc);
+  const unreadQuery = useQuery({
+    queryKey: queryKeys.messageNotifications("unread-count"),
+    queryFn: () => get<{ unread_count: number }>(getVersionedApiPath("/messages/unread")),
+    enabled: isAuthenticated,
+    refetchInterval: isAuthenticated ? 30000 : false,
+    staleTime: 15 * 1000,
+  });
+  const unreadCount = unreadQuery.data?.unread_count || 0;
 
   const toggleUserMenu = async () => {
     const nextState = !showUserMenu;
     setShowUserMenu(nextState);
-    if (nextState && isAuthenticated && token) {
+    if (nextState && isAuthenticated) {
       try {
-        const res = await fetch("/api/profile", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.data?.profile) {
-          updateProfile(data.data.profile);
+        const data = await get<{ profile: typeof user }>(getVersionedApiPath("/profile"));
+        if (data?.profile) {
+          updateProfile(data.profile);
         }
       } catch {}
     }
@@ -59,22 +71,6 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showUserMenu]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !token) return;
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        setUnreadCount(data.data?.unread_count || 0);
-      } catch {}
-    };
-    void fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, token]);
 
   const navClass = (path: string) =>
     pathname === path || (path === "/studio" && isStudio) ? "nav-link active" : "nav-link";
@@ -131,12 +127,12 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                   <button className="user-button" onClick={toggleUserMenu}>
                     {user?.avatar_url ? (
                       <Image
-                        src={getThumbnailUrl(user.avatar_url, 64)}
+                        src={userAvatarSrc}
                         alt={user.nickname || user.username}
                         width={32}
                         height={32}
                         className="user-avatar"
-                        unoptimized
+                        unoptimized={userAvatarUnoptimized}
                       />
                     ) : (
                       <div className="user-avatar-fallback">{(user?.nickname || user?.username)?.[0]?.toUpperCase()}</div>
@@ -154,11 +150,11 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
                         <div className="user-dropdown-avatar">
                           {user?.avatar_url ? (
                             <Image
-                              src={getThumbnailUrl(user.avatar_url, 96)}
+                              src={userAvatarLargeSrc}
                               alt={user.nickname || user.username}
                               width={72}
                               height={72}
-                              unoptimized
+                              unoptimized={userAvatarLargeUnoptimized}
                             />
                           ) : (
                             <div className="user-dropdown-avatar-fallback">

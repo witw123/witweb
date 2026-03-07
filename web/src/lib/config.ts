@@ -1,188 +1,161 @@
-﻿/**
- */
-
 import "server-only";
+import { z } from "zod";
 import { encryptToString, decryptFromString, maskSensitiveValue } from "./security";
 
-// ============================================================================
-// ============================================================================
+const booleanFromEnv = (defaultValue: boolean) =>
+  z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (value === undefined || value === "") return defaultValue;
+      return value.toLowerCase() === "true" || value === "1";
+    });
 
-function getEnv(key: string, defaultValue?: string): string {
-  const value = process.env[key];
-  if (value === undefined || value === "") {
-    if (defaultValue !== undefined) {
-      console.warn(`[CONFIG] ${key} not set, using default value`);
-      return defaultValue;
-    }
-    throw new Error(`Required environment variable ${key} is not set`);
-  }
-  return value;
+const intFromEnv = (defaultValue: number) =>
+  z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value === "") return defaultValue;
+      const parsed = parseInt(value, 10);
+      if (Number.isNaN(parsed)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "必须是整数",
+        });
+        return z.NEVER;
+      }
+      return parsed;
+    });
+
+const stringFromEnv = (defaultValue = "") =>
+  z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? defaultValue : value.trim()));
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  DATABASE_URL: stringFromEnv(""),
+  PG_POOL_MAX: intFromEnv(10),
+  PG_IDLE_TIMEOUT_MS: intFromEnv(30000),
+  PG_CONNECTION_TIMEOUT_MS: intFromEnv(5000),
+  PG_SSL: booleanFromEnv(false),
+
+  AUTH_SECRET: stringFromEnv(""),
+  AUTH_EXPIRES_IN: stringFromEnv("1d"),
+  ADMIN_USERNAME: stringFromEnv("witw"),
+  AUTH_REGISTRATION_ENABLED: booleanFromEnv(true),
+  AUTH_MAX_LOGIN_ATTEMPTS: intFromEnv(5),
+  AUTH_LOCKOUT_DURATION: intFromEnv(30),
+
+  SORA2_API_KEY: stringFromEnv(""),
+  SORA2_BASE_URL: stringFromEnv("https://api.sora2.example.com").pipe(z.string().url()),
+  GRSAI_TOKEN: stringFromEnv(""),
+  GRSAI_DOMESTIC_URL: stringFromEnv("https://grsai.dakka.com.cn").pipe(z.string().url()),
+  GRSAI_OVERSEAS_URL: stringFromEnv("https://grsaiapi.com").pipe(z.string().url()),
+  GRSAI_HOST_MODE: z.enum(["auto", "domestic", "overseas"]).default("auto"),
+
+  AGENT_LLM_ENDPOINT: stringFromEnv(""),
+  AGENT_LLM_API_KEY: stringFromEnv(""),
+  AGENT_LLM_MODEL: stringFromEnv("gemini-3-pro"),
+
+  APP_NAME: stringFromEnv("WitWeb"),
+  APP_URL: stringFromEnv("http://localhost:3000").pipe(z.string().url()),
+  ENCRYPTION_KEY: stringFromEnv(""),
+  MAX_UPLOAD_SIZE: intFromEnv(10),
+  ALLOWED_UPLOAD_TYPES: stringFromEnv("image/jpeg,image/png,image/gif,image/webp"),
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  ENABLE_REQUEST_LOGGING: booleanFromEnv(true),
+
+  RATE_LIMIT_MAX: intFromEnv(100),
+  RATE_LIMIT_WINDOW_MS: intFromEnv(60000),
+  API_RATE_LIMIT_MAX: intFromEnv(60),
+  LOGIN_RATE_LIMIT_MAX: intFromEnv(5),
+  LOGIN_RATE_LIMIT_WINDOW_MS: intFromEnv(900000),
+  CORS_ORIGIN: stringFromEnv(""),
+  CORS_ENABLED: booleanFromEnv(false),
+  CSP_ENABLED: booleanFromEnv(true),
+});
+
+const parsedEnvResult = envSchema.safeParse(process.env);
+
+if (!parsedEnvResult.success) {
+  const messages = parsedEnvResult.error.issues.map((issue) => {
+    const path = issue.path.join(".") || "env";
+    return `${path}: ${issue.message}`;
+  });
+  throw new Error(`[CONFIG ERROR] Invalid environment configuration:\n${messages.join("\n")}`);
 }
 
-function getEnvBool(key: string, defaultValue: boolean = false): boolean {
-  const value = process.env[key];
-  if (value === undefined || value === "") return defaultValue;
-  return value.toLowerCase() === "true" || value === "1";
-}
+const env = parsedEnvResult.data;
 
-function getEnvInt(key: string, defaultValue: number): number {
+function isEnvMissing(key: keyof typeof env): boolean {
   const value = process.env[key];
-  if (value === undefined || value === "") return defaultValue;
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? defaultValue : parsed;
+  return value === undefined || value === "";
 }
-
-// ============================================================================
-// ============================================================================
 
 export const dbConfig = {
   postgres: {
-    url: getEnv("DATABASE_URL", ""),
-    poolMax: getEnvInt("PG_POOL_MAX", 10),
-    idleTimeoutMs: getEnvInt("PG_IDLE_TIMEOUT_MS", 30000),
-    connectionTimeoutMs: getEnvInt("PG_CONNECTION_TIMEOUT_MS", 5000),
-    ssl: getEnvBool("PG_SSL", false),
+    url: env.DATABASE_URL,
+    poolMax: env.PG_POOL_MAX,
+    idleTimeoutMs: env.PG_IDLE_TIMEOUT_MS,
+    connectionTimeoutMs: env.PG_CONNECTION_TIMEOUT_MS,
+    ssl: env.PG_SSL,
   },
 } as const;
-
-// ============================================================================
-// ============================================================================
 
 export const authConfig = {
-  /**
-   */
-  secret: getEnv("AUTH_SECRET", ""),
-  
-  /**
-   */
-  expiresIn: getEnv("AUTH_EXPIRES_IN", "1d"),
-  
-  /**
-   */
-  adminUsername: getEnv("ADMIN_USERNAME", "witw"),
-  
-  /**
-   */
-  registrationEnabled: getEnvBool("AUTH_REGISTRATION_ENABLED", true),
-  
-  /**
-   */
-  maxLoginAttempts: getEnvInt("AUTH_MAX_LOGIN_ATTEMPTS", 5),
-  
-  /**
-   */
-  lockoutDuration: getEnvInt("AUTH_LOCKOUT_DURATION", 30),
+  secret: env.AUTH_SECRET,
+  expiresIn: env.AUTH_EXPIRES_IN,
+  adminUsername: env.ADMIN_USERNAME,
+  registrationEnabled: env.AUTH_REGISTRATION_ENABLED,
+  maxLoginAttempts: env.AUTH_MAX_LOGIN_ATTEMPTS,
+  lockoutDuration: env.AUTH_LOCKOUT_DURATION,
 } as const;
-
-// ============================================================================
-// ============================================================================
 
 export const apiConfig = {
-  /**
-   */
   sora2: {
-    apiKey: getEnv("SORA2_API_KEY", ""),
-    baseUrl: getEnv("SORA2_BASE_URL", "https://api.sora2.example.com"),
+    apiKey: env.SORA2_API_KEY,
+    baseUrl: env.SORA2_BASE_URL,
   },
-  
-  /**
-   * GRS AI Token
-   */
   grsai: {
-    token: getEnv("GRSAI_TOKEN", ""),
-    domesticUrl: getEnv("GRSAI_DOMESTIC_URL", "https://grsai.dakka.com.cn"),
-    overseasUrl: getEnv("GRSAI_OVERSEAS_URL", "https://grsaiapi.com"),
-    hostMode: getEnv("GRSAI_HOST_MODE", "auto") as "auto" | "domestic" | "overseas",
+    token: env.GRSAI_TOKEN,
+    domesticUrl: env.GRSAI_DOMESTIC_URL,
+    overseasUrl: env.GRSAI_OVERSEAS_URL,
+    hostMode: env.GRSAI_HOST_MODE,
   },
 } as const;
 
-// ============================================================================
-// ============================================================================
+export const agentConfig = {
+  endpoint: env.AGENT_LLM_ENDPOINT,
+  apiKey: env.AGENT_LLM_API_KEY,
+  model: env.AGENT_LLM_MODEL,
+} as const;
 
 export const appConfig = {
-  /**
-   */
-  env: getEnv("NODE_ENV", "development"),
-  
-  /**
-   */
-  isDev: getEnv("NODE_ENV", "development") === "development",
-  
-  /**
-   */
-  isProd: getEnv("NODE_ENV", "production") === "production",
-  
-  /**
-   */
-  name: getEnv("APP_NAME", "WitWeb"),
-  
-  /**
-   */
-  url: getEnv("APP_URL", "http://localhost:3000"),
-  
-  /**
-   */
-  encryptionKey: getEnv("ENCRYPTION_KEY", ""),
-  
-  /**
-   */
-  maxUploadSize: getEnvInt("MAX_UPLOAD_SIZE", 10),
-  
-  /**
-   */
-  allowedUploadTypes: getEnv("ALLOWED_UPLOAD_TYPES", "image/jpeg,image/png,image/gif,image/webp").split(","),
-  
-  /**
-   */
-  logLevel: getEnv("LOG_LEVEL", "info"),
-  
-  /**
-   */
-  enableRequestLogging: getEnvBool("ENABLE_REQUEST_LOGGING", true),
+  env: env.NODE_ENV,
+  isDev: env.NODE_ENV === "development",
+  isProd: env.NODE_ENV === "production",
+  name: env.APP_NAME,
+  url: env.APP_URL,
+  encryptionKey: env.ENCRYPTION_KEY,
+  maxUploadSize: env.MAX_UPLOAD_SIZE,
+  allowedUploadTypes: env.ALLOWED_UPLOAD_TYPES.split(",").map((item) => item.trim()).filter(Boolean),
+  logLevel: env.LOG_LEVEL,
+  enableRequestLogging: env.ENABLE_REQUEST_LOGGING,
 } as const;
-
-// ============================================================================
-// ============================================================================
 
 export const securityConfig = {
-  /**
-   */
-  rateLimitMax: getEnvInt("RATE_LIMIT_MAX", 100),
-  
-  /**
-   */
-  rateLimitWindow: getEnvInt("RATE_LIMIT_WINDOW_MS", 60000),
-  
-  /**
-   */
-  apiRateLimitMax: getEnvInt("API_RATE_LIMIT_MAX", 60),
-  
-  /**
-   */
-  loginRateLimitMax: getEnvInt("LOGIN_RATE_LIMIT_MAX", 5),
-
-  /**
-   */
-  loginRateLimitWindow: getEnvInt("LOGIN_RATE_LIMIT_WINDOW_MS", 900000),
-  
-  /**
-   */
-  
-  /**
-   */
-  corsOrigin: getEnv("CORS_ORIGIN", appConfig.url),
-  
-  /**
-   */
-  corsEnabled: getEnvBool("CORS_ENABLED", false),
-  
-  /**
-   */
-  cspEnabled: getEnvBool("CSP_ENABLED", true),
+  rateLimitMax: env.RATE_LIMIT_MAX,
+  rateLimitWindow: env.RATE_LIMIT_WINDOW_MS,
+  apiRateLimitMax: env.API_RATE_LIMIT_MAX,
+  loginRateLimitMax: env.LOGIN_RATE_LIMIT_MAX,
+  loginRateLimitWindow: env.LOGIN_RATE_LIMIT_WINDOW_MS,
+  corsOrigin: env.CORS_ORIGIN || env.APP_URL,
+  corsEnabled: env.CORS_ENABLED,
+  cspEnabled: env.CSP_ENABLED,
 } as const;
-
-// ============================================================================
-// ============================================================================
 
 interface EncryptedConfigValue {
   encrypted: string;
@@ -191,15 +164,13 @@ interface EncryptedConfigValue {
 
 const configCache = new Map<string, string>();
 
-/**
- */
 export function encryptConfigValue(value: string): string {
   if (!value) return "";
   if (!appConfig.encryptionKey) {
     console.warn("[SECURITY WARNING] ENCRYPTION_KEY not set, storing value in plaintext");
     return JSON.stringify({ plaintext: value, updatedAt: new Date().toISOString() });
   }
-  
+
   const encrypted = encryptToString(value);
   const data: EncryptedConfigValue = {
     encrypted,
@@ -208,22 +179,20 @@ export function encryptConfigValue(value: string): string {
   return JSON.stringify(data);
 }
 
-/**
- */
 export function decryptConfigValue(storedValue: string): string {
   if (!storedValue) return "";
-  
+
   try {
     const data = JSON.parse(storedValue);
-    
+
     if (data.plaintext !== undefined) {
       return data.plaintext;
     }
-    
+
     if (data.encrypted) {
       return decryptFromString(data.encrypted);
     }
-    
+
     return decryptFromString(storedValue);
   } catch {
     console.error("[CONFIG] Failed to decrypt config value");
@@ -231,8 +200,6 @@ export function decryptConfigValue(storedValue: string): string {
   }
 }
 
-/**
- */
 export function getConfigValue(
   key: string,
   encryptedStoredValue?: string,
@@ -244,35 +211,28 @@ export function getConfigValue(
       return envValue;
     }
   }
-  
+
   if (configCache.has(key)) {
     return configCache.get(key)!;
   }
-  
+
   if (encryptedStoredValue) {
     const decrypted = decryptConfigValue(encryptedStoredValue);
     configCache.set(key, decrypted);
     return decrypted;
   }
-  
+
   return "";
 }
 
-/**
- */
 export function setConfigValue(key: string, value: string): string {
   configCache.set(key, value);
   return encryptConfigValue(value);
 }
 
-/**
- */
 export function clearConfigCache(): void {
   configCache.clear();
 }
-
-// ============================================================================
-// ============================================================================
 
 export interface ConfigValidationResult {
   valid: boolean;
@@ -280,12 +240,10 @@ export interface ConfigValidationResult {
   warnings: string[];
 }
 
-/**
- */
 export function validateConfig(): ConfigValidationResult {
   const missing: string[] = [];
   const warnings: string[] = [];
-  
+
   if (appConfig.isProd) {
     if (!appConfig.encryptionKey) {
       missing.push("ENCRYPTION_KEY (required in production)");
@@ -306,7 +264,7 @@ export function validateConfig(): ConfigValidationResult {
       warnings.push("DATABASE_URL not set (PostgreSQL disabled)");
     }
   }
-  
+
   if (appConfig.isDev) {
     if (!appConfig.encryptionKey) {
       warnings.push("ENCRYPTION_KEY not set, using fallback (insecure for production)");
@@ -315,7 +273,11 @@ export function validateConfig(): ConfigValidationResult {
       warnings.push("AUTH_SECRET not set, using fallback (insecure for production)");
     }
   }
-  
+
+  if (isEnvMissing("AGENT_LLM_ENDPOINT") || isEnvMissing("AGENT_LLM_API_KEY")) {
+    warnings.push("AGENT_LLM_ENDPOINT / AGENT_LLM_API_KEY not fully configured");
+  }
+
   return {
     valid: missing.length === 0,
     missing,
@@ -323,28 +285,23 @@ export function validateConfig(): ConfigValidationResult {
   };
 }
 
-/**
- */
 export function printConfigValidation(): void {
   const result = validateConfig();
-  
+
   if (result.missing.length > 0) {
     console.error("[CONFIG ERROR] Missing required configuration:");
-    result.missing.forEach(item => console.error(`  - ${item}`));
+    result.missing.forEach((item) => console.error(`  - ${item}`));
   }
-  
+
   if (result.warnings.length > 0) {
     console.warn("[CONFIG WARNING] Configuration issues:");
-    result.warnings.forEach(item => console.warn(`  - ${item}`));
+    result.warnings.forEach((item) => console.warn(`  - ${item}`));
   }
-  
+
   if (result.valid && result.warnings.length === 0) {
     console.log("[CONFIG] All configuration validated successfully");
   }
 }
-
-// ============================================================================
-// ============================================================================
 
 export interface SafeConfigSnapshot {
   app: {
@@ -373,6 +330,11 @@ export interface SafeConfigSnapshot {
       overseasUrl: string;
       hostMode: string;
     };
+    agent: {
+      endpoint: string;
+      apiKey: string;
+      model: string;
+    };
   };
   security: {
     rateLimitMax: number;
@@ -387,8 +349,6 @@ export interface SafeConfigSnapshot {
   };
 }
 
-/**
- */
 export function getSafeConfig(): SafeConfigSnapshot {
   return {
     app: {
@@ -417,6 +377,11 @@ export function getSafeConfig(): SafeConfigSnapshot {
         overseasUrl: apiConfig.grsai.overseasUrl,
         hostMode: apiConfig.grsai.hostMode,
       },
+      agent: {
+        endpoint: agentConfig.endpoint,
+        apiKey: maskSensitiveValue(agentConfig.apiKey),
+        model: agentConfig.model,
+      },
     },
     security: {
       rateLimitMax: securityConfig.rateLimitMax,
@@ -431,9 +396,6 @@ export function getSafeConfig(): SafeConfigSnapshot {
     },
   };
 }
-
-// ============================================================================
-// ============================================================================
 
 if (typeof window === "undefined") {
   printConfigValidation();

@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
+import { post } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { queryKeys } from "@/lib/query-keys";
+import { uploadImageRequest } from "@/lib/upload-image-client";
 
 const ratioOptions = ["16:9", "9:16", "1:1"];
 const durationOptions = [10, 15];
@@ -51,31 +56,37 @@ const defaultFormData: FormData = {
 };
 
 export function CreateForm({ onTaskCreated }: CreateFormProps) {
-  const { token } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [status, setStatus] = useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
   const [lastTaskId, setLastTaskId] = useState("");
-  const [formData, setFormData] = useState<FormData>(defaultFormData);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const [formData, setFormData] = useState<FormData>(() => {
+    if (typeof window === "undefined") return defaultFormData;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-      setFormData({ ...defaultFormData, ...JSON.parse(saved) });
-    } catch {}
-  }, []);
+      if (!saved) return defaultFormData;
+      return { ...defaultFormData, ...JSON.parse(saved) };
+    } catch {
+      return defaultFormData;
+    }
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
   }, [formData]);
 
-  const promptLength = useMemo(() => formData.prompt.trim().length, [formData.prompt]);
+  const promptLength = useMemo(
+    () => formData.prompt.trim().length,
+    [formData.prompt]
+  );
 
   const uploadReferenceImage = async (file: File) => {
-    if (!token) {
+    if (!isAuthenticated) {
       setStatus({ type: "error", msg: "请先登录后再上传参考图。" });
       return;
     }
@@ -84,69 +95,76 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload-image", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
+      const imageUrl = await uploadImageRequest({
+        formData: fd,
+        source: "video.create-form.upload-reference",
+        context: {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        },
+        fallbackMessage: "参考图上传失败",
       });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) throw new Error(data.error?.message || "参考图上传失败");
-      setFormData((prev) => ({ ...prev, url: data.data?.url || "" }));
-      setStatus({ type: "success", msg: "参考图已上传，可直接提交任务。" });
+      setFormData((prev) => ({ ...prev, url: imageUrl }));
+      setStatus({ type: "success", msg: "参考图已上传，可以直接提交任务。" });
     } catch (err: unknown) {
       setStatus({ type: "error", msg: errorMessage(err, "参考图上传失败") });
-    } finally {
-      setUploadingImage(false);
     }
+    setUploadingImage(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) {
-      setStatus({ type: "error", msg: "请先登录后再提交任务。" });
-      return;
-    }
-    if (!formData.prompt.trim()) {
-      setStatus({ type: "error", msg: "提示词不能为空。" });
-      return;
-    }
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!isAuthenticated) throw new Error("请先登录后再提交任务。");
+      if (!formData.prompt.trim()) throw new Error("提示词不能为空。");
 
-    setLoading(true);
-    setStatus(null);
-    try {
-      const payload = {
-        ...formData,
-        prompt: formData.prompt.trim(),
-        duration: Number(formData.duration),
-      };
-      const res = await fetch("/api/video/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+      return post<{ task_id?: string; id?: string }>(
+        getVersionedApiPath("/video/generate"),
+        {
+          ...formData,
+          prompt: formData.prompt.trim(),
+          duration: Number(formData.duration),
+        }
+      );
+    },
+    onMutate: () => {
+      setStatus(null);
+    },
+    onSuccess: async (data) => {
+      const taskId = data.task_id || data.id || "";
+      setLastTaskId(taskId);
+      setStatus({
+        type: "success",
+        msg: `任务创建成功：${taskId}`,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) throw new Error(data.error?.message || "任务提交失败");
-      const taskId = data.data?.task_id || data.data?.id;
-      setLastTaskId(taskId || "");
-      setStatus({ type: "success", msg: `任务创建成功：${taskId}` });
-      onTaskCreated?.(taskId);
       setFormData((prev) => ({ ...prev, prompt: "", remixTargetId: "" }));
-    } catch (err: unknown) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.videoTasks() }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.videoTasks({ limit: 100, status: "succeeded" }),
+        }),
+      ]);
+      onTaskCreated?.(taskId);
+    },
+    onError: (err) => {
       setStatus({ type: "error", msg: errorMessage(err, "任务提交失败") });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="studio-subpage">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void createMutation.mutateAsync();
+      }}
+      className="studio-subpage"
+    >
       <div className="studio-section-head">
         <div>
           <h3 className="studio-section-title">新建视频任务</h3>
-          <p className="studio-section-desc">填写提示词与参数，提交后可在任务列表查看实时进度。</p>
+          <p className="studio-section-desc">
+            填写提示词与参数，提交后可在任务列表查看实时进度。
+          </p>
         </div>
       </div>
 
@@ -199,7 +217,9 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
                 key={ratio}
                 type="button"
                 onClick={() => setFormData({ ...formData, aspectRatio: ratio })}
-                className={`studio-toggle-item ${formData.aspectRatio === ratio ? "active" : ""}`}
+                className={`studio-toggle-item ${
+                  formData.aspectRatio === ratio ? "active" : ""
+                }`}
               >
                 {ratio}
               </button>
@@ -215,7 +235,9 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
                 key={sec}
                 type="button"
                 onClick={() => setFormData({ ...formData, duration: sec })}
-                className={`studio-toggle-item ${formData.duration === sec ? "active" : ""}`}
+                className={`studio-toggle-item ${
+                  formData.duration === sec ? "active" : ""
+                }`}
               >
                 {sec} 秒
               </button>
@@ -238,7 +260,9 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
               }}
               className="studio-input"
             />
-            {uploadingImage && <p className="mt-2 text-xs text-[#888]">参考图上传中...</p>}
+            {uploadingImage && (
+              <p className="mt-2 text-xs text-[#888]">参考图上传中...</p>
+            )}
           </div>
 
           <div>
@@ -259,7 +283,9 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
               className="studio-input"
               placeholder="例如：s_xxxxx"
               value={formData.remixTargetId}
-              onChange={(e) => setFormData({ ...formData, remixTargetId: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, remixTargetId: e.target.value })
+              }
             />
           </div>
 
@@ -281,7 +307,13 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
       </section>
 
       {status && (
-        <div className={`studio-status ${status.type === "success" ? "studio-status-success" : "studio-status-error"}`}>
+        <div
+          className={`studio-status ${
+            status.type === "success"
+              ? "studio-status-success"
+              : "studio-status-error"
+          }`}
+        >
           <div className="studio-status-dot" />
           {status.msg}
         </div>
@@ -290,10 +322,14 @@ export function CreateForm({ onTaskCreated }: CreateFormProps) {
       <div className="studio-action-row">
         <button
           type="submit"
-          disabled={loading || uploadingImage || !formData.prompt.trim()}
+          disabled={
+            createMutation.isPending ||
+            uploadingImage ||
+            !formData.prompt.trim()
+          }
           className="studio-btn studio-btn-primary min-w-[180px] py-3"
         >
-          {loading ? "提交中..." : "开始生成视频"}
+          {createMutation.isPending ? "提交中..." : "开始生成视频"}
         </button>
         {lastTaskId && (
           <button

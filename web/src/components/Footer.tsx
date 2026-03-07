@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getVersionedApiPath } from "@/lib/api-version";
 
 export default function Footer() {
   const [stats, setStats] = useState({
@@ -16,7 +17,7 @@ export default function Footer() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/stats")
+    fetch(getVersionedApiPath("/stats"))
       .then((res) => res.json())
       .then((data) => {
         setStats({

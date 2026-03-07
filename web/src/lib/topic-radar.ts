@@ -1,5 +1,5 @@
 ﻿import "server-only";
-import { topicRadarRepository } from "./repositories";
+import { drizzleTopicRadarRepository, topicRadarRepository } from "./repositories";
 
 export type RadarSourceType = "rss" | "html" | "api";
 
@@ -339,7 +339,7 @@ async function dispatchAlertsForItems(username: string, items: InsertedRadarItem
 }
 
 async function ensureDefaultRadarSources(username: string) {
-  const existing = await topicRadarRepository.listSourceUrlsByUser(username);
+  const existing = await drizzleTopicRadarRepository.listSourceUrlsByUser(username);
   const existingSet = new Set(existing.map((item) => item.url.trim().toLowerCase()));
   const ts = nowIso();
 
@@ -361,7 +361,7 @@ async function ensureDefaultRadarSources(username: string) {
 
 export async function listRadarSources(username: string): Promise<RadarSource[]> {
   await ensureDefaultRadarSources(username);
-  return (await topicRadarRepository.listSourcesByUser(username)) as RadarSource[];
+  return (await drizzleTopicRadarRepository.listSourcesByUser(username)) as RadarSource[];
 }
 
 export async function createRadarSource(input: {
@@ -413,7 +413,7 @@ export async function deleteRadarSource(sourceId: number, username: string) {
 export async function listRadarItems(username: string, options: { limit?: number; q?: string; sourceId?: number } = {}) {
   await ensureDefaultRadarSources(username);
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
-  return (await topicRadarRepository.listItemsByUser(username, {
+  return (await drizzleTopicRadarRepository.listItemsByUser(username, {
     limit,
     q: options.q,
     sourceId: options.sourceId,
@@ -421,7 +421,7 @@ export async function listRadarItems(username: string, options: { limit?: number
 }
 
 export async function listRadarNotifications(username: string): Promise<RadarNotification[]> {
-  return (await topicRadarRepository.listNotificationsByUser(username)) as RadarNotification[];
+  return (await drizzleTopicRadarRepository.listNotificationsByUser(username)) as RadarNotification[];
 }
 
 export async function createRadarNotification(input: {
@@ -464,7 +464,7 @@ export async function deleteRadarNotification(notificationId: number, username: 
 }
 
 export async function listRadarAlertRules(username: string): Promise<Array<RadarAlertRule & { channel_name: string }>> {
-  return (await topicRadarRepository.listAlertRulesByUser(username)) as Array<RadarAlertRule & { channel_name: string }>;
+  return (await drizzleTopicRadarRepository.listAlertRulesByUser(username)) as Array<RadarAlertRule & { channel_name: string }>;
 }
 
 export async function createRadarAlertRule(input: {
@@ -533,7 +533,7 @@ export async function listRadarAlertLogs(
   options: { limit?: number; status?: "success" | "failed" } = {}
 ): Promise<Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>> {
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
-  return (await topicRadarRepository.listAlertLogsByUser(username, {
+  return (await drizzleTopicRadarRepository.listAlertLogsByUser(username, {
     limit,
     status: options.status,
   })) as Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>;
@@ -557,7 +557,7 @@ export async function listRadarSavedTopics(
   options: { limit?: number; q?: string; kind?: "item" | "analysis" } = {}
 ) {
   const limit = Math.min(Math.max(options.limit ?? 80, 1), 200);
-  const rows = (await topicRadarRepository.listSavedTopicsByUser(username, {
+  const rows = (await drizzleTopicRadarRepository.listSavedTopicsByUser(username, {
     limit,
     q: options.q,
     kind: options.kind,

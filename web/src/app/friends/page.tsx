@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { shouldBypassImageOptimization } from "@/utils/url";
 
 interface FriendLink {
   id: number;
@@ -17,7 +19,7 @@ export default function FriendsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/friend-links")
+    fetch(getVersionedApiPath("/friend-links"))
       .then((res) => res.json())
       .then((data) => {
         setLinks(data.data?.links || []);
@@ -75,7 +77,7 @@ export default function FriendsPage() {
                     width={74}
                     height={74}
                     className="friend-link-avatar"
-                    unoptimized
+                    unoptimized={shouldBypassImageOptimization(link.avatar_url || getFallbackIcon(link.url))}
                     onError={(e) => {
                       const fallback = getFallbackIcon(link.url);
                       if (fallback && (e.currentTarget as HTMLImageElement).src !== fallback) {

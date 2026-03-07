@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
+import { getVersionedApiPath } from "@/lib/api-version";
 
 export type UserProfile = {
   username: string;
@@ -20,8 +20,7 @@ export type UserProfile = {
 
 type AuthContextValue = {
   user: UserProfile | null;
-  token: string | null;
-  login: (token: string, profile: UserProfile) => void;
+  login: (profile: UserProfile) => void;
   logout: () => void;
   updateProfile: (profile: UserProfile) => void;
   loading: boolean;
@@ -30,50 +29,59 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function syncAuthCookie(token: string | null) {
-  if (typeof document === "undefined") return;
+type ProfileResponse = {
+  profile?: UserProfile;
+};
 
-  if (!token) {
-    document.cookie = `${AUTH_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
-    return;
+async function requestProfileWithCookie(): Promise<UserProfile | null> {
+  const response = await fetch(getVersionedApiPath("/profile"), {
+    credentials: "same-origin",
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    success?: boolean;
+    data?: ProfileResponse;
+  };
+
+  if (!response.ok || !payload.success || !payload.data?.profile) {
+    return null;
   }
 
-  const encoded = encodeURIComponent(token);
-  document.cookie = `${AUTH_COOKIE_NAME}=${encoded}; Path=/; Max-Age=86400; SameSite=Lax`;
+  return payload.data.profile;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    const storedProfile = localStorage.getItem("profile");
+    let cancelled = false;
 
-    if (!storedToken || !storedProfile) {
-      setToken(null);
-      setUser(null);
-      localStorage.removeItem("token");
-      localStorage.removeItem("profile");
-      syncAuthCookie(null);
-      setLoading(false);
-      return;
+    async function bootstrap() {
+      try {
+        const profile = await requestProfileWithCookie();
+        if (!cancelled) {
+          if (profile) {
+            setUser(profile);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
 
-    try {
-      setToken(storedToken);
-      setUser(JSON.parse(storedProfile) as UserProfile);
-      syncAuthCookie(storedToken);
-    } catch {
-      setToken(null);
-      setUser(null);
-      localStorage.removeItem("token");
-      localStorage.removeItem("profile");
-      syncAuthCookie(null);
-    } finally {
-      setLoading(false);
-    }
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const notifyProfileUpdate = () => {
@@ -85,32 +93,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      token,
       loading,
-      isAuthenticated: !!token && !!user,
-      login: (newToken, profile) => {
-        localStorage.setItem("token", newToken);
-        localStorage.setItem("profile", JSON.stringify(profile));
-        syncAuthCookie(newToken);
-        setToken(newToken);
+      isAuthenticated: !!user,
+      login: (profile) => {
         setUser(profile);
         notifyProfileUpdate();
       },
       logout: () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("profile");
-        syncAuthCookie(null);
-        setToken(null);
         setUser(null);
+        void fetch("/api/v1/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+        }).catch(() => {});
         notifyProfileUpdate();
       },
       updateProfile: (profile) => {
-        localStorage.setItem("profile", JSON.stringify(profile));
         setUser(profile);
         notifyProfileUpdate();
       },
     }),
-    [user, token, loading]
+    [user, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

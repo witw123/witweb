@@ -4,7 +4,8 @@ import Image from "next/image";
 import { ReactNode, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
-import { getThumbnailUrl } from "@/utils/url";
+import { getVersionedApiPath } from "@/lib/api-version";
+import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import type { SuccessResponse } from "@/lib/api-response";
 import type { UserProfile } from "@/types/user";
 
@@ -31,7 +32,7 @@ export default function UserHoverCard({ username, children, className = "", disa
   const [isVisible, setIsVisible] = useState(false);
   const [profile, setProfile] = useState<HoverUserProfile | null>(null);
   const [loading, setLoading] = useState(false);
-  const { token, user: authUser } = useAuth();
+  const { isAuthenticated, user: authUser } = useAuth();
   const hoverTimer = useRef<NodeJS.Timeout | null>(null);
   const leaveTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -39,9 +40,7 @@ export default function UserHoverCard({ username, children, className = "", disa
     if (profile || loading) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch(getVersionedApiPath(`/users/${encodeURIComponent(username)}/profile`));
       const payload = await res.json().catch(() => ({}));
       setProfile(readSuccessData<HoverUserProfile>(payload));
     } finally {
@@ -66,19 +65,17 @@ export default function UserHoverCard({ username, children, className = "", disa
   const toggleFollow = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!token || !profile) return;
+    if (!isAuthenticated || !profile) return;
     if (profile.is_following) {
-      await fetch(`/api/follow/${username}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      await fetch(getVersionedApiPath(`/follow/${username}`), { method: "DELETE" });
     } else {
-      await fetch("/api/follow", {
+      await fetch(getVersionedApiPath("/follow"), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
     }
-    const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(getVersionedApiPath(`/users/${encodeURIComponent(username)}/profile`));
     const payload = await res.json().catch(() => ({}));
     setProfile(readSuccessData<HoverUserProfile>(payload));
   };
@@ -102,7 +99,13 @@ export default function UserHoverCard({ username, children, className = "", disa
                 <div className="hover-card-info-row">
                   <Link href={`/user/${username || ""}`} className="hover-card-avatar">
                     {profile.avatar_url ? (
-                      <Image src={getThumbnailUrl(profile.avatar_url, 128)} alt={profile.nickname || username} width={64} height={64} unoptimized />
+                      <Image
+                        src={getThumbnailUrl(profile.avatar_url, 128)}
+                        alt={profile.nickname || username}
+                        width={64}
+                        height={64}
+                        unoptimized={shouldBypassImageOptimization(getThumbnailUrl(profile.avatar_url, 128))}
+                      />
                     ) : (
                       <div className="avatar-fallback-rect">{(username?.[0] || "?").toUpperCase()}</div>
                     )}
