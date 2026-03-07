@@ -318,14 +318,12 @@ export class DrizzlePostRepository {
         favorite_count: sql<number>`(
           SELECT COUNT(*)::int FROM favorites f WHERE f.post_id = ${posts.id}
         )`,
-        liked_by_me: sql<boolean>`CASE
-          WHEN ${viewer} = '' THEN false
-          ELSE EXISTS(SELECT 1 FROM likes l2 WHERE l2.post_id = ${posts.id} AND l2.username = ${viewer})
-        END`,
-        favorited_by_me: sql<boolean>`CASE
-          WHEN ${viewer} = '' THEN false
-          ELSE EXISTS(SELECT 1 FROM favorites f2 WHERE f2.post_id = ${posts.id} AND f2.username = ${viewer})
-        END`,
+        liked_by_me: viewer
+          ? sql<boolean>`EXISTS(SELECT 1 FROM likes l2 WHERE l2.post_id = ${posts.id} AND l2.username = ${viewer})`
+          : sql<boolean>`false`,
+        favorited_by_me: viewer
+          ? sql<boolean>`EXISTS(SELECT 1 FROM favorites f2 WHERE f2.post_id = ${posts.id} AND f2.username = ${viewer})`
+          : sql<boolean>`false`,
       })
       .from(posts)
       .leftJoin(categories, eq(categories.id, posts.categoryId))
@@ -396,10 +394,9 @@ export class DrizzlePostRepository {
         favorite_count: sql<number>`(
           SELECT COUNT(*)::int FROM favorites f WHERE f.post_id = ${posts.id}
         )`,
-        favorited_by_me: sql<boolean>`CASE
-          WHEN ${viewer} = '' THEN false
-          ELSE EXISTS(SELECT 1 FROM favorites f2 WHERE f2.post_id = ${posts.id} AND f2.username = ${viewer})
-        END`,
+        favorited_by_me: viewer
+          ? sql<boolean>`EXISTS(SELECT 1 FROM favorites f2 WHERE f2.post_id = ${posts.id} AND f2.username = ${viewer})`
+          : sql<boolean>`false`,
       })
       .from(posts)
       .leftJoin(categories, eq(categories.id, posts.categoryId))
