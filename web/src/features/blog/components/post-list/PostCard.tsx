@@ -32,12 +32,6 @@ export const PostCard = memo(function PostCard({
 }: PostCardProps) {
   const titleText = post.title || "";
 
-  const rawPreview = post.excerpt || (post.content || "").replace(/\s+/g, " ").trim();
-  const preview =
-    rawPreview.length > 0
-      ? `${rawPreview.slice(0, 120)}${rawPreview.length > 120 ? "..." : ""}`
-      : "";
-
   const tagList = (post.tags || "")
     .split(/[,，]/)
     .map((tag) => tag.trim())
@@ -125,11 +119,6 @@ export const PostCard = memo(function PostCard({
             )}
           </h2>
         </Link>
-
-        {/* Preview */}
-        {preview && (
-          <p className="post-card-v2-excerpt">{preview}</p>
-        )}
 
         {/* Tags */}
         {tagList.length > 0 && (

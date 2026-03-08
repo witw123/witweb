@@ -1,7 +1,7 @@
 .blog-post-page {
-  max-width: 860px;
+  width: 100%;
   margin: 0 auto;
-  padding: 20px 16px 40px;
+  padding: 20px 24px 40px;
 }
 
 .post-cover-wrapper {
@@ -338,7 +338,6 @@
 @media (max-width: 768px) {
   .blog-post-page {
     padding: 14px 12px 28px;
-    max-width: 100%;
   }
 
   .post-hero-main {

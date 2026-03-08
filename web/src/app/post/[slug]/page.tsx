@@ -20,10 +20,10 @@ function stripMarkdown(source: string): string {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const siteUrl = getSiteUrl();
-  const slug = params.slug;
+  const { slug } = await params;
 
   try {
     const post = await drizzlePostRepository.getPostDetail(slug);
