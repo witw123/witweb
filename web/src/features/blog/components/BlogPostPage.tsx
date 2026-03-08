@@ -64,6 +64,7 @@ export default function BlogPostPage() {
   const [editContent, setEditContent] = useState("");
   const [editTags, setEditTags] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
+  const [editCoverImageUrl, setEditCoverImageUrl] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [imageWidth, setImageWidth] = useState("");
   const purifier = useMemo(
@@ -76,7 +77,7 @@ export default function BlogPostPage() {
   const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
   const isAdmin = Boolean(
     profile?.username &&
-      (profile.role === "admin" || profile.username === adminUsername)
+    (profile.role === "admin" || profile.username === adminUsername)
   );
 
   const sanitizeHtml = useCallback(
@@ -211,6 +212,7 @@ export default function BlogPostPage() {
         content: editContent,
         tags: editTags,
         category_id: editCategoryId ? Number(editCategoryId) : null,
+        cover_image_url: editCoverImageUrl || null,
       });
       setIsEditing(false);
       await refreshPost();
@@ -290,6 +292,7 @@ export default function BlogPostPage() {
     setEditContent(post.content || "");
     setEditTags(post.tags || "");
     setEditCategoryId(post.category_id ? String(post.category_id) : "");
+    setEditCoverImageUrl(post.cover_image_url || "");
     setEditStatus("");
     setIsEditing(true);
   }
@@ -330,12 +333,14 @@ export default function BlogPostPage() {
           editCategoryId={editCategoryId}
           editTags={editTags}
           editContent={editContent}
+          editCoverImageUrl={editCoverImageUrl}
           editStatus={editStatus}
           imageWidth={imageWidth}
           onTitleChange={setEditTitle}
           onCategoryChange={setEditCategoryId}
           onTagsChange={setEditTags}
           onContentChange={setEditContent}
+          onCoverImageChange={setEditCoverImageUrl}
           onImageWidthChange={setImageWidth}
           onImageSelect={(file) => void handleImageSelect(file)}
           onSave={() => void handleSaveEdit()}

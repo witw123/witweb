@@ -100,23 +100,25 @@ export function CoverImageUploader({ value, onChange, disabled, className }: Cov
             className="object-cover"
             sizes="(max-width: 768px) 100vw, 800px"
           />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || uploading}
-              className="px-3 py-1.5 text-sm bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors"
-            >
-              {uploading ? "上传中..." : "更换图片"}
-            </button>
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={disabled}
-              className="px-3 py-1.5 text-sm bg-red-500/80 hover:bg-red-500 text-white rounded-lg transition-colors"
-            >
-              移除
-            </button>
+          <div className="absolute inset-0 flex items-end justify-end p-3 pointer-events-none">
+            <div className="flex gap-2 pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || uploading}
+                className="px-3 py-1.5 text-xs font-medium bg-black/60 hover:bg-black/80 backdrop-blur-sm text-white rounded-lg transition-colors border border-white/10"
+              >
+                {uploading ? "上传中..." : "更换封面"}
+              </button>
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={disabled}
+                className="px-3 py-1.5 text-xs font-medium bg-red-500/80 hover:bg-red-500 backdrop-blur-sm text-white rounded-lg transition-colors border border-red-500/20"
+              >
+                移除
+              </button>
+            </div>
           </div>
         </div>
       ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import type { Category } from "@/types";
+import { CoverImageUploader } from "./CoverImageUploader";
 
 type BlogPostEditorProps = {
   categories: Category[];
@@ -8,12 +9,14 @@ type BlogPostEditorProps = {
   editCategoryId: string;
   editTags: string;
   editContent: string;
+  editCoverImageUrl: string;
   editStatus: string;
   imageWidth: string;
   onTitleChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onTagsChange: (value: string) => void;
   onContentChange: (value: string) => void;
+  onCoverImageChange: (value: string) => void;
   onImageWidthChange: (value: string) => void;
   onImageSelect: (file: File | undefined) => void;
   onSave: () => void;
@@ -26,12 +29,14 @@ export function BlogPostEditor({
   editCategoryId,
   editTags,
   editContent,
+  editCoverImageUrl,
   editStatus,
   imageWidth,
   onTitleChange,
   onCategoryChange,
   onTagsChange,
   onContentChange,
+  onCoverImageChange,
   onImageWidthChange,
   onImageSelect,
   onSave,
@@ -48,6 +53,13 @@ export function BlogPostEditor({
           placeholder="标题"
         />
       </label>
+      <div className="mb-4 block">
+        <span className="mb-1 block text-sm font-medium">文章封面</span>
+        <CoverImageUploader
+          value={editCoverImageUrl}
+          onChange={onCoverImageChange}
+        />
+      </div>
       <label className="mb-4 block">
         <span className="mb-1 block text-sm font-medium">分类</span>
         <select

@@ -426,8 +426,17 @@ export default function PublishPage() {
   return (
     <div className="container blog-page-shell publish-shell">
       <div className="card blog-page-card">
-
-
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) uploadImage(file);
+            e.target.value = "";
+          }}
+        />
         {!isAuthenticated ? (
           <div className="py-20 text-center">
             <h3 className="text-xl font-bold mb-4">需要登录</h3>
