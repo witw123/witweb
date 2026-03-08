@@ -1,9 +1,9 @@
 ﻿"use client";
 
-import { useState, useCallback, useMemo, type CSSProperties } from "react";
+import { useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
-import { usePosts, usePostActions, useTags } from "../hooks";
+import { usePosts, usePostActions } from "../hooks";
 import { HeroSection } from "./hero/HeroSection";
 import { SearchBar } from "./search";
 import { PostList } from "./post-list";
@@ -22,17 +22,14 @@ export default function BlogListPage() {
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState("");
   const selectedCategory = searchParams.get("category") || "";
   const hasCategoryFilter = Boolean(selectedCategory);
-  const { tags: allTags } = useTags(12);
 
   // 数据获取
   const { posts, status, error, updatePost, totalPages } = usePosts({
     page,
     pageSize: PAGE_SIZE,
     query: submittedQuery,
-    tag: selectedTag,
     category: selectedCategory,
   });
 
@@ -51,14 +48,6 @@ export default function BlogListPage() {
     setSubmittedQuery(value);
     setPage(1);
   }, []);
-
-  const tags = useMemo(() => {
-    return allTags.map((item) => [item.tag, item.count] as [string, number]);
-  }, [allTags]);
-
-  const maxTagCount = useMemo(() => {
-    return Math.max(1, ...tags.map(([, count]) => count));
-  }, [tags]);
 
   const handleCommentClick = useCallback((slug: string) => {
     router.push(`/post/${slug}#comments`);
@@ -101,78 +90,7 @@ export default function BlogListPage() {
 
         {/* 文章列表 */}
         {!isLoading && !hasError && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[clamp(240px,24vw,380px)_minmax(0,1fr)]">
-            <aside className="lg:sticky lg:top-24 lg:self-start">
-              <div className="tag-atlas-shell">
-                <div className="tag-atlas">
-                  <div className="tag-atlas-head">
-                    <div>
-                      <div className="tag-atlas-kicker">WITWEB ATLAS</div>
-                      <h4 className="tag-atlas-title">标签</h4>
-                      <div className="tag-atlas-sub">按主题筛选本页</div>
-                    </div>
-
-                    {selectedTag ? (
-                      <button
-                        type="button"
-                        className="tag-atlas-reset"
-                        onClick={() => {
-                          setSelectedTag("");
-                          setPage(1);
-                        }}
-                        title="清除标签筛选"
-                      >
-                        清除
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {selectedTag && (
-                    <div className="tag-atlas-focus">
-                      <span className="tag-atlas-focus-dot" />
-                      <span className="tag-atlas-focus-text">
-                        Focus: <span className="tag-atlas-focus-tag">#{selectedTag}</span>
-                      </span>
-                    </div>
-                  )}
-
-                  {tags.length === 0 ? (
-                    <p className="tag-atlas-empty">当前结果暂无标签</p>
-                  ) : (
-                    <div className="tag-atlas-cloud" role="list">
-                      {tags.map(([tag, count]) => {
-                        const active = selectedTag === tag;
-                        const strength = Math.min(1, Math.max(0.15, count / maxTagCount));
-                        const chipStyle = { "--tag-strength": strength } as CSSProperties & Record<"--tag-strength", number>;
-                        return (
-                          <button
-                            key={tag}
-                            type="button"
-                            role="listitem"
-                            className={`tag-atlas-chip ${active ? "is-active" : ""}`}
-                            style={chipStyle}
-                            onClick={() => {
-                              setSelectedTag(active ? "" : tag);
-                              setPage(1);
-                            }}
-                          >
-                            <span className="tag-atlas-chip-hash">#</span>
-                            <span className="tag-atlas-chip-text">{tag}</span>
-                            <span className="tag-atlas-chip-count">{count}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="tag-atlas-foot">
-                    <div className="tag-atlas-foot-line" />
-                    <div className="tag-atlas-foot-text">精选你的内容</div>
-                  </div>
-                </div>
-              </div>
-            </aside>
-
+          <div className="w-full">
             <section className="home-feed-shell min-w-0">
               <div className="home-feed">
                 <header className="home-feed-head">
@@ -181,10 +99,9 @@ export default function BlogListPage() {
                     <h3 className="home-feed-title">最新文章</h3>
                   </div>
 
-                  {(submittedQuery || selectedTag) && (
+                  {submittedQuery && (
                     <div className="home-feed-filters">
-                      {submittedQuery && <span className="home-feed-filter">搜索: {submittedQuery}</span>}
-                      {selectedTag && <span className="home-feed-filter">标签: #{selectedTag}</span>}
+                      <span className="home-feed-filter">搜索: {submittedQuery}</span>
                     </div>
                   )}
                 </header>
