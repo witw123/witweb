@@ -14,7 +14,11 @@
       "Bash(python \"C:/Users/witw/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"form state keyboard\" --stack nextjs -n 5)",
       "Bash(npx tsc --noEmit)",
       "Bash(npm run build)",
-      "Bash(npm run db:migrate)"
+      "Bash(npm run db:migrate)",
+      "Read(//c/Users/witw/.claude/skills/ui-ux-pro-max/**)",
+      "Bash(python scripts/search.py \"personal blog portfolio developer tech\" --design-system -p \"WitWeb\" -f markdown)",
+      "Bash(python scripts/search.py \"blog card grid responsive\" --domain style -n 5)",
+      "Bash(python scripts/search.py \"dark mode blog card hover\" --domain ux -n 5)"
     ]
   }
 }

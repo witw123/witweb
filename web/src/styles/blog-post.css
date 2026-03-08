@@ -6,6 +6,17 @@
 
 .post-cover-wrapper {
   position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* Editorial: Vignette effect on cover */
+.post-cover-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.3) 100%);
 }
 
 .post-cover-wrapper img {
@@ -148,6 +159,18 @@
   color: rgba(226, 232, 240, 0.95);
 }
 
+/* Editorial: Drop cap for first paragraph */
+.markdown > p:first-of-type::first-letter {
+  float: left;
+  font-family: var(--font-heading);
+  font-size: 3.8rem;
+  font-weight: 700;
+  line-height: 0.85;
+  padding-right: 12px;
+  padding-top: 6px;
+  color: rgba(96, 165, 250, 0.9);
+}
+
 .markdown>*+* {
   margin-top: 1.1rem;
 }
@@ -203,11 +226,12 @@
   text-decoration: underline;
   text-decoration-color: rgba(125, 184, 255, 0.45);
   text-underline-offset: 3px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
 }
 
 .markdown a:hover {
-  color: #a8d1ff;
-  text-decoration-color: rgba(168, 209, 255, 0.78);
+  color: #bfdbfe;
+  text-decoration-color: rgba(191, 219, 254, 0.8);
 }
 
 .markdown img {
@@ -227,11 +251,24 @@
 }
 
 .markdown blockquote {
-  border-left: 3px solid rgba(96, 165, 250, 0.6);
-  padding: 0.5rem 0 0.5rem 1rem;
+  border-left: 3px solid rgba(96, 165, 250, 0.7);
+  padding: 0.75rem 0 0.75rem 1.25rem;
   color: rgba(203, 213, 225, 0.92);
-  background: rgba(30, 41, 59, 0.3);
+  background: rgba(30, 41, 59, 0.35);
   border-radius: 0 8px 8px 0;
+  font-style: italic;
+  position: relative;
+}
+
+.markdown blockquote::before {
+  content: '"';
+  position: absolute;
+  left: -2px;
+  top: 0.25rem;
+  font-size: 2.5rem;
+  font-family: Georgia, serif;
+  color: rgba(96, 165, 250, 0.3);
+  line-height: 1;
 }
 
 .markdown code {

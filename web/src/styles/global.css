@@ -133,7 +133,7 @@ select:focus {
   font-size: 1rem;
   font-weight: 700;
   font-family: var(--font-heading);
-  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
   cursor: pointer;
   position: relative;
 }
@@ -147,12 +147,6 @@ select:focus {
 
 .btn-hero-primary:hover {
   background: var(--ui-hero-primary-hover-bg);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(0, 112, 243, 0.28);
-}
-
-.btn-hero-primary:active {
-  transform: translateY(0);
 }
 
 .btn-hero-secondary {
@@ -165,12 +159,7 @@ select:focus {
 .btn-hero-secondary:hover {
   background: var(--ui-hero-secondary-hover-bg);
   border-color: var(--ui-hero-secondary-hover-border);
-  transform: translateY(-1px);
   color: var(--text-primary);
-}
-
-.btn-hero-secondary:active {
-  transform: translateY(0);
 }
 
 .tag-list {
@@ -194,12 +183,10 @@ select:focus {
   font-weight: 700;
   letter-spacing: 0.01em;
   font-size: 11px;
-  transform: translateZ(0);
-  transition: transform 0.16s ease, border-color 0.16s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .tag-pill:hover {
-  transform: translateY(-2px);
   border-color: var(--ui-tag-pill-border-hover);
 }
 

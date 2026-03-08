@@ -20,7 +20,7 @@
 .post-card-grid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
-  gap: 16px;
+  gap: 20px;
 }
 
 @media (min-width: 640px) {
