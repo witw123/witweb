@@ -48,6 +48,91 @@ function buildGoalAssistantSummary(summary: string, status: string) {
   return summary || "我已完成这一轮任务。";
 }
 
+function looksLikeCasualConversation(content: string) {
+  const normalized = content.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.length <= 16) {
+    const directPatterns = [
+      /^你好[呀吗]?$/,
+      /^嗨[呀吗]?$/,
+      /^hello$/,
+      /^hi$/,
+      /^你是谁[？?]?$/,
+      /^你是？$/,
+      /^介绍一下你自己$/,
+      /^你能做什么[？?]?$/,
+      /^你会什么[？?]?$/,
+      /^在吗[？?]?$/,
+      /^帮我介绍一下你自己$/,
+    ];
+    if (directPatterns.some((pattern) => pattern.test(normalized))) {
+      return true;
+    }
+  }
+
+  return /(你是谁|介绍一下你自己|你能做什么|你会什么|自我介绍|介绍你自己)/.test(normalized);
+}
+
+async function generateCasualReply(
+  username: string,
+  conversationId: string,
+  content: string,
+  templateId?: string,
+  options?: {
+    onDelta?: (chunk: string) => void | Promise<void>;
+  }
+) {
+  const template = templateId ? await getPromptTemplate(username, templateId) : null;
+  const memoryContext = await getRagMemoryContext(username, conversationId).catch(() => ({
+    conversationSummary: "",
+    conversationKeyPoints: [],
+    longTermMemories: [],
+  }));
+
+  const response = await invokeModelText({
+    model: getModelDescriptor().id,
+    capability: "agent_llm",
+    systemPrompt:
+      template?.system_prompt ||
+      "You are a helpful Chinese assistant for creators. Handle greetings, self-introduction, and casual chat naturally.",
+    userPrompt: [
+      template?.task_prompt || "",
+      content,
+      memoryContext.conversationSummary ? `Conversation memory:\n${memoryContext.conversationSummary}` : "",
+      memoryContext.longTermMemories.length
+        ? `Long-term memory:\n${memoryContext.longTermMemories.map((item) => `- ${item.key}: ${item.value}`).join("\n")}`
+        : "",
+      "Reply directly in Chinese. This is casual conversation, so do not require knowledge-base citations.",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    onChunk: options?.onDelta,
+  });
+
+  return {
+    content: response.output.trim(),
+    meta: {
+      rag_strategy: "langchain_hybrid_chat_fallback",
+      knowledge_hit_count: 0,
+      citation_count: 0,
+      retrieval_confidence: 0,
+      memory_used: {
+        conversation_summary: memoryContext.conversationSummary,
+        long_term_memory_count: memoryContext.longTermMemories.length,
+      },
+      citations: [],
+      fallback_reason: "empty_retrieval",
+      thinking: buildDoneThinking(["intent", "memory", "search", "compose"]),
+      timeline_events: [
+        { id: `phase_intent_${conversationId}`, source: "conversation", kind: "phase", title: "识别用户意图", status: "done", created_at: nowIso() },
+        { id: `phase_memory_${conversationId}`, source: "conversation", kind: "phase", title: "提取用户记忆", status: "done", created_at: nowIso() },
+        { id: `phase_search_${conversationId}`, source: "conversation", kind: "phase", title: "检索知识与上下文", status: "done", created_at: nowIso() },
+        { id: `phase_compose_${conversationId}`, source: "conversation", kind: "phase", title: "生成最终回答", status: "done", created_at: nowIso() },
+      ],
+    },
+  };
+}
+
 function requiresManualConfirmation(taskType: ContentTaskType) {
   return taskType === "hot_topic_article" || taskType === "continue_article" || taskType === "publish_draft";
 }
@@ -208,6 +293,12 @@ async function generateDirectReply(
             }
           : undefined,
       });
+
+      if (ragReply.fallback_reason === "empty_retrieval" && looksLikeCasualConversation(content)) {
+        return generateCasualReply(username, conversationId, content, templateId, {
+          onDelta: options?.onDelta,
+        });
+      }
 
       return {
         content: ragReply.answer.trim(),
