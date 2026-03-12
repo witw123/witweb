@@ -12,6 +12,28 @@ const PUBLIC_WRITE_API_PATHS = new Set([
   "/api/v1/auth/register",
 ]);
 
+function normalizePathname(pathname: string): string {
+  if (!pathname) return "/";
+  const normalized = pathname.replace(/\/{2,}/g, "/");
+  if (normalized.length > 1 && normalized.endsWith("/")) {
+    return normalized.slice(0, -1);
+  }
+  return normalized;
+}
+
+function isPublicWriteApiPath(pathname: string): boolean {
+  const normalized = normalizePathname(pathname);
+  if (PUBLIC_WRITE_API_PATHS.has(normalized)) {
+    return true;
+  }
+  for (const publicPath of PUBLIC_WRITE_API_PATHS) {
+    if (normalized.startsWith(`${publicPath}/`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function redirectToAdminLogin(req: NextRequest): NextResponse {
   const loginUrl = new URL("/admin/login", req.url);
   return NextResponse.redirect(loginUrl);
@@ -38,11 +60,11 @@ async function hasValidAuthToken(req: NextRequest): Promise<boolean> {
 }
 
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const pathname = normalizePathname(req.nextUrl.pathname);
   const method = req.method.toUpperCase();
 
   if (pathname.startsWith("/api/")) {
-    if (READ_ONLY_METHODS.has(method) || PUBLIC_WRITE_API_PATHS.has(pathname)) {
+    if (READ_ONLY_METHODS.has(method) || isPublicWriteApiPath(pathname)) {
       return NextResponse.next();
     }
 
