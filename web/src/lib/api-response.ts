@@ -1,4 +1,10 @@
-﻿import { NextResponse } from "next/server";
+﻿/**
+ * API 响应工具
+ *
+ * 提供统一的 API 响应格式创建函数
+ */
+
+import { NextResponse } from "next/server";
 import {
   ApiError,
   ErrorCode,
@@ -11,11 +17,13 @@ import {
 } from "./api-error";
 import { logError } from "./logger";
 
+/** 成功响应 */
 export interface SuccessResponse<T = unknown> {
   success: true;
   data: T;
 }
 
+/** 错误详情 */
 export interface ErrorDetail {
   code: ErrorCodeType;
   message: string;
@@ -27,6 +35,7 @@ export interface ErrorResponse {
   error: ErrorDetail;
 }
 
+/** 分页数据 */
 export interface PaginatedData<T> {
   items: T[];
   total: number;

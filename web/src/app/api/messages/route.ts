@@ -1,3 +1,12 @@
+/**
+ * 消息列表与发送 API
+ *
+ * 提供消息会话列表查询和发送私信功能
+ *
+ * @route /api/messages
+ * @method GET - 获取当前用户的消息会话列表
+ * @method POST - 发送私信给其他用户
+ */
 import { NextRequest } from "next/server";
 import { messageRepository, userRepository } from "@/lib/repositories";
 import { getAuthUser } from "@/lib/http";
@@ -12,6 +21,11 @@ const sendMessageSchema = z.object({
   content: z.string().min(1, "消息内容不能为空").max(2000, "消息内容最多 2000 个字符"),
 });
 
+/**
+ * 获取当前用户的消息会话列表
+ *
+ * 返回与当前用户相关的所有私信会话，按最新消息时间倒序排列
+ */
 export const GET = withErrorHandler(async () => {
   const user = await getAuthUser();
   if (!user) {
@@ -27,6 +41,15 @@ export const GET = withErrorHandler(async () => {
   return successResponse(filtered);
 });
 
+/**
+ * 发送私信
+ *
+ * 将消息发送给指定用户，创建新的会话或追加到现有会话
+ *
+ * @param {string} receiver - 接收方用户名
+ * @param {string} content - 消息内容，最多 2000 字符
+ * @returns {string} conversation_id - 会话 ID
+ */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const auth = await verifyAuth(req);
   if (!auth) {

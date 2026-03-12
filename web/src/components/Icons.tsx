@@ -1,8 +1,26 @@
+/**
+ * Icons 图标组件库
+ *
+ * 提供常用的 SVG 图标组件，支持自定义样式。
+ * 包括心心、消息、点赞、点踩、书签等图标。
+ *
+ * @module Icons
+ * @example
+ * import { HeartIcon, MessageCircleIcon } from '@/components/Icons';
+ *
+ * <HeartIcon filled={true} className="text-red-500" />
+ */
+
 export type IconProps = {
   filled?: boolean;
   className?: string;
 };
 
+/**
+ * HeartIcon 心心图标
+ * @param filled - 是否填充颜色
+ * @param className - 自定义 CSS 类名
+ */
 export const HeartIcon = ({ filled = false, className = "" }: IconProps) => (
   <svg
     className={className}
@@ -19,6 +37,10 @@ export const HeartIcon = ({ filled = false, className = "" }: IconProps) => (
   </svg>
 );
 
+/**
+ * MessageCircleIcon 消息/评论图标
+ * @param className - 自定义 CSS 类名
+ */
 export const MessageCircleIcon = ({ className = "" }: IconProps) => (
   <svg
     className={className}
@@ -35,6 +57,11 @@ export const MessageCircleIcon = ({ className = "" }: IconProps) => (
   </svg>
 );
 
+/**
+ * ThumbsUpIcon 点赞图标
+ * @param filled - 是否填充颜色
+ * @param className - 自定义 CSS 类名
+ */
 export const ThumbsUpIcon = ({ filled = false, className = "" }: IconProps) => (
   <svg
     className={className}
@@ -51,6 +78,11 @@ export const ThumbsUpIcon = ({ filled = false, className = "" }: IconProps) => (
   </svg>
 );
 
+/**
+ * ThumbsDownIcon 点踩/反对图标
+ * @param filled - 是否填充颜色
+ * @param className - 自定义 CSS 类名
+ */
 export const ThumbsDownIcon = ({ filled = false, className = "" }: IconProps) => (
   <svg
     className={className}
@@ -67,6 +99,11 @@ export const ThumbsDownIcon = ({ filled = false, className = "" }: IconProps) =>
   </svg>
 );
 
+/**
+ * BookmarkIcon 书签/收藏图标
+ * @param filled - 是否填充颜色
+ * @param className - 自定义 CSS 类名
+ */
 export const BookmarkIcon = ({ filled = false, className = "" }: IconProps) => (
   <svg
     className={className}

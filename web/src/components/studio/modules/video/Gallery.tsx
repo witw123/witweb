@@ -1,9 +1,26 @@
 "use client";
 
+/**
+ * Gallery 视频作品库组件
+ *
+ * 显示已生成的本地视频作品：
+ * - 作品列表展示
+ * - 搜索和排序
+ * - 下载和删除操作
+ * - 待落盘任务处理
+ *
+ * @component
+ * @example
+ * <Gallery />
+ */
+
 import { useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
 import { useVideoOutputs } from "./hooks/useVideoOutputs";
 
+/**
+ * Gallery 组件 - 视频作品库
+ */
 export function Gallery() {
   const { isAuthenticated } = useAuth();
   const [keyword, setKeyword] = useState("");

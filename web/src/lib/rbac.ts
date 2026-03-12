@@ -13,7 +13,9 @@ export type AdminPermission =
   | "categories.manage"
   | "friends.manage"
   | "audit.read"
-  | "security.manage";
+  | "security.manage"
+  | "api.read"
+  | "api.manage";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   super_admin: "超级管理员",
@@ -32,15 +34,17 @@ export const PERMISSION_LABELS: Record<AdminPermission, string> = {
   "friends.manage": "管理友链",
   "audit.read": "查看审计日志",
   "security.manage": "管理安全设置",
+  "api.read": "查看 API 管理",
+  "api.manage": "管理 API 配置",
 };
 
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
-  super_admin: "拥有全站后台最高权限，可管理所有角色和安全配置。",
-  admin: "站点管理员，负责日常运营管理，不可提升为超级管理员。",
-  content_reviewer: "内容审核角色，主要处理文章相关内容管理。",
-  operator: "运营角色，主要负责用户运营与审计查看。",
-  user: "普通注册用户，仅可使用前台功能。",
-  bot: "系统或自动化账号，用于任务执行与自动流程。",
+  super_admin: "拥有后台全部权限，可管理角色、配置和系统级能力。",
+  admin: "负责日常站点管理，不可提升或操作超级管理员。",
+  content_reviewer: "主要负责内容相关的审核与文章管理。",
+  operator: "主要负责运营、用户管理与审计查看。",
+  user: "普通注册用户，仅可使用前台能力。",
+  bot: "系统或自动化账号，用于任务执行与流程联动。",
 };
 
 const ADMIN_PERMISSIONS: Record<Exclude<AppRole, "user" | "bot">, AdminPermission[]> = {
@@ -52,6 +56,8 @@ const ADMIN_PERMISSIONS: Record<Exclude<AppRole, "user" | "bot">, AdminPermissio
     "friends.manage",
     "audit.read",
     "security.manage",
+    "api.read",
+    "api.manage",
   ],
   admin: [
     "dashboard.view",
@@ -61,9 +67,11 @@ const ADMIN_PERMISSIONS: Record<Exclude<AppRole, "user" | "bot">, AdminPermissio
     "friends.manage",
     "audit.read",
     "security.manage",
+    "api.read",
+    "api.manage",
   ],
-  content_reviewer: ["dashboard.view", "blogs.manage"],
-  operator: ["dashboard.view", "users.manage", "audit.read"],
+  content_reviewer: ["dashboard.view", "blogs.manage", "api.read"],
+  operator: ["dashboard.view", "users.manage", "audit.read", "api.read"],
 };
 
 export function normalizeRole(rawRole?: string | null, isLegacyAdmin = false): AppRole {
@@ -104,12 +112,7 @@ export function canAssignUserRole(actorRole: AppRole, targetRole: AppRole, nextR
 
   if (actorRole === "admin") {
     if (targetRole === "super_admin" || targetRole === "admin") return false;
-    return (
-      nextRole === "content_reviewer" ||
-      nextRole === "operator" ||
-      nextRole === "user" ||
-      nextRole === "bot"
-    );
+    return nextRole === "content_reviewer" || nextRole === "operator" || nextRole === "user" || nextRole === "bot";
   }
 
   if (actorRole === "operator") {
@@ -119,4 +122,3 @@ export function canAssignUserRole(actorRole: AppRole, targetRole: AppRole, nextR
 
   return false;
 }
-

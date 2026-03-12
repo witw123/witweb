@@ -1,3 +1,9 @@
+﻿/**
+ * CoverImageUploader - 封面图片上传组件
+ *
+ * 为发布页和编辑页提供封面图上传、拖拽和预览能力。
+ * 组件内部负责上传流程与拖拽态，最终只把图片 URL 回传给外层表单。
+ */
 "use client";
 
 import { useCallback, useRef, useState } from "react";
@@ -22,6 +28,7 @@ export function CoverImageUploader({ value, onChange, disabled, className }: Cov
     async (file: File) => {
       setUploading(true);
       try {
+        // 封面图在上传前先压缩，避免大图直接进入文章列表和详情页首屏。
         const resized = await resizeImageFile(file, 1200);
         const formData = new FormData();
         formData.append("file", resized);
@@ -61,7 +68,7 @@ export function CoverImageUploader({ value, onChange, disabled, className }: Cov
 
       const file = e.dataTransfer.files[0];
       if (file?.type.startsWith("image/")) {
-        uploadImage(file);
+        void uploadImage(file);
       }
     },
     [uploadImage]
@@ -70,7 +77,7 @@ export function CoverImageUploader({ value, onChange, disabled, className }: Cov
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) uploadImage(file);
+      if (file) void uploadImage(file);
       e.currentTarget.value = "";
     },
     [uploadImage]

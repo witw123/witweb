@@ -1,3 +1,13 @@
+/**
+ * Radar 通知渠道管理 API
+ *
+ * 获取用户配置的通知渠道列表，或创建新的 Webhook 通知渠道
+ *
+ * @route /api/v1/radar/notifications
+ * @method GET - 获取通知渠道列表
+ * @method POST - 创建新通知渠道
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

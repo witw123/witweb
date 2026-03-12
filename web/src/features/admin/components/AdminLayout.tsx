@@ -1,4 +1,18 @@
-﻿"use client";
+﻿/**
+ * AdminLayout - 管理后台布局组件
+ *
+ * 为管理后台页面提供统一的布局结构，包含侧边栏导航、顶部栏和内容区域。
+ * 负责管理员权限验证和基于角色的导航项展示。
+ *
+ * @component
+ * @param {object} props - 组件属性
+ * @param {React.ReactNode} props.children - 子页面内容
+ * @example
+ * <AdminLayout>
+ *   <DashboardPage />
+ * </AdminLayout>
+ */
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -96,6 +110,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           : null,
         hasAdminPermission(role, "audit.read")
           ? { href: "/admin/audit-logs", label: "审计日志", icon: "AU" }
+          : null,
+        hasAdminPermission(role, "api.read")
+          ? { href: "/admin/apis", label: "API 管理", icon: "API" }
           : null,
       ].filter(Boolean) as NavItem[],
     [role]

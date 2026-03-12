@@ -1,3 +1,11 @@
+/**
+ * Login API - 用户登录数据处理
+ *
+ * 提供用户登录功能
+ * 验证用户名密码、验证码（如果启用），生成认证令牌
+ * 支持普通登录和管理员登录两种模式
+ */
+
 import { createToken, verifyPassword } from "@/lib/auth";
 import { getUserByUsername, publicProfile } from "@/lib/user";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -19,6 +27,15 @@ const loginSchema = z.object({
   adminOnly: z.boolean().optional().default(false),
 });
 
+/**
+ * 处理用户登录 POST 请求
+ *
+ * 验证用户凭据和验证码（如果启用），返回 JWT 令牌和用户信息
+ * 包含登录速率限制和失败延迟，防止暴力破解
+ *
+ * @param {Request} req - HTTP 请求对象，包含 username、password、captchaToken 等
+ * @returns {Promise<Response>} 登录结果响应，包含令牌和用户资料
+ */
 export async function handleLoginPost(req: Request) {
   assertAuthPayloadSize(req);
 

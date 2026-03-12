@@ -1,5 +1,12 @@
+/**
+ * 博客文章相关类型定义
+ *
+ * 包含文章创建/更新参数、列表查询参数、管理端类型等
+ */
+
 import type { Category, FriendLink, PostStatus } from "@/types";
 
+/** 创建文章的数据参数 */
 export interface CreatePostData {
   title: string;
   slug: string;
@@ -12,6 +19,7 @@ export interface CreatePostData {
   status?: PostStatus;
 }
 
+/** 更新文章的数据参数 */
 export interface UpdatePostData {
   title?: string;
   content?: string;
@@ -22,6 +30,7 @@ export interface UpdatePostData {
   status?: PostStatus;
 }
 
+/** 文章列表查询参数 */
 export interface ListPostsParams {
   page?: number;
   size?: number;
@@ -33,6 +42,7 @@ export interface ListPostsParams {
   username?: string;
 }
 
+/** 后台文章列表查询参数 */
 export interface AdminListBlogsParams {
   page?: number;
   size?: number;
@@ -45,6 +55,7 @@ export interface AdminListBlogsParams {
   sort?: string;
 }
 
+/** 后台文章列表项 */
 export interface AdminBlogListItem {
   id: number;
   username: string;
@@ -57,17 +68,20 @@ export interface AdminBlogListItem {
   updated_at: string;
 }
 
+/** 后台文章详情 */
 export interface AdminBlogDetail extends AdminBlogListItem {
   content: string;
   tags: string | null;
 }
 
+/** 站点地图文章项 */
 export interface SitemapPostItem {
   slug: string;
   updated_at?: string | null;
   created_at?: string | null;
 }
 
+/** 用户活动动态项 */
 export interface PostActivityItem {
   type: "post" | "like" | "comment";
   title: string;
@@ -77,6 +91,7 @@ export interface PostActivityItem {
   target_user?: string;
 }
 
+/** 收到的点赞通知项 */
 export interface LikesToUserItem {
   sender: string;
   created_at: string;
@@ -84,6 +99,7 @@ export interface LikesToUserItem {
   post_slug: string;
 }
 
+/** 分类创建/更新数据参数 */
 export interface CategoryMutationData {
   name?: string;
   slug?: string;
@@ -92,6 +108,7 @@ export interface CategoryMutationData {
   is_active?: boolean;
 }
 
+/** 友链创建/更新数据参数 */
 export interface FriendLinkMutationData {
   name?: string;
   url?: string;

@@ -1,6 +1,14 @@
+/**
+ * 审计日志仓储层
+ *
+ * 负责管理系统操作审计日志，记录管理员的所有操作行为
+ * 用于安全审计、合规检查和问题排查
+ */
+
 import { pgQuery, pgQueryOne } from "@/lib/postgres-query";
 import type { PaginatedResult } from "./types";
 
+/** 创建审计日志的数据参数 */
 export interface CreateAdminAuditLogData {
   actor: string;
   action: string;
@@ -12,6 +20,7 @@ export interface CreateAdminAuditLogData {
   createdAt?: string;
 }
 
+/** 审计日志数据库行 */
 export interface AdminAuditLogRow {
   id: number;
   actor: string;

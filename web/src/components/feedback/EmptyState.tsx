@@ -1,7 +1,25 @@
 "use client";
 
+/**
+ * EmptyState 空状态组件
+ *
+ * 用于显示暂无数据或内容为空的状态提示。
+ * 可自定义标题、描述和操作按钮。
+ *
+ * @component
+ * @example
+ * <EmptyState
+ *   title="暂无数据"
+ *   description="还没有任何内容"
+ *   action={{ label: "创建", onClick: handleCreate }}
+ * />
+ */
+
 import { Button } from "@/components/ui/Button";
 
+/**
+ * EmptyState 组件属性
+ */
 interface EmptyStateProps {
   title?: string;
   description?: string;
@@ -11,6 +29,9 @@ interface EmptyStateProps {
   };
 }
 
+/**
+ * EmptyState 空状态提示组件
+ */
 export function EmptyState({
   title = "暂无数据",
   description = "还没有任何内容",

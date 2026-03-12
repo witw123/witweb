@@ -1,3 +1,12 @@
+/**
+ * Radar 主题删除 API
+ *
+ * 删除用户保存的指定 Radar 主题
+ *
+ * @route /api/v1/radar/topics/:id
+ * @method DELETE - 删除指定主题
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";

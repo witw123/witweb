@@ -1,3 +1,13 @@
+/**
+ * 管理员用户管理 API
+ *
+ * 提供用户列表查询和批量管理功能
+ *
+ * @route /api/admin/users
+ * @method GET - 获取用户列表
+ * @method POST - 批量操作用户
+ */
+
 import { getAuthIdentity } from "@/lib/http";
 import { userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -6,6 +16,7 @@ import { validateBody, validateQuery, z } from "@/lib/validate";
 import { recordAdminAudit } from "@/lib/admin-audit";
 import { hasAdminPermission } from "@/lib/rbac";
 
+/** 查询参数验证 Schema */
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

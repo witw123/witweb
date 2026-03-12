@@ -1,3 +1,10 @@
+/**
+ * Agent 任务仓储层 (Drizzle ORM 实现)
+ *
+ * 提供 Agent 任务相关数据的查询操作，使用 Drizzle ORM 进行数据库访问
+ * 仅包含只读查询方法，写操作仍使用原生 SQL 的 agentRepository
+ */
+
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/drizzle";
 import { agentArtifacts, agentRuns, agentSteps } from "@/lib/db/schema";
@@ -76,6 +83,11 @@ function normalizeArtifact(row: {
   };
 }
 
+/**
+ * Drizzle ORM Agent 数据访问类
+ *
+ * 提供 Agent 相关的只读查询操作
+ */
 export class DrizzleAgentRepository {
   async getRunByIdAndUser(runId: string, username: string): Promise<AgentRunRow | null> {
     const db = getDb();

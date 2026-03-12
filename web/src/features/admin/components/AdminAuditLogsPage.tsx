@@ -1,3 +1,13 @@
+/**
+ * AdminAuditLogsPage - 审计日志管理页面组件
+ *
+ * 展示后台操作的审计日志，支持按操作人、动作代码和对象类型筛选。
+ * 用于管理员查看系统关键操作的记录。
+ *
+ * @component
+ * @example
+ * <AdminAuditLogsPage />
+ */
 "use client";
 
 import { useMemo, useState } from "react";

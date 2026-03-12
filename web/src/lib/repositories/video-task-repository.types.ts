@@ -1,5 +1,12 @@
+/**
+ * 视频任务相关类型定义
+ *
+ * 包含视频任务创建/更新参数、角色数据参数等
+ */
+
 import type { VideoTaskStatus, VideoTaskType } from "@/types";
 
+/** 创建视频任务的数据参数 */
 export interface CreateVideoTaskData {
   id?: string;
   username: string;
@@ -17,6 +24,7 @@ export interface CreateVideoTaskData {
   timestamps?: string | null;
 }
 
+/** 更新视频任务的数据参数 */
 export interface UpdateVideoTaskData {
   status?: VideoTaskStatus;
   progress?: number;
@@ -25,6 +33,7 @@ export interface UpdateVideoTaskData {
   error?: string;
 }
 
+/** 创建角色的数据参数 */
 export interface CreateCharacterData {
   username: string;
   character_id: string;

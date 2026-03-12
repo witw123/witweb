@@ -1,3 +1,16 @@
+/**
+ * 上传数字人角色任务
+ *
+ * 通过 URL 上传图片来创建数字人角色，生成任务并提交到外部服务
+ *
+ * @route /api/v1/video/upload-character
+ * @method POST - 上传数字人角色
+ * @param {string} url - 图片 URL
+ * @param {string} [timestamps="0,3"] - 时间戳范围
+ * @param {string} [webHook="-1"] - Webhook URL
+ * @param {boolean} [shutProgress=false] - 是否关闭进度通知
+ * @returns {Promise<Object>} 创建的任务信息 { ok: boolean, task_id: string, id: string }
+ */
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { uploadCharacterTask } from "@/lib/studio";

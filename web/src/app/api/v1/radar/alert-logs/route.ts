@@ -1,3 +1,12 @@
+/**
+ * Radar 告警日志查询 API
+ *
+ * 获取用户告警规则的触发历史记录，可按成功/失败状态筛选
+ *
+ * @route /api/v1/radar/alert-logs
+ * @method GET - 获取告警日志列表
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateQuery, z } from "@/lib/validate";

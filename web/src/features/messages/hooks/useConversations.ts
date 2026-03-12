@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * 会话列表 Hook
+ *
+ * 提供私信会话列表查询和会话选择功能
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/api-client";
@@ -7,6 +13,13 @@ import { getVersionedApiPath } from "@/lib/api-version";
 import { queryKeys } from "@/lib/query-keys";
 import type { Conversation, PublicProfile } from "../types";
 
+/**
+ * 获取会话列表
+ *
+ * @param {boolean} isAuthenticated - 是否已登录
+ * @param {string|null} [autoSelectUsername] - 自动选择的用户名
+ * @returns {object} 会话列表和相关状态
+ */
 export function useConversations(isAuthenticated: boolean, autoSelectUsername?: string | null) {
   const [pendingConvState, setPendingConv] = useState<Conversation | null>(null);
   const [selectedConvIdState, setSelectedConvIdState] = useState<number | null>(null);

@@ -7,10 +7,21 @@ import { normalizePagination } from "./post-repository.shared";
 import type { LikesToUserItem, ListPostsParams, PostActivityItem, SitemapPostItem } from "./post-repository.types";
 import type { PaginatedResult } from "./types";
 
+/**
+ * 安全转换为数字
+ *
+ * 处理数据库返回的可能为 null 或 undefined 的数值
+ *
+ * @param {unknown} value - 可能为数字或空的值
+ * @returns {number} 数字值，默认为 0
+ */
 function asNumber(value: unknown): number {
   return Number(value || 0);
 }
 
+/**
+ * 文章数据库查询结果基础类型
+ */
 type PostRowBase = {
   id: number;
   title: string;
@@ -33,6 +44,12 @@ type PostRowBase = {
   favorite_count: number;
 };
 
+/**
+ * 将数据库行映射为文章详情对象
+ *
+ * @param {PostRowBase & {liked_by_me: boolean; favorited_by_me: boolean}} row - 数据库行
+ * @returns {PostDetail} 文章详情对象
+ */
 function mapDetailRow(
   row: PostRowBase & { liked_by_me: boolean; favorited_by_me: boolean },
 ): PostDetail {
@@ -51,6 +68,12 @@ function mapDetailRow(
   };
 }
 
+/**
+ * 将数据库行映射为文章列表项
+ *
+ * @param {Omit<PostRowBase, "updated_at"|"id"|"status"> & {favorited_by_me: boolean}} row - 数据库行
+ * @returns {PostListItem} 文章列表项对象
+ */
 function mapListRow(
   row: Omit<PostRowBase, "updated_at" | "id" | "status"> & { favorited_by_me: boolean },
 ): PostListItem {
@@ -67,7 +90,18 @@ function mapListRow(
   };
 }
 
+/**
+ * 文章数据仓库（Drizzle 实现）
+ *
+ * 负责文章（posts）的数据库操作，包括增删改查、点赞、收藏等
+ */
 export class DrizzlePostRepository {
+  /**
+   * 创建文章
+   *
+   * @param {object} data - 文章数据
+   * @returns {Promise<number>} 新创建的文章 ID
+   */
   async create(data: {
     title: string;
     slug: string;
@@ -101,6 +135,13 @@ export class DrizzlePostRepository {
     return asNumber(rows[0]?.id);
   }
 
+  /**
+   * 根据 slug 更新文章
+   *
+   * @param {string} slug - 文章 slug
+   * @param {object} data - 更新数据
+   * @returns {Promise<boolean>} 是否更新成功
+   */
   async updateBySlug(
     slug: string,
     data: {
@@ -142,6 +183,12 @@ export class DrizzlePostRepository {
     return rows.length > 0;
   }
 
+  /**
+   * 增加文章浏览量
+   *
+   * @param {string} slug - 文章 slug
+   * @returns {Promise<number>} 更新后的浏览量
+   */
   async incrementViewCount(slug: string): Promise<number> {
     const db = getDb();
     const rows = await db
@@ -153,6 +200,14 @@ export class DrizzlePostRepository {
     return asNumber(rows[0]?.view_count);
   }
 
+  /**
+   * 切换点赞/踩状态
+   *
+   * @param {string} slug - 文章 slug
+   * @param {string} username - 用户名
+   * @param {1|-1} value - 1 表示点赞，-1 表示踩
+   * @returns {{lik disliked?: boolean}} 新的点赞ed?: boolean;/踩状态
+   */
   async toggleLike(slug: string, username: string, value: 1 | -1): Promise<{ liked?: boolean; disliked?: boolean }> {
     const db = getDb();
 

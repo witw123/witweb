@@ -1,3 +1,17 @@
+/**
+ * CategoryManagementPage - 分类管理页面组件
+ *
+ * 提供后台分类管理功能，包括：
+ * - 创建新分类
+ * - 编辑分类名称、别名、描述
+ * - 启用/停用分类
+ * - 删除分类
+ * - 分类排序（上移/下移）
+ *
+ * @component
+ * @example
+ * <CategoryManagementPage />
+ */
 "use client";
 
 import { useMemo, useState } from "react";

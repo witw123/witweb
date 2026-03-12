@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * RadarLayout 选题雷达布局组件
+ *
+ * 选题雷达功能的主布局，整合以下功能：
+ * - 发现：热点内容发现和筛选
+ * - 来源：RSS/HTML/API 来源管理
+ * - AI 分析：AI 热点分析
+ * - 选题库：已保存选题管理
+ *
+ * @component
+ * @example
+ * <RadarLayout />
+ */
+
 import { useMemo, useState } from "react";
 import { useAuth } from "@/app/providers";
 import type { RadarSource } from "./hooks/useRadarSources";
@@ -7,8 +21,19 @@ import { useRadarSources } from "./hooks/useRadarSources";
 import { useRadarItems, type RadarItem } from "./hooks/useRadarItems";
 import { useRadarTopics } from "./hooks/useRadarTopics";
 
+/**
+ * Radar Tab 类型
+ */
 type RadarTab = "discover" | "sources" | "automation" | "library";
+
+/**
+ * 来源表单模式
+ */
 type SourceFormMode = "existing" | "new";
+
+/**
+ * 来源表单状态
+ */
 type SourceFormState = {
   name: string;
   url: string;
@@ -17,6 +42,9 @@ type SourceFormState = {
   enabled: boolean;
 };
 
+/**
+ * 格式化日期
+ */
 function formatDate(value?: string) {
   if (!value) return "--";
   const date = new Date(value);
@@ -24,6 +52,9 @@ function formatDate(value?: string) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+/**
+ * 获取来源健康状态文本
+ */
 function sourceHealthText(source: RadarSource) {
   const status = source.last_fetch_status || "idle";
   if (status === "ok") {
@@ -38,6 +69,9 @@ function sourceHealthText(source: RadarSource) {
   return "尚未抓取";
 }
 
+/**
+ * RadarLayout 组件 - 选题雷达布局
+ */
 export function RadarLayout() {
   const { isAuthenticated, loading: authLoading } = useAuth();
 

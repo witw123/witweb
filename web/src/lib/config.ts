@@ -1,7 +1,14 @@
+/**
+ * 应用配置
+ *
+ * 从环境变量读取并验证应用配置
+ */
+
 import "server-only";
 import { z } from "zod";
 import { encryptToString, decryptFromString, maskSensitiveValue } from "./security";
 
+/** 从环境变量解析布尔值 */
 const booleanFromEnv = (defaultValue: boolean) =>
   z
     .string()
@@ -11,6 +18,7 @@ const booleanFromEnv = (defaultValue: boolean) =>
       return value.toLowerCase() === "true" || value === "1";
     });
 
+/** 从环境变量解析整数 */
 const intFromEnv = (defaultValue: number) =>
   z
     .string()
@@ -28,6 +36,7 @@ const intFromEnv = (defaultValue: number) =>
       return parsed;
     });
 
+/** 从环境变量解析字符串 */
 const stringFromEnv = (defaultValue = "") =>
   z
     .string()
@@ -59,6 +68,17 @@ const envSchema = z.object({
   AGENT_LLM_ENDPOINT: stringFromEnv(""),
   AGENT_LLM_API_KEY: stringFromEnv(""),
   AGENT_LLM_MODEL: stringFromEnv("gemini-3-pro"),
+  OPENAI_API_KEY: stringFromEnv(""),
+  OPENAI_BASE_URL: stringFromEnv("https://api.openai.com/v1").pipe(z.string().url()),
+  DASHSCOPE_API_KEY: stringFromEnv(""),
+  DASHSCOPE_BASE_URL: stringFromEnv("https://dashscope.aliyuncs.com/compatible-mode/v1").pipe(z.string().url()),
+  DEEPSEEK_API_KEY: stringFromEnv(""),
+  DEEPSEEK_BASE_URL: stringFromEnv("https://api.deepseek.com/v1").pipe(z.string().url()),
+  GEMINI_API_KEY: stringFromEnv(""),
+  GEMINI_BASE_URL: stringFromEnv("https://generativelanguage.googleapis.com/v1beta/openai").pipe(z.string().url()),
+  DIFY_BASE_URL: stringFromEnv(""),
+  DIFY_API_KEY: stringFromEnv(""),
+  N8N_WEBHOOK_URL: stringFromEnv(""),
 
   APP_NAME: stringFromEnv("WitWeb"),
   APP_URL: stringFromEnv("http://localhost:3000").pipe(z.string().url()),
@@ -131,6 +151,29 @@ export const agentConfig = {
   endpoint: env.AGENT_LLM_ENDPOINT,
   apiKey: env.AGENT_LLM_API_KEY,
   model: env.AGENT_LLM_MODEL,
+  providers: {
+    openai: {
+      apiKey: env.OPENAI_API_KEY,
+      baseUrl: env.OPENAI_BASE_URL,
+    },
+    dashscope: {
+      apiKey: env.DASHSCOPE_API_KEY,
+      baseUrl: env.DASHSCOPE_BASE_URL,
+    },
+    deepseek: {
+      apiKey: env.DEEPSEEK_API_KEY,
+      baseUrl: env.DEEPSEEK_BASE_URL,
+    },
+    gemini: {
+      apiKey: env.GEMINI_API_KEY,
+      baseUrl: env.GEMINI_BASE_URL,
+    },
+  },
+  integrations: {
+    difyBaseUrl: env.DIFY_BASE_URL,
+    difyApiKey: env.DIFY_API_KEY,
+    n8nWebhookUrl: env.N8N_WEBHOOK_URL,
+  },
 } as const;
 
 export const appConfig = {

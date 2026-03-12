@@ -1,11 +1,29 @@
 ﻿"use client";
 
+/**
+ * StudioDashboard 创作工作台仪表盘组件
+ *
+ * 显示工作台的主要功能入口卡片：
+ * - 视频生成
+ * - 选题雷达
+ *
+ * @component
+ * @example
+ * <StudioDashboard setActiveTab={setTab} />
+ */
+
 import { Dispatch, SetStateAction } from "react";
 
+/**
+ * StudioDashboard 组件属性
+ */
 interface DashboardProps {
   setActiveTab: Dispatch<SetStateAction<string>>;
 }
 
+/**
+ * StudioDashboard 工作台仪表盘
+ */
 export function StudioDashboard({ setActiveTab }: DashboardProps) {
   return (
     <div className="relative grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
@@ -36,24 +54,6 @@ export function StudioDashboard({ setActiveTab }: DashboardProps) {
         </div>
       </button>
 
-      <button
-        onClick={() => setActiveTab("agent")}
-        className="group w-full rounded-[2rem] border border-zinc-800 bg-[#0b0d12] p-8 text-left transition-all duration-300 hover:border-zinc-700 hover:bg-[#10131a] md:p-10"
-      >
-        <div className="flex flex-col gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.2rem] border border-zinc-800 bg-[#11131a] text-zinc-100 transition group-hover:border-zinc-600">
-            <svg className="h-11 w-11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M9 3h6m-6 18h6M5 8h14M5 16h14M7 8v8m10-8v8M9 12h6" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-[34px] leading-none font-bold tracking-tight text-white">AI 创作代理</h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              输入目标后自动生成正文，可继续优化并导出到发布页。
-            </p>
-          </div>
-        </div>
-      </button>
 
       <button
         onClick={() => setActiveTab("radar")}

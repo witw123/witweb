@@ -1,9 +1,24 @@
+/**
+ * 分类数据仓库（Drizzle 实现）
+ *
+ * 负责分类的数据库操作
+ */
+
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/drizzle";
 import { categories, posts } from "@/lib/db/schema";
 import type { Category } from "@/types";
 
+/**
+ * 分类数据仓库（Drizzle 实现）
+ */
 export class DrizzleCategoryRepository {
+  /**
+   * 获取分类列表
+   *
+   * @param {boolean} [includeInactive=false] - 是否包含未启用的分类
+   * @returns {Promise<Category[]>} 分类列表
+   */
   async listCategories(includeInactive = false): Promise<Category[]> {
     const db = getDb();
 

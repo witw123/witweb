@@ -1,4 +1,11 @@
-"use client";
+﻿"use client";
+
+/**
+ * ErrorBoundary 错误边界组件
+ *
+ * 捕获子组件树中的渲染错误，避免局部异常直接导致整页白屏。
+ * 支持自定义 fallback 和 HOC 包装形式，适合在页面级或复杂模块边界使用。
+ */
 
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import { logErrorBoundary } from "@/lib/logger";
@@ -16,6 +23,7 @@ export interface ErrorBoundaryState {
   error: Error | null;
 }
 
+/** 默认错误回退视图。 */
 function DefaultFallback({
   error,
   resetError,
@@ -120,6 +128,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   }
 }
 
+/** 为任意组件包上一层错误边界。 */
 export function withErrorBoundary<P extends object>(
   WrappedComponent: React.ComponentType<P>,
   errorBoundaryProps?: Omit<ErrorBoundaryProps, "children">

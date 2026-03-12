@@ -1,3 +1,10 @@
+﻿/**
+ * 博客文章内容仓储
+ *
+ * 负责前台文章展示侧的数据访问，包括详情、列表、互动指标、收藏和用户动态。
+ * 与后台管理仓储分离后，这里只保留读多写少、面向公开站点的内容能力。
+ */
+
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 import type { Post, PostDetail, PostListItem } from "@/types";
@@ -12,10 +19,39 @@ import type {
 } from "./post-repository.types";
 
 export class PostContentRepository {
+  async listKnowledgeSourcePosts(author: string, limit = 200, offset = 0): Promise<Array<{
+    id: number;
+    slug: string;
+    title: string;
+    content: string;
+    excerpt: string | null;
+    tags: string | null;
+    status: string;
+    category_id: number | null;
+    cover_image_url: string | null;
+    created_at: string;
+    updated_at: string;
+  }>> {
+    return await pgQuery(
+      `SELECT id, slug, title, content, excerpt, tags, status, category_id, cover_image_url, created_at, updated_at
+       FROM posts
+       WHERE author = ? AND COALESCE(status, 'published') <> 'deleted'
+       ORDER BY id DESC
+       LIMIT ? OFFSET ?`,
+      [author, limit, offset]
+    );
+  }
+
+  /** 按 slug 查询文章原始记录。 */
   async findBySlug(slug: string): Promise<Post | null> {
     return await pgQueryOne<Post>("SELECT * FROM posts WHERE slug = ?", [slug]);
   }
 
+  /**
+   * 获取文章详情
+   *
+   * 如果传入用户名，会额外补齐“我是否点赞/收藏”的用户态字段。
+   */
   async getPostDetail(slug: string, username?: string): Promise<PostDetail | null> {
     const row = await pgQueryOne<PostDetail>(
       `SELECT p.id,p.title,p.slug,p.content,p.excerpt,p.cover_image_url,p.created_at,p.updated_at,p.author,p.tags,p.status,p.category_id,
@@ -34,6 +70,7 @@ export class PostContentRepository {
     return { ...row, liked_by_me: !!liked, favorited_by_me: !!fav };
   }
 
+  /** 创建文章并返回新文章 ID。 */
   async create(data: CreatePostData): Promise<number> {
     const now = new Date().toISOString();
     const row = await pgQueryOne<{ id: number }>(
@@ -44,6 +81,7 @@ export class PostContentRepository {
     return Number(row?.id || 0);
   }
 
+  /** 动态构造更新字段，仅更新调用方显式传入的列。 */
   async updateBySlug(slug: string, data: UpdatePostData): Promise<boolean> {
     const fields: string[] = [];
     const params: unknown[] = [];
@@ -60,6 +98,7 @@ export class PostContentRepository {
     return (await pgRun(`UPDATE posts SET ${fields.join(", ")} WHERE slug = ?`, params)).changes > 0;
   }
 
+  /** 硬删除文章及其关联互动数据。 */
   async hardDelete(slug: string): Promise<boolean> {
     return await withPgTransaction(async (client) => {
       const post = await pgQueryOne<Post>("SELECT * FROM posts WHERE slug = ?", [slug], client);
@@ -77,6 +116,11 @@ export class PostContentRepository {
     return (await pgQueryOne<{ view_count: number }>("SELECT COALESCE(view_count, 0) AS view_count FROM posts WHERE slug = ?", [slug]))?.view_count || 0;
   }
 
+  /**
+   * 获取文章列表
+   *
+   * 支持关键词、作者别名、标签、分类和当前用户收藏态查询。
+   */
   async list(params: ListPostsParams): Promise<PaginatedResult<PostListItem>> {
     const { page = 1, size = 10, query, author, authorAliases, tag, category, username } = params;
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
@@ -124,6 +168,7 @@ export class PostContentRepository {
     return { items, total, page: validPage, size: validSize };
   }
 
+  /** 聚合用户的发文、点赞和评论行为，供个人动态页展示。 */
   async getActivities(username: string, page = 1, size = 10): Promise<PaginatedResult<PostActivityItem>> {
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
     const total = (
@@ -167,6 +212,7 @@ export class PostContentRepository {
     )?.total || 0;
   }
 
+  /** 获取别人给当前用户文章点赞的通知流。 */
   async getLikesToUser(username: string, page = 1, size = 10): Promise<LikesToUserItem[]> {
     const { size: validSize, offset } = normalizePagination(page, size);
     return await pgQuery<LikesToUserItem>(
@@ -187,6 +233,11 @@ export class PostContentRepository {
     )?.cnt || 0;
   }
 
+  /**
+   * 切换点赞或点踩状态
+   *
+   * 点赞和点踩走不同表，各自独立切换；调用方负责决定要触发哪一种。
+   */
   async toggleLike(slug: string, username: string, value: 1 | -1): Promise<{ liked?: boolean; disliked?: boolean }> {
     return await withPgTransaction(async (client) => {
       const post = await pgQueryOne<Post>("SELECT * FROM posts WHERE slug = ?", [slug], client);
@@ -214,6 +265,7 @@ export class PostContentRepository {
     return (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM likes l JOIN posts p ON l.post_id = p.id WHERE p.author = ?", [username]))?.cnt || 0;
   }
 
+  /** 切换收藏状态，返回切换后的是否已收藏。 */
   async toggleFavorite(slug: string, username: string): Promise<boolean> {
     return await withPgTransaction(async (client) => {
       const post = await pgQueryOne<Post>("SELECT * FROM posts WHERE slug = ?", [slug], client);
@@ -228,6 +280,7 @@ export class PostContentRepository {
     });
   }
 
+  /** 查询用户收藏列表。 */
   async listFavorites(username: string, page = 1, size = 10): Promise<PaginatedResult<PostListItem>> {
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
     const total = (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM favorites WHERE username = ?", [username]))?.cnt || 0;
@@ -246,6 +299,7 @@ export class PostContentRepository {
     return { items, total, page: validPage, size: validSize };
   }
 
+  /** 为 sitemap 生成文章路由数据。 */
   async listSitemapPosts() {
     return await pgQuery("SELECT slug,updated_at,created_at FROM posts WHERE slug IS NOT NULL AND trim(slug) <> '' AND (status IS NULL OR status <> 'deleted') ORDER BY id DESC");
   }

@@ -1,4 +1,17 @@
-﻿"use client";
+﻿/**
+ * RegisterPage - 用户注册页面组件
+ *
+ * 提供用户注册功能，包括：
+ * - 账号、昵称、密码输入
+ * - 头像上传
+ * - Turnstile 人机验证（如果启用）
+ * - 注册成功后自动登录
+ *
+ * @component
+ * @example
+ * <RegisterPage />
+ */
+"use client";
 
 import Image from "next/image";
 import { useState } from "react";

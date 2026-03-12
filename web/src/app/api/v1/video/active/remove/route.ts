@@ -1,3 +1,13 @@
+/**
+ * 移除活跃任务
+ *
+ * 从活跃任务列表中移除指定的任务
+ *
+ * @route /api/v1/video/active/remove
+ * @method POST - 移除活跃任务
+ * @param {string} id - 任务 ID
+ * @returns {Promise<Object>} 操作结果 { ok: boolean }
+ */
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { removeActiveTask } from "@/lib/studio";

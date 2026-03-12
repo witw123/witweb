@@ -1,3 +1,13 @@
+/**
+ * 管理员博客管理 API
+ *
+ * 提供博客文章的列表查询和批量操作功能
+ *
+ * @route /api/admin/blogs
+ * @method GET - 获取博客列表
+ * @method POST - 批量操作博客
+ */
+
 import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -6,6 +16,7 @@ import { validateBody, validateQuery, z } from "@/lib/validate";
 import { recordAdminAudit } from "@/lib/admin-audit";
 import { hasAdminPermission } from "@/lib/rbac";
 
+/** 查询参数验证 Schema */
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

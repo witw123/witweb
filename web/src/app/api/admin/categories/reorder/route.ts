@@ -1,3 +1,12 @@
+/**
+ * Admin Category 排序 API
+ *
+ * 批量更新分类的显示顺序
+ * 根据传入的 ID 数组顺序设置分类权重
+ *
+ * @route /api/admin/categories/reorder
+ * @method POST - 批量更新分类排序
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";

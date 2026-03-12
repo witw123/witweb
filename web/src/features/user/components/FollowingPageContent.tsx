@@ -11,6 +11,16 @@ import { queryKeys } from "@/lib/query-keys";
 import type { FollowingItem } from "@/types/user";
 import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
+/**
+ * FollowingPageContent - 用户关注列表页面组件
+ *
+ * 展示指定用户的关注列表，支持查看他人或自己的关注。
+ * 当前用户可以取消关注列表中的用户。
+ *
+ * @component
+ * @example
+ * <FollowingPageContent />
+ */
 export default function FollowingPageContent() {
   const { isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
@@ -108,6 +118,15 @@ export default function FollowingPageContent() {
   );
 }
 
+/**
+ * FollowingAvatar - 关注用户头像组件
+ *
+ * 渲染关注用户的头像图片，包含懒优化处理。
+ * 如果头像 URL 为空，则显示默认的首字母头像。
+ *
+ * @param {FollowingItem} user - 关注用户对象
+ * @returns {JSX.Element} 头像图片元素
+ */
 function FollowingAvatar({ user }: { user: FollowingItem }) {
   const avatarSrc = getThumbnailUrl(user.avatar_url || "", 128);
   const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);

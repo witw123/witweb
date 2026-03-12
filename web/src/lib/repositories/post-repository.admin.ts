@@ -1,3 +1,13 @@
+/**
+ * 博客文章后台管理仓储
+ *
+ * 提供文章、分类、友链等后台管理功能：
+ * - 文章的增删改查、批量操作
+ * - 分类管理（排序、启用/禁用）
+ * - 友链管理
+ * - 标签统计、网站访问统计
+ */
+
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 import type { Category, FriendLink, PostStatus } from "@/types";
 import type { PaginatedResult } from "./types";
@@ -10,6 +20,11 @@ import type {
   FriendLinkMutationData,
 } from "./post-repository.types";
 
+/**
+ * 博客后台管理数据访问类
+ *
+ * 提供文章、分类、友链等后台管理操作
+ */
 export class PostAdminRepository {
   async listCategories(includeInactive = false): Promise<Category[]> {
     return await pgQuery<Category>(

@@ -1,3 +1,15 @@
+/**
+ * PersonalSidebar - 个人侧边栏组件
+ *
+ * 用户资料页面的侧边栏组件，展示：
+ * - 搜索/新建对话入口
+ * - 好友列表标签
+ * - 私信会话列表（带未读数）
+ *
+ * @component
+ * @example
+ * <PersonalSidebar />
+ */
 "use client";
 
 import Image from "next/image";

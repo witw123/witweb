@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * 发送消息 Hook
+ *
+ * 提供发送私信功能
+ */
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isApiClientError, post } from "@/lib/api-client";
@@ -8,6 +14,12 @@ import { logError } from "@/lib/logger";
 import { queryKeys } from "@/lib/query-keys";
 import type { Conversation } from "../types";
 
+/**
+ * 使用发送消息
+ *
+ * @param {boolean} isAuthenticated - 是否已登录
+ * @returns {object} 发送消息相关方法和状态
+ */
 export function useSendMessage(isAuthenticated: boolean) {
   const [sendError, setSendError] = useState("");
   const queryClient = useQueryClient();

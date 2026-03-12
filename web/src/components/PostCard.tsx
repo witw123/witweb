@@ -1,5 +1,22 @@
 "use client";
 
+/**
+ * PostCard 文章卡片组件
+ *
+ * 显示博客文章预览卡片，包含：
+ * - 封面图片
+ * - 作者头像和名称
+ * - 文章标题和摘要
+ * - 标签
+ * - 点赞、收藏、评论数量
+ * - 互动操作（点赞、收藏、评论）
+ * - 搜索结果高亮支持
+ *
+ * @component
+ * @example
+ * <PostCard post={postData} highlight="搜索关键词" />
+ */
+
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,6 +27,9 @@ import { useAuth } from "@/app/providers";
 import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import type { PostListItem } from "@/types/blog";
 
+/**
+ * PostCard 组件属性
+ */
 type PostCardProps = {
   post: PostListItem;
   onUpdate?: (updatedPost: PostListItem) => void;

@@ -1,3 +1,13 @@
+/**
+ * Admin Category 管理 API - 单个分类操作
+ *
+ * 提供分类的更新和删除功能
+ * 支持更新分类名称、别名、描述和激活状态
+ *
+ * @route /api/admin/categories/[id]
+ * @method PUT - 更新分类信息
+ * @method DELETE - 删除分类
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";

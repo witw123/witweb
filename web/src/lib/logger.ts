@@ -1,5 +1,12 @@
+/**
+ * 日志工具
+ *
+ * 提供客户端和服务器端的错误日志记录功能
+ */
+
 import type { ErrorInfo } from "react";
 
+/** 错误日志记录 */
 export interface ErrorLogRecord {
   source: string;
   message: string;
@@ -31,6 +38,12 @@ function pushRecord(record: ErrorLogRecord): void {
   }
 }
 
+/**
+ * 记录错误日志
+ *
+ * @param {object} input - 日志输入
+ * @returns {ErrorLogRecord} 日志记录
+ */
 export function logError(input: {
   source: string;
   error: unknown;

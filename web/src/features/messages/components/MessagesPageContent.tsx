@@ -1,5 +1,18 @@
 ﻿"use client";
 
+/**
+ * 消息中心页面组件
+ *
+ * 提供完整的消息功能界面，包括：
+ * - 私聊会话列表和聊天界面
+ * - 通知列表（回复、@、点赞、系统消息）
+ * - 消息发送和自动滚动
+ *
+ * @component
+ * @example
+ * <MessagesPageContent />
+ */
+
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -9,6 +22,15 @@ import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import { useConversations, useMessages, useNotifications, useSendMessage } from "../hooks";
 import type { TabType } from "../types";
 
+/**
+ * 消息头像组件
+ *
+ * 负责渲染用户头像，支持头像优化和回退显示
+ * 使用缩略图以优化加载性能
+ *
+ * @param src - 头像图片 URL
+ * @param alt - 头像替代文本
+ */
 function MessageAvatar({ src, alt }: { src: string; alt: string }) {
   const avatarSrc = getThumbnailUrl(src, 64);
   const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);
@@ -25,12 +47,24 @@ function MessageAvatar({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+/**
+ * 消息中心页面主组件
+ *
+ * 整合会话管理、消息展示、通知浏览等功能
+ * 根据 activeSidebarTab 切换聊天/通知视图
+ */
 export default function MessagesPageContent() {
+  // 认证状态
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  // URL 查询参数，用于从外部跳转时指定聊天对象
   const searchParams = useSearchParams();
   const targetUsername = searchParams.get("username");
+  // 消息输入框内容
   const [inputText, setInputText] = useState("");
+  // 当前选中的侧边栏标签页
   const [activeSidebarTab, setActiveSidebarTab] = useState<TabType>("chat");
+
+  // 会话相关状态和操作
   const {
     conversations,
     displayConversations,
@@ -50,11 +84,18 @@ export default function MessagesPageContent() {
   const { sendError, setSendError, sendMessage, sending } =
     useSendMessage(isAuthenticated);
 
+  // DOM 引用，用于滚动到聊天底部
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
+  // 记录上一次选中状态，用于判断是否首次加载或新增消息
   const lastSelectedConvId = useRef<number | null>(null);
   const lastMessagesCount = useRef<number>(0);
 
+  /**
+   * 发送消息处理函数
+   *
+   * 调用 sendMessage hook 发送消息，成功后清空输入框并刷新会话/消息列表
+   */
   const handleSend = async () => {
     const result = await sendMessage({
       selectedConvId,
@@ -75,13 +116,23 @@ export default function MessagesPageContent() {
       void refreshConversations();
   };
 
+  // 切换会话时清除之前的发送错误提示
   useEffect(() => {
     if (selectedConvId !== null) {
       setSendError("");
     }
   }, [selectedConvId, setSendError]);
 
+  /**
+   * 消息列表滚动控制
+   *
+   * 监听消息变化，自动滚动到合适位置：
+   * - 首次加载会话：滚动到底部
+   * - 收到新消息且是本人发送或在底部时：平滑滚动到底部
+   * 否则保持当前滚动位置
+   */
   useEffect(() => {
+    // 无变化则跳过
     if (messages.length === lastMessagesCount.current && selectedConvId === lastSelectedConvId.current) return;
 
     const isFirstLoad = selectedConvId !== lastSelectedConvId.current;
@@ -105,6 +156,11 @@ export default function MessagesPageContent() {
     lastSelectedConvId.current = selectedConvId;
   }, [messages, selectedConvId, user]);
 
+  /**
+   * 通知标签页切换处理
+   *
+   * 当切换到非聊天标签时，加载对应类型的通知并标记为已读
+   */
   useEffect(() => {
     if (activeSidebarTab !== "chat") {
       void fetchNotifications(activeSidebarTab);
@@ -112,6 +168,7 @@ export default function MessagesPageContent() {
     }
   }, [activeSidebarTab, fetchNotifications, markRead]);
 
+  // 当前选中的会话对象
   const selectedConv = displayConversations.find(c => c.id === selectedConvId);
 
   return (

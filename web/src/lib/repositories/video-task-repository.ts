@@ -1,3 +1,10 @@
+/**
+ * 视频任务仓储层
+ *
+ * 组合 VideoTaskCoreRepository 和 VideoTaskStudioRepository 的功能
+ * 提供完整的视频生成任务数据访问能力
+ */
+
 import { VideoTaskCoreRepository } from "./video-task-repository.tasks";
 import { VideoTaskStudioRepository } from "./video-task-repository.studio";
 
@@ -7,6 +14,11 @@ export type {
   CreateCharacterData,
 } from "./video-task-repository.types";
 
+/**
+ * 视频任务数据访问类
+ *
+ * 继承 VideoTaskCoreRepository，整合 Studio 功能
+ */
 export class VideoTaskRepository extends VideoTaskCoreRepository {
   private readonly studio = new VideoTaskStudioRepository();
 

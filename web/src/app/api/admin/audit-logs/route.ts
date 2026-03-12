@@ -1,3 +1,13 @@
+/**
+ * 审计日志查询 API
+ *
+ * 管理员查询系统审计日志的接口，记录所有管理操作
+ *
+ * 需要审计日志查看权限
+ *
+ * @route /api/admin/audit-logs
+ * @method GET - 查询审计日志列表
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { auditLogRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -69,6 +79,18 @@ function summarize(action: string, targetType: string, targetId: string, detailJ
   return "执行管理操作";
 }
 
+/**
+ * 查询审计日志
+ *
+ * 支持按操作者、操作类型、目标类型筛选，返回带中文标签的审计记录
+ *
+ * @param {number} page - 页码，默认 1
+ * @param {number} size - 每页数量，默认 20
+ * @param {string} actor - 操作者用户名筛选
+ * @param {string} action - 操作类型筛选
+ * @param {string} target_type - 目标类型筛选
+ * @returns {Response} 分页的审计日志列表
+ */
 export const GET = withErrorHandler(async (req: Request) => {
   const auth = await getAuthIdentity();
   assertAuthenticated(auth?.username);

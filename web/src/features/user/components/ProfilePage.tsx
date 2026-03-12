@@ -16,6 +16,24 @@ import type { PostListItem } from "@/types/blog";
 import type { UserProfile as ApiUserProfile } from "@/types/user";
 import type { SuccessResponse } from "@/lib/api-response";
 
+/**
+ * ProfilePage - 用户资料页面组件
+ *
+ * 展示和编辑用户个人资料，包括头像、封面图、昵称、简介等。
+ * 支持查看自己的资料（编辑模式）和其他用户的资料（查看模式）。
+ * 包含文章、动态和收藏三个标签页的内容展示。
+ *
+ * @component
+ * @example
+ * <ProfilePage targetUsername="john" />
+ * <ProfilePage /> // 查看自己的资料
+ */
+
+/**
+ * ActivityItem - 用户动态类型定义
+ *
+ * 表示用户在个人动态中产生的活动记录类型，包括发布文章、点赞和评论三种类型。
+ */
 type ActivityItem = {
   type: 'post' | 'like' | 'comment';
   title: string;
@@ -26,10 +44,26 @@ type ActivityItem = {
   id?: string;
 };
 
+/**
+ * ProfileViewUser - 查看用户资料的数据类型
+ *
+ * 扩展自 ApiUserProfile，添加当前用户是否已关注该用户的标识。
+ * 用于在资料页面中展示用户信息和关注状态。
+ */
 type ProfileViewUser = ApiUserProfile & {
   is_following?: boolean;
 };
 
+/**
+ * readSuccessData - 解析 API 响应数据
+ *
+ * 从 API 响应中提取成功的数据，仅在响应 success 为 true 时返回数据。
+ * 用于统一处理 API 响应格式，避免在多处重复相同的验证逻辑。
+ *
+ * @template T - 期望的数据类型
+ * @param {unknown} payload - API 响应数据
+ * @returns {T | null} 解析后的数据，解析失败返回 null
+ */
 function readSuccessData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== "object") return null;
   const parsed = payload as Partial<SuccessResponse<T>>;
@@ -37,6 +71,15 @@ function readSuccessData<T>(payload: unknown): T | null {
   return parsed.data ?? null;
 }
 
+/**
+ * toAuthProfile - 转换用户资料格式
+ *
+ * 将 API 返回的用户资料格式转换为认证上下文使用的格式。
+ * 处理 null 和 undefined 的边界情况，统一为 undefined。
+ *
+ * @param {ProfileViewUser} profile - API 返回的用户资料
+ * @returns {AuthUserProfile} 认证上下文使用的用户资料格式
+ */
 function toAuthProfile(profile: ProfileViewUser): AuthUserProfile {
   return {
     username: profile.username,
@@ -54,6 +97,15 @@ function toAuthProfile(profile: ProfileViewUser): AuthUserProfile {
   };
 }
 
+/**
+ * formatDate - 格式化日期显示
+ *
+ * 将 ISO 日期字符串格式化为中文日期时间显示。
+ * 处理无效日期和空值情况。
+ *
+ * @param {string} [value] - ISO 日期字符串
+ * @returns {string} 格式化后的日期字符串，无效时返回默认值
+ */
 function formatDate(value?: string) {
   if (!value) return "--";
   const date = new Date(value);
@@ -61,6 +113,19 @@ function formatDate(value?: string) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+/**
+ * ProfilePage 组件 - 用户资料页面
+ *
+ * 展示和编辑用户个人资料，包括头像、封面图、昵称、简介等。
+ * 支持查看自己的资料（编辑模式）和其他用户的资料（查看模式）。
+ * 包含文章、动态和收藏三个标签页的内容展示。
+ *
+ * @param {string} [targetUsername] - 要查看的用户名，未提供时查看当前登录用户资料
+ * @component
+ * @example
+ * <ProfilePage targetUsername="john" />
+ * <ProfilePage /> // 查看自己的资料
+ */
 export default function ProfilePage({ targetUsername }: { targetUsername?: string }) {
   const { user: authUser, updateProfile, isAuthenticated } = useAuth();
   const router = useRouter();

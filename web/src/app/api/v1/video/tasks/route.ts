@@ -1,3 +1,12 @@
+/**
+ * 视频任务列表 API
+ *
+ * 获取当前用户的视频任务列表
+ *
+ * @route /api/v1/video/tasks
+ * @method GET - 获取视频任务列表
+ */
+
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { videoTaskRepository } from "@/lib/repositories";
@@ -6,6 +15,7 @@ import { paginatedResponse } from "@/lib/api-response";
 import { validateQuery, z } from "@/lib/validate";
 import type { VideoTaskType } from "@/types";
 
+/** 查询参数验证 Schema */
 const listTasksQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

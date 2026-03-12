@@ -6,6 +6,18 @@ import { useAuth } from "@/app/providers";
 import TurnstileWidget from "@/components/TurnstileWidget";
 import { getVersionedApiPath } from "@/lib/api-version";
 
+/**
+ * 管理员登录页面
+ *
+ * 提供管理员身份验证的登录界面。
+ * 特点：
+ * - 使用账号密码登录
+ * - 支持 Turnstile 人机验证
+ * - 登录成功后验证管理员权限
+ * - 自动重定向到管理仪表盘
+ *
+ * @route /admin/login
+ */
 export default function AdminLoginPage() {
   const { login, isAuthenticated, loading } = useAuth();
   const router = useRouter();

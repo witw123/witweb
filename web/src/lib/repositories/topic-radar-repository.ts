@@ -1,6 +1,18 @@
+/**
+ * 主题雷达仓储层 (PostgreSQL 原生实现)
+ *
+ * 负责主题雷达功能的数据持久化，包括：
+ * - 数据源管理（RSS、HTML、API）
+ * - 主题项存储与查询
+ * - 告警通知渠道配置
+ * - 告警规则管理
+ * - 告警日志记录
+ */
+
 import "server-only";
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 
+/** 雷达数据源记录 */
 export type RadarSourceRecord = {
   id: number;
   name: string;
@@ -17,6 +29,7 @@ export type RadarSourceRecord = {
   updated_at: string;
 };
 
+/** 已入库的雷达主题项 */
 export type InsertedRadarItemRecord = {
   id: number;
   source_id: number;
@@ -28,6 +41,7 @@ export type InsertedRadarItemRecord = {
   score: number;
 };
 
+/** 待抓取的候选主题项 */
 type FetchCandidate = {
   title: string;
   url: string;
@@ -37,6 +51,11 @@ type FetchCandidate = {
   rawJson: string;
 };
 
+/**
+ * 主题雷达数据访问类
+ *
+ * 提供数据源、主题项、通知渠道、告警规则的完整 CRUD 操作
+ */
 class TopicRadarRepository {
   async listSourceUrlsByUser(username: string): Promise<Array<{ url: string }>> {
     return await pgQuery<{ url: string }>("SELECT url FROM topic_sources WHERE created_by = ?", [username]);

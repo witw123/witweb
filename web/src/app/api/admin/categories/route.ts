@@ -1,3 +1,16 @@
+/**
+ * 分类管理 API
+ *
+ * 管理员管理文章分类的接口，包括：
+ * - 查询分类列表
+ * - 创建新分类
+ *
+ * 需要分类管理权限
+ *
+ * @route /api/admin/categories
+ * @method GET - 获取分类列表
+ * @method POST - 创建新分类
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -27,6 +40,16 @@ function slugify(text: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * 获取分类列表
+ *
+ * 管理员查询所有文章分类，支持搜索和分页
+ *
+ * @param {number} page - 页码，默认 1
+ * @param {number} limit - 每页数量，默认 100
+ * @param {string} search - 搜索关键词
+ * @returns {Response} 分页的分类列表
+ */
 export const GET = withErrorHandler(async (req: Request) => {
   const auth = await getAuthIdentity();
   assertAuthenticated(auth?.username);
@@ -38,6 +61,17 @@ export const GET = withErrorHandler(async (req: Request) => {
   return paginatedResponse(result.items, result.total, page ?? 1, limit ?? 100);
 });
 
+/**
+ * 创建新分类
+ *
+ * 创建一个新的文章分类，自动生成 slug 并记录审计日志
+ *
+ * @param {string} name - 分类名称，必填
+ * @param {string} [slug] - 分类别名，可选
+ * @param {string} [description] - 分类描述
+ * @param {boolean} [is_active] - 是否激活，默认 true
+ * @returns {Response} 包含新分类 ID 的响应
+ */
 export const POST = withErrorHandler(async (req: Request) => {
   const auth = await getAuthIdentity();
   assertAuthenticated(auth?.username);

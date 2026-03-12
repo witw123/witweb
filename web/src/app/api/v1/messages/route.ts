@@ -1,3 +1,14 @@
+﻿/**
+ * 私信消息 API
+ *
+ * 提供私信会话列表读取和消息发送入口。
+ * GET 返回当前用户可见的会话列表；POST 在鉴权后写入一条新消息并返回会话 ID。
+ *
+ * @route /api/v1/messages
+ * @method GET - 获取私信会话列表
+ * @method POST - 发送私信
+ */
+
 import { NextRequest } from "next/server";
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { verifyAuth } from "@/lib/auth";
@@ -7,11 +18,17 @@ import { drizzleMessageRepository, drizzleUserRepository } from "@/lib/repositor
 import { validateBody, z } from "@/lib/validate";
 import { withErrorHandler } from "@/middleware/error-handler";
 
+/** 发送消息请求体 Schema。 */
 const sendMessageSchema = z.object({
   receiver: z.string().min(1, "接收方不能为空"),
   content: z.string().min(1, "消息内容不能为空").max(2000, "消息内容最多 2000 个字符"),
 });
 
+/**
+ * 获取当前用户的会话列表
+ *
+ * 会过滤掉对方用户已不存在的会话，避免前端显示悬空对话。
+ */
 export const GET = withErrorHandler(async () => {
   const user = await getAuthUser();
   if (!user) {
@@ -27,6 +44,11 @@ export const GET = withErrorHandler(async () => {
   return successResponse(filtered);
 });
 
+/**
+ * 发送私信
+ *
+ * 鉴权成功后写入消息；如果接收方不存在，明确返回 404，便于前端区分输入错误和系统失败。
+ */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const auth = await verifyAuth(req);
   if (!auth) {

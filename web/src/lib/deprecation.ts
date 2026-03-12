@@ -1,3 +1,10 @@
+/**
+ * API 弃用工具
+ *
+ * 为旧版 API 响应添加弃用头部信息
+ * 通知客户端使用新版 API 并提供迁移时间
+ */
+
 import { NextResponse } from "next/server";
 
 /**

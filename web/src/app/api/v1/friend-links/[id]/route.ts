@@ -1,3 +1,12 @@
+/**
+ * 友链单个操作 API
+ *
+ * 更新和删除指定友链
+ *
+ * @route /api/v1/friend-links/[id]
+ * @method PUT - 更新指定友链
+ * @method DELETE - 删除指定友链
+ */
 import { withErrorHandler } from "@/middleware/error-handler";
 import {
   buildFriendLinkDeleteResponse,

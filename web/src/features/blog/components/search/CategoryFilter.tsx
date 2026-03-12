@@ -1,4 +1,25 @@
-﻿"use client";
+﻿/**
+ * CategoryFilter - 分类筛选下拉组件
+ *
+ * 提供可访问的分类筛选下拉菜单，支持：
+ * - 键盘导航（上下箭头、Enter、Escape）
+ * - 点击外部关闭
+ * - 鼠标悬停选项
+ *
+ * @component
+ * @param {object} props - 组件属性
+ * @param {string} props.value - 当前选中的分类 slug
+ * @param {(value: string) => void} props.onChange - 变更回调
+ * @param {Category[]} props.categories - 分类列表
+ * @param {string} [props.placeholder="全部分类"] - 占位文本
+ * @example
+ * <CategoryFilter
+ *   value={selectedCategory}
+ *   onChange={setCategory}
+ *   categories={categories}
+ * />
+ */
+"use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Category } from "@/types/blog";

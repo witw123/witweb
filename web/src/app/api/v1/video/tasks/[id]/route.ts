@@ -1,3 +1,13 @@
+/**
+ * 获取视频任务状态
+ *
+ * 获取指定视频生成任务的状态和结果，如果任务仍在进行中则轮询更新状态
+ *
+ * @route /api/v1/video/tasks/:id
+ * @method GET - 获取任务状态
+ * @param {string} id - 任务 ID
+ * @returns {Promise<VideoTaskWithResults>} 任务信息，包含状态和结果
+ */
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { videoTaskRepository } from "@/lib/repositories";
@@ -11,6 +21,15 @@ const paramsSchema = z.object({
   id: z.string().min(1, "Task ID is required"),
 });
 
+/**
+ * 轮询并更新任务状态
+ *
+ * 从外部服务获取任务最新状态，更新本地数据库记录
+ * 如果任务成功完成，同时保存生成结果
+ *
+ * @param {string} taskId - 任务 ID
+ * @returns {Promise<void>}
+ */
 async function pollAndUpdate(taskId: string): Promise<void> {
   const result = await getResult(taskId);
   const rawStatus = result?.status;

@@ -1,3 +1,9 @@
+﻿/**
+ * CommentSection - 文章评论区域组件
+ *
+ * 负责评论输入、树形展示、分页、回复和管理员编辑删除。
+ * 评论数据本身由外层缓存 Hook 提供，这里主要处理页面交互和层级结构转换。
+ */
 "use client";
 
 import { useMemo, useState } from "react";
@@ -24,6 +30,14 @@ type CommentSectionProps = {
   refreshComments: () => Promise<void>;
 };
 
+/**
+ * 构建评论树形结构
+ *
+ * 顶层评论做分页，回复挂到各自主楼下，避免回复内容被拆到不同分页里。
+ *
+ * @param {CommentListItem[]} list - 扁平评论列表
+ * @returns {CommentNode[]} 树形评论数组
+ */
 function buildCommentTree(list: CommentListItem[]) {
   const nodes = new Map<number, CommentNode>();
   const roots: CommentNode[] = [];
@@ -86,6 +100,7 @@ export function CommentSection({
     commentPage * commentsPerPage
   );
 
+  // 成功后同步刷新评论列表和文章详情，让评论数与树结构一起更新。
   async function handleCommentSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
@@ -166,6 +181,7 @@ export function CommentSection({
     }
   }
 
+  // 点击回复时预填 @ 前缀，减少用户重复输入回复对象。
   function handleReplyClick(comment: CommentNode) {
     const name = comment.author_name || comment.author || "用户";
     const prefix = `@${name} `;
@@ -358,6 +374,7 @@ export function CommentSection({
             onChange={(event) => setCommentText(event.target.value)}
             onKeyDown={(event) => {
               if (!isAuthenticated) return;
+              // Enter 直接发送，Shift+Enter 保留换行，更贴近即时交流体验。
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void handleCommentSubmit(

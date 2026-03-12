@@ -1,3 +1,17 @@
+/**
+ * UserManagementPage - 用户管理页面组件
+ *
+ * 提供后台用户管理功能，包括：
+ * - 用户列表展示和筛选（按角色、活跃状态）
+ * - 用户搜索
+ * - 修改用户角色
+ * - 删除用户
+ * - 批量删除用户
+ *
+ * @component
+ * @example
+ * <UserManagementPage />
+ */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

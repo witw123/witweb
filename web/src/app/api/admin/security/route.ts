@@ -1,3 +1,17 @@
+/**
+ * 安全设置管理 API
+ *
+ * 管理员管理安全配置的接口，包括：
+ * - 查看安全配置状态（环境、验证、API 密钥状态）
+ * - 设置敏感配置（API 密钥、Token、Webhook 密钥等）
+ * - 清理配置缓存
+ *
+ * 需要安全设置管理权限
+ *
+ * @route /api/admin/security
+ * @method GET - 获取安全配置状态
+ * @method POST - 设置安全配置或清理缓存
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -28,6 +42,13 @@ const postSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
+/**
+ * 获取安全配置状态
+ *
+ * 返回当前系统的安全配置信息，包括环境变量、验证状态、API 密钥信息等
+ *
+ * @returns {Response} 包含完整安全配置状态的响应
+ */
 export const GET = withErrorHandler(async (req) => {
   const auth = await getAuthIdentity();
   assertAuthenticated(auth?.username);
@@ -69,6 +90,18 @@ export const GET = withErrorHandler(async (req) => {
   });
 });
 
+/**
+ * 设置安全配置或清理缓存
+ *
+ * 支持两种操作：
+ * - setConfig: 设置敏感配置项（API 密钥、Token 等）
+ * - clearCache: 清理配置缓存
+ *
+ * @param {string} action - 操作类型：setConfig 或 clearCache
+ * @param {string} [key] - 配置项名称（setConfig 时需要）
+ * @param {string} [value] - 配置值（setConfig 时需要）
+ * @returns {Response} 操作结果响应
+ */
 export const POST = withErrorHandler(async (req) => {
   const auth = await getAuthIdentity();
   assertAuthenticated(auth?.username);

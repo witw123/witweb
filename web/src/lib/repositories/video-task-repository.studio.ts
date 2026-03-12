@@ -1,7 +1,22 @@
+/**
+ * 视频任务 Studio 仓储
+ *
+ * 提供视频 Studio 相关的辅助数据操作：
+ * - 角色（Character）管理
+ * - Studio 配置管理
+ * - 生成历史记录
+ * - 活跃任务跟踪
+ */
+
 import { pgQuery, pgQueryOne, pgRun } from "@/lib/postgres-query";
 import type { Character, StudioConfig, StudioHistory } from "@/types";
 import type { CreateCharacterData } from "./video-task-repository.types";
 
+/**
+ * 视频 Studio 数据访问类
+ *
+ * 提供角色管理、配置、历史记录等辅助功能
+ */
 export class VideoTaskStudioRepository {
   async listCharacters(username: string): Promise<Character[]> {
     return await pgQuery<Character>("SELECT * FROM characters WHERE username = ? ORDER BY created_at DESC", [username]);

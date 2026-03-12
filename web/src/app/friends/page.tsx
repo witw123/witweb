@@ -1,19 +1,46 @@
-﻿"use client";
+﻿/**
+ * 友链页面路由
+ *
+ * 显示本站收录的友情链街列表
+ * 从后端 API 获取友链数据并渲染，支持站点头像和描述展示
+ */
+
+"use client";
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { shouldBypassImageOptimization } from "@/utils/url";
 
+/**
+ * FriendLink - 友链数据结构
+ *
+ * 定义友情链街的数据模型
+ */
 interface FriendLink {
+  /** 友链 ID */
   id: number;
+  /** 站点名称 */
   name: string;
+  /** 站点 URL */
   url: string;
+  /** 站点描述 */
   description: string | null;
+  /** 站点头像 URL */
   avatar_url: string | null;
+  /** 排序权重 */
   sort_order: number;
 }
 
+/**
+ * FriendsPage - 友链页面组件
+ *
+ * 渲染友情链街列表，包含以下功能：
+ * - 从后端 API 获取友链数据
+ * - 展示站点头像、名称、描述和 URL
+ * - 头像加载失败时使用 fallback 图标或站点 favicon
+ * - 加载状态显示
+ */
 export default function FriendsPage() {
   const [links, setLinks] = useState<FriendLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +58,14 @@ export default function FriendsPage() {
       });
   }, []);
 
+  /**
+   * 获取站点 fallback 图标
+   *
+   * 当友链没有自定义头像时，使用站点的 favicon.ico 作为备用
+   *
+   * @param {string} siteUrl - 站点 URL
+   * @returns {string} favicon.ico 的完整 URL，解析失败时返回空字符串
+   */
   const getFallbackIcon = (siteUrl: string) => {
     try {
       return `${new URL(siteUrl).origin}/favicon.ico`;

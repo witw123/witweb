@@ -1,4 +1,11 @@
-﻿import { ApiError, ErrorCode } from "@/lib/api-error";
+﻿/**
+ * 私信消息仓储层
+ *
+ * 负责会话创建、消息收发、未读计数和消息统计。
+ * 会话和消息存在强关联，因此多数写操作都在事务里完成，确保最后一条消息与未读数同步更新。
+ */
+
+import { ApiError, ErrorCode } from "@/lib/api-error";
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 import type { Conversation, ConversationListItem, ConversationOtherUser, PrivateMessage } from "@/types";
 import type { PaginatedResult } from "./types";
@@ -15,6 +22,7 @@ export interface CreateConversationData {
   last_message?: string;
 }
 
+/** 规范化分页参数，避免超大 size 直接打穿查询。 */
 function normalizePagination(page = 1, size = 20): { page: number; size: number; offset: number } {
   const validPage = Math.max(1, page);
   const validSize = Math.max(1, Math.min(50, size));
@@ -23,6 +31,11 @@ function normalizePagination(page = 1, size = 20): { page: number; size: number;
 }
 
 export class MessageRepository {
+  /**
+   * 获取或创建会话
+   *
+   * 先对用户名排序，保证任意两人之间只会有一条会话记录。
+   */
   async getOrCreateConversation(user1: string, user2: string): Promise<{ id: number; isNew: boolean }> {
     const normalizedUser1 = user1 < user2 ? user1 : user2;
     const normalizedUser2 = user1 < user2 ? user2 : user1;
@@ -47,6 +60,7 @@ export class MessageRepository {
     return await pgQueryOne<Conversation>("SELECT * FROM conversations WHERE id = ?", [id]);
   }
 
+  /** 校验当前用户是否有权访问指定会话。 */
   async canAccessConversation(conversationId: number, username: string): Promise<boolean> {
     const row = await pgQueryOne<{ id: number }>(
       "SELECT id FROM conversations WHERE id = ? AND (user1 = ? OR user2 = ?) LIMIT 1",
@@ -62,6 +76,7 @@ export class MessageRepository {
     );
   }
 
+  /** 查询会话列表，并补齐对方用户资料供前端直接展示。 */
   async getConversationList(username: string): Promise<ConversationListItem[]> {
     const rows = await pgQuery<
       Conversation & {
@@ -72,7 +87,7 @@ export class MessageRepository {
     >(
       `
       SELECT
-        c.*,
+        c.*, 
         CASE WHEN c.user1 = ? THEN c.user2 ELSE c.user1 END AS other_username,
         u.nickname AS other_nickname,
         u.avatar_url AS other_avatar_url
@@ -126,6 +141,7 @@ export class MessageRepository {
     return result.changes > 0;
   }
 
+  /** 删除会话时同步删除其消息，保持数据完整。 */
   async deleteConversation(id: number): Promise<boolean> {
     return await withPgTransaction<boolean>(async (client) => {
       await pgRun("DELETE FROM private_messages WHERE conversation_id = ?", [id], client);
@@ -134,11 +150,16 @@ export class MessageRepository {
     });
   }
 
+  /**
+   * 发送私信
+   *
+   * 会在同一事务中完成：校验接收者、创建/获取会话、写入消息、更新最后消息和未读数。
+   */
   async sendMessage(data: SendMessageData): Promise<{ conversationId: number; messageId: number }> {
     return await withPgTransaction(async (client) => {
       const receiverExists = await pgQueryOne<{ username: string }>("SELECT username FROM users WHERE username = ?", [data.receiver], client);
       if (!receiverExists) {
-        throw new ApiError(ErrorCode.USER_NOT_FOUND, "鎺ユ敹鑰呬笉瀛樺湪");
+        throw new ApiError(ErrorCode.USER_NOT_FOUND, "接收者不存在");
       }
 
       const normalizedUser1 = data.sender < data.receiver ? data.sender : data.receiver;
@@ -189,6 +210,7 @@ export class MessageRepository {
     );
   }
 
+  /** 读取会话消息并顺手把当前用户收到的消息标记为已读。 */
   async getMessagesAndMarkAsRead(conversationId: number, username: string): Promise<PrivateMessage[]> {
     return await withPgTransaction(async (client) => {
       const canAccess = await this.canAccessConversation(conversationId, username);
@@ -216,6 +238,7 @@ export class MessageRepository {
     });
   }
 
+  /** 分页获取会话消息，并在返回前恢复为时间正序。 */
   async getMessagesPaginated(conversationId: number, page = 1, size = 20): Promise<PaginatedResult<PrivateMessage>> {
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
     const total = (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM private_messages WHERE conversation_id = ?", [conversationId]))
@@ -254,6 +277,7 @@ export class MessageRepository {
     return result.changes > 0;
   }
 
+  /** 汇总当前用户在所有会话中的未读总数。 */
   async getTotalUnread(username: string): Promise<number> {
     const row = await pgQueryOne<{ total: number }>(
       `
@@ -279,6 +303,7 @@ export class MessageRepository {
     );
   }
 
+  /** 提供个人中心所需的私信统计汇总。 */
   async getUserStats(
     username: string
   ): Promise<{ total_sent: number; total_received: number; unread: number; conversations: number }> {
@@ -299,6 +324,7 @@ export class MessageRepository {
     );
   }
 
+  /** 获取与指定用户最近的一条消息。 */
   async getLastMessageWith(otherUser: string, currentUser: string): Promise<PrivateMessage | null> {
     return await pgQueryOne<PrivateMessage>(
       `
@@ -315,4 +341,3 @@ export class MessageRepository {
 }
 
 export const messageRepository = new MessageRepository();
-

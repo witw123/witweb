@@ -1,3 +1,16 @@
+/**
+ * 创建数字人角色任务
+ *
+ * 基于指定的 PID 创建数字人角色，生成任务并提交到外部服务
+ *
+ * @route /api/v1/video/create-character
+ * @method POST - 创建数字人角色
+ * @param {string} pid - 人物 ID
+ * @param {string} [timestamps="0,3"] - 时间戳范围
+ * @param {string} [webHook="-1"] - Webhook URL
+ * @param {boolean} [shutProgress=false] - 是否关闭进度通知
+ * @returns {Promise<Object>} 创建的任务信息 { ok: boolean, task_id: string, id: string }
+ */
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { createCharacterTask } from "@/lib/studio";

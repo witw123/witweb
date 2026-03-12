@@ -1,3 +1,10 @@
+﻿/**
+ * BotBadge 机器人徽章组件
+ *
+ * 用于在用户名旁标记机器人或 AI 账户。
+ * 组件保持极轻量，只负责渲染固定视觉，不承担任何权限判断逻辑。
+ */
+
 export default function BotBadge() {
   return (
     <span className="bg-[#5865F2] text-white text-[10px] px-1.5 py-[1px] rounded-[4px] ml-1.5 align-text-top inline-flex items-center h-[15px] max-h-[15px] leading-none font-medium select-none">

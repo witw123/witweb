@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * AgentCreate AI创作任务创建组件
+ *
+ * 用于创建和管理 AI 创作任务：
+ * - 选择 Agent 类型（选题/写作/发布）
+ * - 选择 AI 模型
+ * - 设置创作目标和系统提示词
+ * - 实时预览生成内容
+ * - 继续优化和导出结果
+ *
+ * @component
+ * @example
+ * <AgentCreate onTaskCreated={(taskId) => console.log(taskId)} />
+ */
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/providers";
 import { logError } from "@/lib/logger";
@@ -13,6 +28,9 @@ import { useAgentRunDetail, type AgentType } from "./hooks/useAgentRunDetail";
 import { useContinueAgentRun } from "./hooks/useContinueAgentRun";
 import { useCreateAgentRun, type AgentModel } from "./hooks/useCreateAgentRun";
 
+/**
+ * 将状态码转换为可读标签
+ */
 function statusLabel(status?: string) {
   switch (status) {
     case "running":
@@ -28,6 +46,9 @@ function statusLabel(status?: string) {
   }
 }
 
+/**
+ * 格式化日期时间为本地字符串
+ */
 function formatDateTime(value?: string) {
   if (!value) return "--";
   const date = new Date(value);
@@ -35,10 +56,16 @@ function formatDateTime(value?: string) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+/**
+ * AgentCreate 组件属性
+ */
 interface AgentCreateProps {
   onTaskCreated?: (taskId: string) => void;
 }
 
+/**
+ * AgentCreate 组件 - AI创作任务创建
+ */
 export function AgentCreate({ onTaskCreated }: AgentCreateProps) {
   const { isAuthenticated } = useAuth();
   const [exporting, setExporting] = useState(false);

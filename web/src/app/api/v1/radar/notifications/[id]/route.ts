@@ -1,3 +1,13 @@
+/**
+ * Radar 通知渠道管理 API（单个）
+ *
+ * 更新或删除指定的 Webhook 通知渠道
+ *
+ * @route /api/v1/radar/notifications/:id
+ * @method PATCH - 更新通知渠道
+ * @method DELETE - 删除通知渠道
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

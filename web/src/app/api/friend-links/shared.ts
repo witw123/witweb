@@ -1,3 +1,14 @@
+/**
+ * Friend Links API - 友链管理数据处理
+ *
+ * 提供友链的 CRUD 操作：
+ * GET - 获取友链列表（管理员可见全部，普通用户仅可见已激活的）
+ * POST - 创建新友链
+ * PUT - 更新友链信息
+ * DELETE - 删除友链
+ * 所有修改操作需要管理员权限
+ */
+
 import { recordAdminAudit } from "@/lib/admin-audit";
 import { createdResponse, successResponse } from "@/lib/api-response";
 import { detectFriendLinkIcon } from "@/lib/friend-link-icon";
@@ -28,6 +39,13 @@ const updateSchema = z.object({
   is_active: z.coerce.number().int().min(0).max(1).optional(),
 });
 
+/**
+ * 构建友链列表 GET 响应
+ *
+ * 获取所有友链，管理员返回全部，普通用户仅返回已激活的友链
+ *
+ * @returns {Promise<Response>} 友链列表响应
+ */
 export async function buildFriendLinksGetResponse(): Promise<Response> {
   const auth = await getAuthIdentity();
   const canManage = !!auth && hasAdminPermission(auth.role, "friends.manage");
@@ -36,6 +54,14 @@ export async function buildFriendLinksGetResponse(): Promise<Response> {
   return successResponse({ links });
 }
 
+/**
+ * 构建友链 POST 响应
+ *
+ * 创建新的友链，自动检测网站图标，记录管理员操作日志
+ *
+ * @param {Request} req - HTTP 请求对象，包含友链数据
+ * @returns {Promise<Response>} 创建结果响应
+ */
 export async function buildFriendLinksPostResponse(req: Request): Promise<Response> {
   const auth = await getAuthIdentity();
   assertAuthenticated(auth?.username);
@@ -73,6 +99,15 @@ export async function buildFriendLinksPostResponse(req: Request): Promise<Respon
   });
 }
 
+/**
+ * 构建友链 PUT 响应
+ *
+ * 更新指定 ID 的友链信息，需要管理员权限
+ *
+ * @param {Request} request - HTTP 请求对象，包含更新数据
+ * @param {Promise<{ id: string }>} params - URL 参数，包含友链 ID
+ * @returns {Promise<Response>} 更新结果响应
+ */
 export async function buildFriendLinkPutResponse(
   request: Request,
   params: Promise<{ id: string }>
@@ -112,6 +147,15 @@ export async function buildFriendLinkPutResponse(
   return successResponse({ message: "Friend link updated successfully" });
 }
 
+/**
+ * 构建友链 DELETE 响应
+ *
+ * 删除指定 ID 的友链，需要管理员权限
+ *
+ * @param {Request} request - HTTP 请求对象
+ * @param {Promise<{ id: string }>} params - URL 参数，包含友链 ID
+ * @returns {Promise<Response>} 删除结果响应
+ */
 export async function buildFriendLinkDeleteResponse(
   request: Request,
   params: Promise<{ id: string }>

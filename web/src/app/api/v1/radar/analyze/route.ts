@@ -1,3 +1,12 @@
+/**
+ * Radar 数据分析 API
+ *
+ * 基于 Radar 采集的资讯内容，使用 LLM 生成智能分析摘要
+ *
+ * @route /api/v1/radar/analyze
+ * @method POST - 生成资讯分析
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

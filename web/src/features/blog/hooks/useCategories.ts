@@ -1,11 +1,22 @@
 "use client";
 
+/**
+ * 分类 Hook
+ *
+ * 获取文章分类列表
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { queryKeys } from "@/lib/query-keys";
 import type { Category } from "@/types/blog";
 
+/**
+ * 获取分类列表
+ *
+ * @returns {object} 分类列表和相关状态
+ */
 export function useCategories() {
   const query = useQuery({
     queryKey: queryKeys.categories,

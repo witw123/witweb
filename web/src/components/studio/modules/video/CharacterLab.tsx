@@ -1,5 +1,17 @@
 "use client";
 
+/**
+ * CharacterLab 角色管理组件
+ *
+ * 用于管理视频生成的角色素材：
+ * - 上传角色素材
+ * - 基于已有视频 PID 创建角色
+ *
+ * @component
+ * @example
+ * <CharacterLab />
+ */
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
@@ -7,10 +19,16 @@ import { post } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { queryKeys } from "@/lib/query-keys";
 
+/**
+ * 从错误对象中提取错误信息
+ */
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
+/**
+ * CharacterLab 组件 - 角色管理
+ */
 export function CharacterLab() {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();

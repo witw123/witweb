@@ -1,3 +1,9 @@
+﻿/**
+ * EditorStatusBar - 编辑器状态栏组件
+ *
+ * 展示当前草稿的保存状态、字数和预计阅读时间。
+ * 它只关心统计展示，不参与任何保存逻辑，适合作为编辑器底部的纯视图组件。
+ */
 "use client";
 
 import { cn } from "@/lib/utils/cn";
@@ -10,6 +16,12 @@ export interface EditorStatusBarProps {
   className?: string;
 }
 
+/**
+ * 格式化最近保存时间
+ *
+ * @param {string} isoString - ISO 时间字符串
+ * @returns {string} 友好的相对/绝对时间文案
+ */
 function formatSavedTime(isoString: string): string {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return "刚刚";
@@ -35,7 +47,6 @@ export function EditorStatusBar({ stats, savedAt, isSaving, className }: EditorS
 
   return (
     <div className={cn("flex items-center gap-4 px-2 py-1.5 text-xs text-zinc-500", className)}>
-      {/* Save status */}
       <div className="flex items-center gap-1.5">
         {isSaving ? (
           <>
@@ -63,7 +74,6 @@ export function EditorStatusBar({ stats, savedAt, isSaving, className }: EditorS
 
       <span className="text-zinc-700">|</span>
 
-      {/* Word count */}
       <div className="flex items-center gap-3">
         <span>{formatNumber(stats.chineseChars + stats.words)} 字</span>
         <span>阅读约 {stats.readingTime} 分钟</span>

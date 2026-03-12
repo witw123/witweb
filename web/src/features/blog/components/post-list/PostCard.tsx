@@ -1,3 +1,11 @@
+/**
+ * PostCard - 文章卡片组件
+ *
+ * 显示单篇文章的摘要信息，包括封面图、标题、作者、分类、标签和操作按钮
+ * 支持搜索结果关键词高亮显示
+ *
+ * @component
+ */
 "use client";
 
 import Image from "next/image";
@@ -8,19 +16,48 @@ import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 import UserHoverCard from "../UserHoverCard";
 import { PostActions } from "./PostActions";
 
+/**
+ * PostCard 组件属性
+ */
 interface PostCardProps {
+  /** 文章数据 */
   post: PostListItem;
+  /** 搜索关键词，用于高亮标题 */
   highlightQuery?: string;
+  /** 当前登录用户信息 */
   currentUser?: {
     username: string;
     avatar_url?: string;
   } | null;
+  /** 点赞回调 */
   onLike: (post: PostListItem) => void;
+  /** 点踩回调 */
   onDislike: (post: PostListItem) => void;
+  /** 收藏回调 */
   onFavorite: (post: PostListItem) => void;
+  /** 点击评论回调 */
   onCommentClick: (slug: string) => void;
 }
 
+/**
+ * PostCard - 文章卡片组件
+ *
+ * 展示文章的封面图、标题、作者头像、用户名、分类、标签、发布日期
+ * 以及点赞、点踩、收藏、评论等操作按钮
+ * 使用 memo 包装以优化渲染性能
+ *
+ * @component
+ * @example
+ * <PostCard
+ *   post={post}
+ *   highlightQuery="搜索词"
+ *   currentUser={user}
+ *   onLike={handleLike}
+ *   onDislike={handleDislike}
+ *   onFavorite={handleFavorite}
+ *   onCommentClick={handleComment}
+ * />
+ */
 export const PostCard = memo(function PostCard({
   post,
   highlightQuery = "",

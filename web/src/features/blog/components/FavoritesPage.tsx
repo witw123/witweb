@@ -1,3 +1,15 @@
+/**
+ * FavoritesPage - 我的收藏页面组件
+ *
+ * 展示当前用户收藏的文章列表，支持：
+ * - 分页浏览
+ * - 点赞、点踩、收藏操作
+ * - 跳转到评论
+ *
+ * @component
+ * @example
+ * <FavoritesPage />
+ */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";

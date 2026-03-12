@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * CreateForm 视频生成表单组件
+ *
+ * 用于创建新的视频生成任务：
+ * - 提示词输入
+ * - 画幅比例选择
+ * - 视频时长选择
+ * - 参考图上传
+ * - 高级参数配置
+ *
+ * @component
+ * @example
+ * <CreateForm onTaskCreated={(taskId) => console.log(taskId)} />
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
@@ -8,12 +23,27 @@ import { getVersionedApiPath } from "@/lib/api-version";
 import { queryKeys } from "@/lib/query-keys";
 import { uploadImageRequest } from "@/lib/upload-image-client";
 
+/**
+ * 画幅比例选项
+ */
 const ratioOptions = ["16:9", "9:16", "1:1"];
+
+/**
+ * 视频时长选项（秒）
+ */
 const durationOptions = [10, 15];
+
+/**
+ * 清晰度选项
+ */
 const qualityOptions = [
   { value: "small", label: "标准清晰度（small）" },
   { value: "large", label: "高清清晰度（large）" },
 ];
+
+/**
+ * 提示词快捷模板
+ */
 const promptTemplates = [
   "电影感慢镜头，海浪拍打悬崖，金色夕阳，细节丰富。",
   "雨夜赛博朋克街道，霓虹倒影，镜头推进，氛围强烈。",
@@ -23,6 +53,9 @@ const promptTemplates = [
 
 const STORAGE_KEY = "studio_video_create_form_v3";
 
+/**
+ * 表单数据类型
+ */
 type FormData = {
   prompt: string;
   model: string;
@@ -35,14 +68,23 @@ type FormData = {
   shutProgress: boolean;
 };
 
+/**
+ * 从错误对象中提取错误信息
+ */
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
+/**
+ * CreateForm 组件属性
+ */
 interface CreateFormProps {
   onTaskCreated?: (taskId: string) => void;
 }
 
+/**
+ * 默认表单数据
+ */
 const defaultFormData: FormData = {
   prompt: "",
   model: "sora-2",
@@ -55,6 +97,9 @@ const defaultFormData: FormData = {
   shutProgress: false,
 };
 
+/**
+ * CreateForm 组件 - 视频生成表单
+ */
 export function CreateForm({ onTaskCreated }: CreateFormProps) {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();

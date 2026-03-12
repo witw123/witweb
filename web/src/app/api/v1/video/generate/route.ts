@@ -1,3 +1,12 @@
+/**
+ * 视频生成 API
+ *
+ * 创建视频生成任务
+ *
+ * @route /api/v1/video/generate
+ * @method POST - 创建视频生成任务
+ */
+
 import { getAuthUser } from "@/lib/http";
 import { createVideoTask } from "@/lib/studio";
 import { videoTaskRepository } from "@/lib/repositories";
@@ -6,6 +15,7 @@ import { successResponse, errorResponses } from "@/lib/api-response";
 import { validateBody, z } from "@/lib/validate";
 import type { VideoTaskType } from "@/types";
 
+/** 视频生成请求验证 Schema */
 const generateSchema = z.object({
   model: z.string().trim().optional(),
   prompt: z.string().trim().min(1, "prompt is required"),

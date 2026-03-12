@@ -1,85 +1,79 @@
-﻿import "server-only";
-import { ApiError, ErrorCode } from "@/lib/api-error";
-import { agentConfig } from "@/lib/config";
+﻿/**
+ * AI Agent LLM 集成模块
+ *
+ * 提供与大型语言模型的交互接口，包括内容生成、雷达分析等功能
+ * 支持流式响应、错误分类和结果解析
+ */
 
+import "server-only";
+import { ApiError, ErrorCode } from "@/lib/api-error";
+import { invokeModelText } from "@/lib/model-runtime";
+
+/** Agent 类型：topic-主题研究、writing-写作、publish-发布 */
 export type AgentType = "topic" | "writing" | "publish";
+
+/** 支持的 AI 模型列表 */
 export const AGENT_MODELS = ["gemini-3-pro", "gemini-2.5-pro", "gemini-2.5-flash"] as const;
+
+/** AI 模型类型 */
 export type AgentModel = (typeof AGENT_MODELS)[number];
 
+/** AI Agent 生成的内容包 */
 export type AgentDraftBundle = {
+  /** 关键词数组 */
   keywords: string[];
+  /** 标题 */
   title: string;
+  /** 标签（逗号分隔） */
   tags: string;
+  /** 文章大纲 */
   outline: string[];
+  /** 正文内容（Markdown） */
   content: string;
+  /** SEO 元数据 */
   seo: {
     title: string;
     description: string;
     keywords: string[];
   };
+  /** 封面图片提示词 */
   coverPrompt: string;
 };
 
+/** 雷达分析输入项 */
 export type RadarAnalysisInput = {
+  /** 文章标题 */
   title: string;
+  /** 内容摘要 */
   summary: string;
+  /** 来源名称 */
   sourceName: string;
+  /** 来源 URL */
   url: string;
+  /** 热度分数 */
   score: number;
+  /** 发布时间 */
   publishedAt: string;
 };
 
+/** 雷达分析结果 */
 export type RadarAnalysisResult = {
+  /** 总体趋势总结 */
   summary: string;
+  /** 关键词列表 */
   keywords: string[];
+  /** 可写角度列表 */
   angles: string[];
+  /** 风险点列表 */
   risks: string[];
+  /** Markdown 格式的分析报告 */
   markdown: string;
-};
-
-type ChunkShape = {
-  choices?: Array<{
-    delta?: { content?: unknown };
-    message?: { content?: unknown };
-  }>;
-  output_text?: unknown;
-  data?: { content?: unknown };
 };
 
 type ErrorWithCause = {
   message?: unknown;
   cause?: { code?: unknown };
 };
-
-function resolveChatCompletionsUrl(rawEndpoint: string): string {
-  const input = rawEndpoint.trim();
-  if (!input) return "";
-
-  let url: URL;
-  try {
-    url = new URL(input);
-  } catch {
-    throw new ApiError(ErrorCode.BAD_REQUEST, "AGENT_LLM_ENDPOINT 格式不正确");
-  }
-
-  const path = url.pathname.replace(/\/+$/, "");
-  if (!path || path === "/") {
-    url.pathname = "/v1/chat/completions";
-    return url.toString();
-  }
-
-  if (path.endsWith("/v1/chat/completions")) {
-    return url.toString();
-  }
-
-  if (path === "/v1") {
-    url.pathname = "/v1/chat/completions";
-    return url.toString();
-  }
-
-  url.pathname = `${path}/v1/chat/completions`;
-  return url.toString();
-}
 
 function extractJsonString(raw: string): string {
   const trimmed = raw.trim();
@@ -110,40 +104,6 @@ function stripThinkBlocks(raw: string): string {
   return raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
-function collectContentValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (!Array.isArray(value)) return "";
-
-  return value
-    .map((part) => {
-      if (typeof part === "string") return part;
-      if (part && typeof part === "object") {
-        const text = (part as { text?: unknown }).text;
-        if (typeof text === "string") return text;
-        const content = (part as { content?: unknown }).content;
-        if (typeof content === "string") return content;
-      }
-      return "";
-    })
-    .join("");
-}
-
-function pullContentFromChunk(chunk: unknown): string {
-  const typedChunk = chunk as ChunkShape;
-  const delta = collectContentValue(typedChunk?.choices?.[0]?.delta?.content);
-  if (delta) return delta;
-
-  const message = collectContentValue(typedChunk?.choices?.[0]?.message?.content);
-  if (message) return message;
-
-  const outputText = collectContentValue(typedChunk?.output_text);
-  if (outputText) return outputText;
-
-  const dataContent = collectContentValue(typedChunk?.data?.content);
-  if (dataContent) return dataContent;
-
-  return "";
-}
 
 function parseModelJson(raw: string): AgentDraftBundle | null {
   const cleaned = stripThinkBlocks(raw);
@@ -177,14 +137,19 @@ function normalizeBundle(bundle: AgentDraftBundle, goal: string): AgentDraftBund
       ? [...new Set(bundle.keywords.map((item) => item.trim()).filter(Boolean))].slice(0, 8)
       : [goal.slice(0, 20)];
 
+  const title = bundle.title?.trim() || goal;
+  const outline = bundle.outline.length > 0 ? bundle.outline : ["背景", "方法", "步骤", "总结"];
+  const rawContent = bundle.content?.trim() || `# ${goal}`;
+  const content = normalizeMarkdownContent(rawContent, title, outline);
+
   return {
     keywords,
-    title: bundle.title?.trim() || goal,
+    title,
     tags: bundle.tags?.trim() || keywords.join(", "),
-    outline: bundle.outline.length > 0 ? bundle.outline : ["背景", "方法", "步骤", "总结"],
-    content: bundle.content?.trim() || `# ${goal}`,
+    outline,
+    content,
     seo: {
-      title: bundle.seo?.title?.trim() || (bundle.title?.trim() || goal).slice(0, 58),
+      title: bundle.seo?.title?.trim() || title.slice(0, 58),
       description: bundle.seo?.description?.trim() || `${goal}，由 AI 自动生成。`.slice(0, 120),
       keywords: bundle.seo?.keywords?.length ? bundle.seo.keywords : keywords,
     },
@@ -192,167 +157,57 @@ function normalizeBundle(bundle: AgentDraftBundle, goal: string): AgentDraftBund
   };
 }
 
-function toErrorText(payload: unknown): string {
-  if (!payload) return "";
-  if (typeof payload === "string") return payload;
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "error" in payload &&
-    typeof (payload as { error?: { message?: unknown } }).error?.message === "string"
-  ) {
-    return (payload as { error: { message: string } }).error.message;
-  }
-  if (typeof (payload as { message?: unknown }).message === "string") {
-    return (payload as { message: string }).message;
-  }
-  return "";
-}
+function normalizeMarkdownContent(content: string, title: string, outline: string[]) {
+  const cleaned = stripThinkBlocks(content)
+    .replace(/\r\n/g, "\n")
+    .trim();
 
-function classifyProviderError(status: number, bodyText: string): ApiError {
-  const lower = bodyText.toLowerCase();
-
-  if (status === 401 || status === 403) {
-    return new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型鉴权失败：请检查 API Key 是否正确", {
-      provider_status: status,
-      provider_body: bodyText.slice(0, 300),
-    });
+  if (!cleaned) {
+    return `# ${title}\n\n## ${outline[0] || "正文"}\n\n待补充内容。`;
   }
 
-  if (
-    lower.includes("model") &&
-    (lower.includes("not found") || lower.includes("does not exist") || lower.includes("invalid"))
-  ) {
-    return new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型不存在或不可用：请确认 AGENT_LLM_MODEL", {
-      provider_status: status,
-      provider_body: bodyText.slice(0, 300),
-    });
-  }
+  const hasHeading = /^#\s+/m.test(cleaned);
+  const sections = cleaned
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
 
-  if (status === 429) {
-    return new ApiError(ErrorCode.RATE_LIMITED, "模型服务限流：请求过于频繁，请稍后重试", {
-      provider_status: status,
-      provider_body: bodyText.slice(0, 300),
-    });
-  }
+  const normalizedBlocks = sections.map((block, index) => {
+    if (/^#{1,6}\s+/.test(block) || /^[-*]\s+/.test(block) || /^\d+\.\s+/.test(block)) {
+      return block;
+    }
 
-  if (status >= 500) {
-    return new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型服务异常：上游服务不可用", {
-      provider_status: status,
-      provider_body: bodyText.slice(0, 300),
-    });
-  }
+    if (block.length <= 28 && index < outline.length) {
+      return `## ${block}`;
+    }
 
-  return new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型请求失败：请检查接口配置和参数", {
-    provider_status: status,
-    provider_body: bodyText.slice(0, 300),
+    return block
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n\n");
   });
+
+  const body = normalizedBlocks.join("\n\n").trim();
+  return hasHeading ? body : `# ${title}\n\n${body}`;
 }
 
-async function readModelResponse(res: Response, onChunk?: (chunk: string) => void): Promise<string> {
-  const contentType = res.headers.get("content-type") || "";
-  const isJson = contentType.toLowerCase().includes("application/json");
-
-  if (isJson) {
-    const payload = await res.json().catch(() => ({}));
-    const full = pullContentFromChunk(payload);
-    if (full && onChunk) onChunk(full);
-    return full;
-  }
-
-  if (!res.body) {
-    return await res.text();
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let aggregated = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || "";
-
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line || line.startsWith("event:")) continue;
-      const payload = line.startsWith("data:") ? line.slice(5).trim() : line;
-      if (!payload || payload === "[DONE]") continue;
-
-      try {
-        const parsed = JSON.parse(payload);
-        const piece = pullContentFromChunk(parsed);
-        if (piece) {
-          aggregated += piece;
-          if (onChunk) onChunk(piece);
-        }
-      } catch {
-        // ignore chunk parse errors
-      }
-    }
-  }
-
-  if (buffer.trim()) {
-    const payload = buffer.trim().startsWith("data:") ? buffer.trim().slice(5).trim() : buffer.trim();
-    if (payload && payload !== "[DONE]") {
-      try {
-        const parsed = JSON.parse(payload);
-        const piece = pullContentFromChunk(parsed);
-        if (piece) {
-          aggregated += piece;
-          if (onChunk) onChunk(piece);
-        }
-      } catch {
-        // ignore trailing chunk parse errors
-      }
-    }
-  }
-
-  return aggregated;
-}
 
 async function requestModel(
-  endpoint: string,
-  apiKey: string,
   model: string,
   systemPrompt: string,
   userPrompt: string,
   onChunk?: (chunk: string) => void
 ): Promise<string> {
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        stream: true,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const response = await invokeModelText({
+      model,
+      capability: "agent_llm",
+      systemPrompt,
+      userPrompt,
+      onChunk,
     });
-
-    if (!res.ok) {
-      const bodyText = await res.text().catch(() => "");
-      let providerMessage = "";
-      try {
-        providerMessage = toErrorText(bodyText ? JSON.parse(bodyText) : null);
-      } catch {
-        providerMessage = "";
-      }
-      throw classifyProviderError(res.status, providerMessage || bodyText);
-    }
-
-    const content = stripThinkBlocks(await readModelResponse(res, onChunk));
+    const content = stripThinkBlocks(response.output);
     if (!content.trim()) {
       throw new ApiError(ErrorCode.EXTERNAL_SERVICE_ERROR, "模型返回为空：请检查上游服务状态");
     }
@@ -378,6 +233,20 @@ async function requestModel(
   }
 }
 
+/**
+ * 生成 AI Agent 内容草稿
+ *
+ * 调用 LLM 生成完整的文章内容包，包含标题、标签、大纲、正文和 SEO 信息
+ *
+ * @param goal - 内容目标/主题
+ * @param agentType - Agent 类型
+ * @param options.onChunk - 流式回调（可选）
+ * @param options.model - 指定模型（可选，默认环境配置）
+ * @param options.assistantName - 助手名称（可选）
+ * @param options.customSystemPrompt - 自定义系统提示词（可选）
+ * @returns 生成的内容包
+ * @throws 未配置 API 时抛出错误
+ */
 export async function generateAgentDraft(
   goal: string,
   agentType: AgentType,
@@ -388,25 +257,7 @@ export async function generateAgentDraft(
     customSystemPrompt?: string;
   } = {}
 ): Promise<AgentDraftBundle> {
-  const endpoint = agentConfig.endpoint;
-  const apiKey = agentConfig.apiKey;
-  const envModel = agentConfig.model || "gemini-3-pro";
-  const model = (options.model || envModel) as AgentModel;
-
-  if (!endpoint) {
-    throw new ApiError(ErrorCode.BAD_REQUEST, "未配置 AGENT_LLM_ENDPOINT");
-  }
-  if (!apiKey) {
-    throw new ApiError(ErrorCode.BAD_REQUEST, "未配置 AGENT_LLM_API_KEY");
-  }
-  if (!AGENT_MODELS.includes(model)) {
-    throw new ApiError(
-      ErrorCode.BAD_REQUEST,
-      `不支持的模型：${model}。仅支持 ${AGENT_MODELS.join(", ")}`
-    );
-  }
-
-  const chatCompletionsUrl = resolveChatCompletionsUrl(endpoint);
+  const model = (options.model || AGENT_MODELS[0]) as AgentModel;
 
   const assistantLabel = options.assistantName?.trim() || "中文内容创作代理";
   const baseSystemPrompt =
@@ -432,26 +283,13 @@ export async function generateAgentDraft(
     "keywords": ["关键词1", "关键词2"]
   },
   "coverPrompt": "中文封面提示词"
-}`;
+  }`;
 
-  const content = await requestModel(
-    chatCompletionsUrl,
-    apiKey,
-    model,
-    systemPrompt,
-    userPrompt,
-    options.onChunk
-  );
+  const content = await requestModel(model, systemPrompt, userPrompt, options.onChunk);
   let parsed = parseModelJson(content);
   if (!parsed) {
     const retryPrompt = `${userPrompt}\n\n再次强调：只返回 JSON 对象本身，不要输出 <think>、解释、额外文本。`;
-    const retried = await requestModel(
-      chatCompletionsUrl,
-      apiKey,
-      model,
-      systemPrompt,
-      retryPrompt
-    );
+    const retried = await requestModel(model, systemPrompt, retryPrompt);
     parsed = parseModelJson(retried);
   }
   if (!parsed) {
@@ -492,6 +330,17 @@ function parseRadarAnalysis(raw: string): RadarAnalysisResult {
   }
 }
 
+/**
+ * 生成热点雷达分析
+ *
+ * 分析多个热点内容，生成选题建议、关键词、风险点等
+ *
+ * @param items - 热点内容列表
+ * @param options.focus - 分析重点（可选）
+ * @param options.model - 指定模型（可选）
+ * @returns 分析结果
+ * @throws 无内容或未配置 API 时抛出错误
+ */
 export async function generateRadarAnalysis(
   items: RadarAnalysisInput[],
   options: {
@@ -499,29 +348,12 @@ export async function generateRadarAnalysis(
     model?: AgentModel;
   } = {}
 ): Promise<RadarAnalysisResult> {
-  const endpoint = agentConfig.endpoint;
-  const apiKey = agentConfig.apiKey;
-  const envModel = agentConfig.model || "gemini-3-pro";
-  const model = (options.model || envModel) as AgentModel;
-
-  if (!endpoint) {
-    throw new ApiError(ErrorCode.BAD_REQUEST, "未配置 AGENT_LLM_ENDPOINT");
-  }
-  if (!apiKey) {
-    throw new ApiError(ErrorCode.BAD_REQUEST, "未配置 AGENT_LLM_API_KEY");
-  }
-  if (!AGENT_MODELS.includes(model)) {
-    throw new ApiError(
-      ErrorCode.BAD_REQUEST,
-      `不支持的模型：${model}。仅支持 ${AGENT_MODELS.join(", ")}`
-    );
-  }
+  const model = (options.model || AGENT_MODELS[0]) as AgentModel;
 
   if (items.length === 0) {
     throw new ApiError(ErrorCode.BAD_REQUEST, "暂无可分析的热点内容，请先抓取来源");
   }
 
-  const chatCompletionsUrl = resolveChatCompletionsUrl(endpoint);
   const focusText = options.focus?.trim() || "不限";
   const compactItems = items.map((item, index) => ({
     index: index + 1,
@@ -549,12 +381,6 @@ ${JSON.stringify(compactItems)}
   "markdown": "# 选题分析报告\\n..."
 }`;
 
-  const content = await requestModel(
-    chatCompletionsUrl,
-    apiKey,
-    model,
-    systemPrompt,
-    userPrompt
-  );
+  const content = await requestModel(model, systemPrompt, userPrompt);
   return parseRadarAnalysis(content);
 }

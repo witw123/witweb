@@ -1,3 +1,13 @@
+/**
+ * 获取会话消息并标记为已读
+ *
+ * 获取指定会话的消息列表，并将未读消息标记为已读
+ *
+ * @route /api/v1/messages/:conversationId
+ * @method GET - 获取会话消息并标记已读
+ * @param {string} conversationId - 会话 ID
+ * @returns {Promise<Message[]>} 消息列表
+ */
 import { NextRequest } from "next/server";
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { errorResponses, successResponse } from "@/lib/api-response";

@@ -1,3 +1,31 @@
+/**
+ * PostCard - 文章卡片组件
+ *
+ * 展示单篇文章的摘要信息，包括：
+ * - 封面图片（可选）
+ * - 标题和摘要
+ * - 作者信息
+ * - 标签
+ * - 点赞、点踩、收藏、评论数
+ *
+ * @component
+ * @param {object} props - 组件属性
+ * @param {PostListItem} props.post - 文章数据
+ * @param {boolean} [props.showActions] - 是否显示操作按钮
+ * @param {(post: PostListItem) => void} [props.onLike] - 点赞回调
+ * @param {(post: PostListItem) => void} [props.onDislike] - 点踩回调
+ * @param {(post: PostListItem) => void} [props.onFavorite] - 收藏回调
+ * @param {(post: PostListItem) => void} [props.onDelete] - 删除回调
+ * @param {boolean} [props.canEdit] - 是否可以编辑
+ * @example
+ * <PostCard
+ *   post={post}
+ *   showActions={true}
+ *   onLike={handleLike}
+ *   onDislike={handleDislike}
+ *   onFavorite={handleFavorite}
+ * />
+ */
 "use client";
 
 import Image from "next/image";

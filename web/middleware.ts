@@ -5,7 +5,12 @@ import { verifyJwtPayload } from "./src/lib/jwt";
 import { hasAdminAccess, normalizeRole } from "./src/lib/rbac";
 
 const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const PUBLIC_WRITE_API_PATHS = new Set(["/api/login", "/api/register"]);
+const PUBLIC_WRITE_API_PATHS = new Set([
+  "/api/login",
+  "/api/register",
+  "/api/v1/auth/login",
+  "/api/v1/auth/register",
+]);
 
 function redirectToAdminLogin(req: NextRequest): NextResponse {
   const loginUrl = new URL("/admin/login", req.url);

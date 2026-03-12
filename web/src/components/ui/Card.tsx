@@ -1,5 +1,12 @@
 ﻿'use client';
 
+/**
+ * Card 卡片组件
+ *
+ * 提供通用内容容器以及组合式 Header / Body / Footer 子组件。
+ * 适合后台面板、信息块和可点击列表项等场景。
+ */
+
 import React, { forwardRef, type MouseEventHandler, type ReactNode } from 'react';
 import { cn } from '@/lib/utils/cn';
 
@@ -37,6 +44,7 @@ const variantStyles: Record<CardVariant, string> = {
   ghost: 'bg-gray-50 dark:bg-gray-900/50 border-none',
 };
 
+/** 卡片头部，支持右侧操作区。 */
 function CardHeader({ children, className, action }: CardHeaderProps) {
   return (
     <div className={cn('px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between', className)}>
@@ -46,10 +54,12 @@ function CardHeader({ children, className, action }: CardHeaderProps) {
   );
 }
 
+/** 卡片主体内容区。 */
 function CardBody({ children, className }: CardBodyProps) {
   return <div className={cn('px-6 py-4', className)}>{children}</div>;
 }
 
+/** 卡片底部操作区。 */
 function CardFooter({ children, className }: CardFooterProps) {
   return (
     <div className={cn('px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl', className)}>

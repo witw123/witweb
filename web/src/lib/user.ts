@@ -1,10 +1,29 @@
+/**
+ * 用户工具函数
+ *
+ * 提供用户相关的业务逻辑函数
+ */
+
 import { drizzlePostRepository, drizzleUserRepository } from "./repositories";
 import type { User, UserProfile } from "@/types";
 
+/**
+ * 根据用户名获取用户
+ *
+ * @param {string} username - 用户名
+ * @returns {Promise<User|null>} 用户对象
+ */
 export async function getUserByUsername(username: string): Promise<User | null> {
   return await drizzleUserRepository.findByUsername(username);
 }
 
+/**
+ * 获取用户公开资料
+ *
+ * @param {string} username - 用户名
+ * @param {string|null} [viewer] - 查看者用户名
+ * @returns {Promise<UserProfile|null>} 用户公开资料
+ */
 export async function publicProfile(username: string, viewer?: string | null): Promise<UserProfile | null> {
   const user = await getUserByUsername(username);
   if (!user) return null;

@@ -1,4 +1,28 @@
-﻿"use client";
+﻿/**
+ * SearchBar - 搜索栏组件
+ *
+ * 提供文章搜索功能，支持：
+ * - 搜索输入
+ * - 标签建议
+ * - 文章标题建议
+ * - 清空搜索
+ *
+ * @component
+ * @param {object} props - 组件属性
+ * @param {string} props.value - 当前搜索值
+ * @param {(value: string) => void} props.onChange - 输入变更回调
+ * @param {(value: string) => void} props.onSearch - 提交搜索回调
+ * @param {PostListItem[]} props.posts - 文章列表（用于生成建议）
+ * @param {string} [props.placeholder="搜索标题或标签..."] - 占位文本
+ * @example
+ * <SearchBar
+ *   value={query}
+ *   onChange={setQuery}
+ *   onSearch={handleSearch}
+ *   posts={posts}
+ * />
+ */
+"use client";
 
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import type { PostListItem } from "@/types/blog";

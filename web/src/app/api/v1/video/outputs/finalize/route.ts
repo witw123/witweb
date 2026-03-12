@@ -1,3 +1,14 @@
+/**
+ * 完成视频生成
+ *
+ * 完成视频的最终处理，可选地添加提示词
+ *
+ * @route /api/v1/video/outputs/finalize
+ * @method POST - 完成视频生成
+ * @param {string} id - 任务 ID
+ * @param {string} [prompt] - 可选的提示词
+ * @returns {Promise<Object>} 完成结果
+ */
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/http";
 import { finalizeVideo } from "@/lib/studio";

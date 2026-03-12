@@ -1,9 +1,16 @@
 "use client";
 
+/**
+ * 评论操作 Hook
+ *
+ * 提供评论点赞、踩、删除等操作功能
+ */
+
 import { del, post, put } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { logError } from "@/lib/logger";
 
+/** 评论操作输入 */
 type CommentActionInput = {
   isAuthenticated: boolean;
   commentId: number;

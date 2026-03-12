@@ -1,3 +1,11 @@
+/**
+ * 收藏列表 API 共享处理函数
+ *
+ * 提供获取用户收藏文章列表的通用处理逻辑
+ *
+ * @route /api/favorites
+ * @method GET - 获取收藏列表
+ */
 import { paginatedResponse } from "@/lib/api-response";
 import { getAuthUser } from "@/lib/http";
 import { drizzlePostRepository, userRepository } from "@/lib/repositories";
@@ -26,6 +34,14 @@ function attachAuthorProfile(
   });
 }
 
+/**
+ * 构建收藏列表响应
+ *
+ * 获取当前用户收藏的所有文章，带分页和作者信息
+ *
+ * @param {Request} req - HTTP 请求对象
+ * @returns {Promise<Response>} 分页的收藏列表响应
+ */
 export async function buildFavoritesGetResponse(req: Request): Promise<Response> {
   const user = await getAuthUser();
   assertAuthenticated(user, "请先登录");

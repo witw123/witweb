@@ -1,3 +1,12 @@
+/**
+ * Agent 继续运行 API
+ *
+ * 为已存在的 Agent 运行任务发送继续指令，可指定不同的模型或系统提示词
+ *
+ * @route /api/v1/agent/runs/:id/continue
+ * @method POST - 继续执行运行任务
+ * @requiresAuth 需要用户认证
+ */
 import { continueRun } from "@/lib/agent";
 import { AGENT_MODELS } from "@/lib/agent-llm";
 import { errorResponses, successResponse } from "@/lib/api-response";

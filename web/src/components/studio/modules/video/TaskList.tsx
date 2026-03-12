@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * TaskList 视频任务列表组件
+ *
+ * 显示视频生成任务的历史列表：
+ * - 任务状态和进度显示
+ * - 自动刷新功能
+ * - 任务落盘到作品库
+ *
+ * @component
+ * @example
+ * <TaskList />
+ */
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
@@ -8,6 +21,9 @@ import { getVersionedApiPath } from "@/lib/api-version";
 import { queryKeys } from "@/lib/query-keys";
 import { useVideoOutputs } from "./hooks/useVideoOutputs";
 
+/**
+ * 任务数据类型
+ */
 interface Task {
   id: string;
   status: string;
@@ -19,6 +35,9 @@ interface Task {
   results?: Array<{ url: string }>;
 }
 
+/**
+ * 任务状态标签映射
+ */
 const statusLabels: Record<string, string> = {
   succeeded: "已完成",
   failed: "失败",
@@ -26,6 +45,9 @@ const statusLabels: Record<string, string> = {
   pending: "排队中",
 };
 
+/**
+ * TaskList 组件 - 视频任务列表
+ */
 export function TaskList() {
   const { isAuthenticated } = useAuth();
   const [autoRefresh, setAutoRefresh] = useState(true);

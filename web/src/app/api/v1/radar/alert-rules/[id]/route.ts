@@ -1,3 +1,13 @@
+/**
+ * Radar 告警规则管理 API（单个）
+ *
+ * 更新或删除指定的告警规则
+ *
+ * @route /api/v1/radar/alert-rules/:id
+ * @method PATCH - 更新告警规则
+ * @method DELETE - 删除告警规则
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

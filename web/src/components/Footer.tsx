@@ -1,8 +1,22 @@
 "use client";
 
+/**
+ * Footer 页脚组件
+ *
+ * 显示网站版权信息、统计数据（文章总数、总访问量、总访客数），
+ * 以及网站运行天数。支持响应式布局。
+ *
+ * @component
+ * @example
+ * <Footer />
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { getVersionedApiPath } from "@/lib/api-version";
 
+/**
+ * Footer 组件 - 显示网站页脚信息
+ */
 export default function Footer() {
   const [stats, setStats] = useState({
     totalPosts: 0,

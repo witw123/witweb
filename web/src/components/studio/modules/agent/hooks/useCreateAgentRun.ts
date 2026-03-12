@@ -1,16 +1,33 @@
+/**
+ * useCreateAgentRun Hook
+ *
+ * 提供 Agent 任务创建功能
+ * 通过 Server-Sent Events (SSE) 流式接收任务执行结果
+ * 支持创建新任务并实时获取生成的文本和产物
+ */
+
 "use client";
 
 import { useState } from "react";
 import { getVersionedApiPath } from "@/lib/api-version";
 
+/** Agent 使用的模型类型 */
 export type AgentModel = "gemini-3-pro" | "gemini-2.5-pro" | "gemini-2.5-flash";
+/** Agent 任务类型 */
 export type AgentType = "topic" | "writing" | "publish";
 
+/**
+ * 实时产物
+ * Agent 在执行过程中实时生成的产物
+ */
 export type LiveArtifact = {
+  /** 产物类型 */
   kind: string;
+  /** 产物内容 */
   content: string;
 };
 
+/** SSE 流事件类型 */
 type StreamEvent = {
   type?: string;
   run_id?: string;
@@ -20,11 +37,29 @@ type StreamEvent = {
   message?: string;
 };
 
+/**
+ * 将未知类型转换为流事件
+ *
+ * @param {unknown} input - 输入数据
+ * @returns {StreamEvent | null} 转换后的事件或 null
+ */
 function toStreamEvent(input: unknown): StreamEvent | null {
   if (!input || typeof input !== "object") return null;
   return input as StreamEvent;
 }
 
+/**
+ * useCreateAgentRun - 创建 Agent 任务 Hook
+ *
+ * 通过 SSE 流式创建 Agent 任务，实时获取执行结果
+ *
+ * @param {Object} options - Hook 配置
+ * @param {boolean} options.isAuthenticated - 用户是否已登录
+ * @param {Function} [options.onError] - 错误回调
+ * @param {Function} [options.onTaskCreated] - 任务创建完成回调
+ * @param {Function} [options.onDone] - 任务完成回调
+ * @returns 包含创建方法和状态的对象
+ */
 export function useCreateAgentRun(options: {
   isAuthenticated: boolean;
   onError?: (error: unknown, context?: Record<string, unknown>) => void;
@@ -40,6 +75,10 @@ export function useCreateAgentRun(options: {
   const [streamText, setStreamText] = useState("");
   const [createError, setCreateError] = useState("");
 
+  /**
+   * 更新或添加实时产物
+   * 同类型的产物会被覆盖
+   */
   const upsertLiveArtifact = (next: LiveArtifact) => {
     setLiveArtifacts((prev) => {
       const idx = prev.findIndex((item) => item.kind === next.kind);
@@ -50,6 +89,10 @@ export function useCreateAgentRun(options: {
     });
   };
 
+  /**
+   * 创建新的 Agent 任务
+   * 通过 SSE 流式获取执行结果
+   */
   const createRun = async (input: {
     goal: string;
     agentType: AgentType;
@@ -187,16 +230,27 @@ export function useCreateAgentRun(options: {
   };
 
   return {
+    /** 创建 Agent 任务 */
     createRun,
+    /** 是否正在创建 */
     creating,
+    /** 当前活动的任务 ID */
     activeRunId,
+    /** 设置当前活动任务 ID */
     setActiveRunId,
+    /** 是否正在流式传输 */
     isStreaming,
+    /** 流状态 */
     streamStatus,
+    /** 最后更新时间 */
     streamUpdatedAt,
+    /** 实时产物列表 */
     liveArtifacts,
+    /** 流式文本内容 */
     streamText,
+    /** 创建错误信息 */
     createError,
+    /** 设置错误信息 */
     setCreateError,
   };
 }

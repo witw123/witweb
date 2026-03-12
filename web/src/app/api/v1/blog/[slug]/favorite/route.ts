@@ -1,3 +1,12 @@
+/**
+ * 文章收藏 API
+ *
+ * 为文章添加或取消收藏，支持切换状态（再次点击取消收藏）
+ *
+ * @route /api/v1/blog/:slug/favorite
+ * @method POST - 收藏/取消收藏文章
+ */
+
 import { getAuthUser } from "@/lib/http";
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { drizzlePostRepository } from "@/lib/repositories";
@@ -9,6 +18,16 @@ const paramsSchema = z.object({
   slug: z.string().trim().min(1, "slug is required"),
 });
 
+/**
+ * 收藏/取消收藏文章
+ *
+ * 切换用户对文章的收藏状态，返回最新的点赞/点踩/收藏/评论数
+ * 再次点击已收藏的文章将取消收藏
+ *
+ * @route POST /api/v1/blog/:slug/favorite
+ * @param {string} slug - 文章 slug 路径参数
+ * @returns {object} 收藏状态及更新后的计数
+ */
 export const POST = withErrorHandler(async (_: Request, { params }: { params: Promise<{ slug: string }> }) => {
   const user = await getAuthUser();
   assertAuthenticated(user);

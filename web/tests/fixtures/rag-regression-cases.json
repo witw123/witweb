@@ -1,0 +1,23 @@
+[
+  { "id": "q01", "question": "总结最近发布的 AI 相关文章核心观点", "expected_keywords": ["AI", "总结"] },
+  { "id": "q02", "question": "根据博客内容给出选题建议", "expected_keywords": ["选题", "建议"] },
+  { "id": "q03", "question": "站内有哪些内容提到 RAG", "expected_keywords": ["RAG"] },
+  { "id": "q04", "question": "把知识库中关于 SEO 的建议提炼成 3 条", "expected_keywords": ["SEO"] },
+  { "id": "q05", "question": "结合历史文章给出下一篇博客大纲", "expected_keywords": ["大纲"] },
+  { "id": "q06", "question": "最近热点文章的共性是什么", "expected_keywords": ["热点"] },
+  { "id": "q07", "question": "有哪些文章适合改成短视频脚本", "expected_keywords": ["短视频"] },
+  { "id": "q08", "question": "提取文章中关于性能优化的要点", "expected_keywords": ["性能"] },
+  { "id": "q09", "question": "从知识库找出和 Next.js 相关的内容", "expected_keywords": ["Next.js"] },
+  { "id": "q10", "question": "总结作者对内容分发的观点", "expected_keywords": ["分发"] },
+  { "id": "q11", "question": "输出博客里关于提示词测试的实践", "expected_keywords": ["提示词"] },
+  { "id": "q12", "question": "知识库里对 Agent 审批机制怎么描述", "expected_keywords": ["审批"] },
+  { "id": "q13", "question": "给出站内关于创作 workflow 的建议", "expected_keywords": ["workflow"] },
+  { "id": "q14", "question": "将相关文章整理成新手入门路径", "expected_keywords": ["入门"] },
+  { "id": "q15", "question": "有哪些文章提到数据库迁移", "expected_keywords": ["数据库"] },
+  { "id": "q16", "question": "从历史内容提取常见失败原因", "expected_keywords": ["失败"] },
+  { "id": "q17", "question": "知识库里有没有提到模型回退策略", "expected_keywords": ["回退"] },
+  { "id": "q18", "question": "总结与内容质量评测相关的做法", "expected_keywords": ["评测"] },
+  { "id": "q19", "question": "按引用给出 5 条可执行优化建议", "expected_keywords": ["建议", "引用"] },
+  { "id": "q20", "question": "根据站内文章生成本周写作计划", "expected_keywords": ["写作计划"] }
+]
+

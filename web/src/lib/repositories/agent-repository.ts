@@ -1,11 +1,27 @@
+/**
+ * Agent 任务仓储层 (PostgreSQL 原生实现)
+ *
+ * 负责 AI Agent 任务运行的数据持久化，包括：
+ * - Agent 运行记录 (agent_runs)
+ * - 运行步骤 (agent_steps)
+ * - 生成产物 (agent_artifacts)
+ *
+ * 使用 PostgreSQL 原生 SQL 进行数据操作，支持事务
+ */
+
 import "server-only";
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 
+/** Agent 类型：topic-主题生成, writing-写作, publish-发布 */
 export type AgentType = "topic" | "writing" | "publish";
+/** Agent 运行状态 */
 export type AgentStatus = "queued" | "running" | "done" | "failed";
+/** Agent 步骤状态 */
 export type AgentStepStatus = "running" | "done" | "failed";
+/** 产物类型：title-标题, content-内容, tags-标签, seo-SEO, cover_prompt-封面提示词 */
 export type ArtifactKind = "title" | "content" | "tags" | "seo" | "cover_prompt";
 
+/** Agent 运行记录数据库行 */
 export type AgentRunRow = {
   id: string;
   username: string;
@@ -18,6 +34,7 @@ export type AgentRunRow = {
   updated_at: string;
 };
 
+/** Agent 步骤记录数据库行 */
 export type AgentStepRow = {
   id: number;
   run_id: string;
@@ -30,6 +47,7 @@ export type AgentStepRow = {
   finished_at: string | null;
 };
 
+/** Agent 产物记录数据库行 */
 export type AgentArtifactRow = {
   id: number;
   run_id: string;
@@ -39,6 +57,11 @@ export type AgentArtifactRow = {
   created_at: string;
 };
 
+/**
+ * Agent 任务数据访问类
+ *
+ * 提供运行记录、步骤、产物的 CRUD 操作
+ */
 class AgentRepository {
   async createRunRecord(runId: string, username: string, goal: string, agentType: AgentType, model: string, ts: string): Promise<void> {
     await pgRun(

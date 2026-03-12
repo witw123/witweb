@@ -1,8 +1,15 @@
+/**
+ * 评论数据仓库（Drizzle 实现）
+ *
+ * 负责评论的数据库操作，包括查询、创建、删除等
+ */
+
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/drizzle";
 import { commentVotes, comments, posts } from "@/lib/db/schema";
 import type { Comment } from "@/types";
 
+/** 创建评论数据 */
 export interface DrizzleCreateCommentData {
   post_id: number;
   author: string;
@@ -11,7 +18,16 @@ export interface DrizzleCreateCommentData {
   ip_address?: string;
 }
 
+/**
+ * 评论数据仓库（Drizzle 实现）
+ */
 export class DrizzleCommentRepository {
+  /**
+   * 根据 ID 查找评论
+   *
+   * @param {number} id - 评论 ID
+   * @returns {Promise<Comment|null>} 评论对象，不存在则返回 null
+   */
   async findById(id: number): Promise<Comment | null> {
     const db = getDb();
     const rows = await db
@@ -31,6 +47,12 @@ export class DrizzleCommentRepository {
     return rows[0] || null;
   }
 
+  /**
+   * 根据文章 slug 查找评论列表
+   *
+   * @param {string} slug - 文章 slug
+   * @returns {Promise<Comment[]>} 评论列表
+   */
   async findByPostSlug(slug: string): Promise<Comment[]> {
     const db = getDb();
     const rows = await db

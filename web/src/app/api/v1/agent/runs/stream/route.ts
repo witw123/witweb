@@ -1,3 +1,13 @@
+/**
+ * Agent 流式生成 API
+ *
+ * 启动一个新的 Agent 运行任务，通过流式响应返回生成进度和结果
+ * 支持多种 Agent 类型（topic/writing/publish），实时推送各阶段状态和生成的产物
+ *
+ * @route /api/v1/agent/runs/stream
+ * @method POST - 启动流式生成
+ * @requiresAuth 需要用户认证
+ */
 import { createRunRecord, finalizeRunFromDraft, markRunFailed } from "@/lib/agent";
 import { AGENT_MODELS, generateAgentDraft } from "@/lib/agent-llm";
 import { getAuthUser } from "@/lib/http";

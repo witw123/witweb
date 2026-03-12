@@ -87,6 +87,10 @@
   margin-bottom: var(--spacing-2xl);
 }
 
+.post-layout--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* TOC on the right side */
 .toc {
   position: sticky;
@@ -169,6 +173,21 @@
   padding-right: 12px;
   padding-top: 6px;
   color: rgba(96, 165, 250, 0.9);
+}
+
+.markdown--plain {
+  max-width: 78ch;
+}
+
+.markdown--plain > p:first-of-type::first-letter {
+  float: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  padding-right: 0;
+  padding-top: 0;
+  color: inherit;
 }
 
 .markdown>*+* {

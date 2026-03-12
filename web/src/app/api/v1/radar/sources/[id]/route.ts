@@ -1,3 +1,13 @@
+/**
+ * Radar 数据源管理 API（单个）
+ *
+ * 更新或删除指定的 Radar 数据源
+ *
+ * @route /api/v1/radar/sources/:id
+ * @method PATCH - 更新数据源
+ * @method DELETE - 删除数据源
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

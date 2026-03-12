@@ -1,34 +1,8 @@
-/**
+﻿/**
  * Select 下拉选择组件
- * 
- * 支持分组、搜索、清空、多选的下拉选择组件
- * 
- * @example
- * // 基础用法
- * <Select
- *   options={[
- *     { value: '1', label: '选项1' },
- *     { value: '2', label: '选项2' },
- *   ]}
- * />
- * 
- * // 带分组
- * <Select
- *   groups={[
- *     {
- *       label: '分组1',
- *       options: [
- *         { value: '1', label: '选项1' },
- *       ],
- *     },
- *   ]}
- * />
- * 
- * // 可搜索
- * <Select searchable placeholder="搜索..." />
- * 
- * // 多选
- * <Select multiple value={['1', '2']} />
+ *
+ * 支持分组、搜索、清空和多选，是通用表单输入组件。
+ * 组件内部处理弹层开关、搜索过滤和受控/非受控兼容，外部只需关注选中结果。
  */
 
 'use client';
@@ -37,68 +11,38 @@ import React, { forwardRef, useState, useRef, useEffect, useCallback, useMemo, t
 import { cn } from '@/lib/utils/cn';
 
 export interface SelectOption {
-  /** 选项值 */
   value: string;
-  /** 选项显示文本 */
   label: string;
-  /** 是否禁用 */
   disabled?: boolean;
-  /** 自定义图标 */
   icon?: ReactNode;
 }
 
 export interface SelectGroup {
-  /** 分组标签 */
   label: string;
-  /** 分组选项 */
   options: SelectOption[];
 }
 
 export interface SelectProps {
-  /** 选项列表（不分组时使用） */
   options?: SelectOption[];
-  /** 分组选项列表 */
   groups?: SelectGroup[];
-  /** 当前选中的值（单选） */
   value?: string;
-  /** 当前选中的值（多选） */
   values?: string[];
-  /** 默认选中的值 */
   defaultValue?: string;
-  /** 默认选中的值（多选） */
   defaultValues?: string[];
-  /** 选择变化时的回调（单选） */
   onChange?: (value: string, option: SelectOption) => void;
-  /** 选择变化时的回调（多选） */
   onValuesChange?: (values: string[], options: SelectOption[]) => void;
-  /** 占位符文本 */
   placeholder?: string;
-  /** 标签文本 */
   label?: string;
-  /** 错误提示文本 */
   error?: string;
-  /** 辅助提示文本 */
   helperText?: string;
-  /** 是否禁用 */
   disabled?: boolean;
-  /** 是否可搜索 */
   searchable?: boolean;
-  /** 是否多选 */
   multiple?: boolean;
-  /** 是否可清空 */
   clearable?: boolean;
-  /** 自定义类名 */
   className?: string;
-  /** 容器类名 */
   wrapperClassName?: string;
 }
 
-/**
- * 下拉选择组件
- * 
- * @param props - SelectProps
- * @returns ReactElement
- */
 const Select = forwardRef<HTMLDivElement, SelectProps>(
   (
     {
@@ -129,59 +73,53 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
     const [internalValues, setInternalValues] = useState<string[]>(defaultValues || []);
     const containerRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
-    
-    // 受控/非受控处理
+
     const currentValue = value !== undefined ? value : internalValue;
     const currentValues = values !== undefined ? values : internalValues;
-    
-    // 获取所有选项（扁平化）
+
     const allOptions = useMemo(
       () => (groups ? groups.flatMap((g) => g.options) : options),
       [groups, options]
     );
-    
-    // 过滤选项
+
     const filteredOptions = searchQuery
       ? allOptions.filter(opt =>
           opt.label.toLowerCase().includes(searchQuery.toLowerCase())
         )
       : allOptions;
-    
-    // 获取当前选中的选项
+
     const selectedOption = allOptions.find(opt => opt.value === currentValue);
     const selectedOptions = allOptions.filter(opt => currentValues.includes(opt.value));
-    
-    // 点击外部关闭
+
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
         if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
           setIsOpen(false);
         }
       };
-      
+
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-    
-    // 打开时聚焦搜索框
+
     useEffect(() => {
       if (isOpen && searchable && searchInputRef.current) {
         searchInputRef.current.focus();
       }
     }, [isOpen, searchable]);
-    
+
     const handleSelect = useCallback((option: SelectOption) => {
       if (option.disabled) return;
-      
+
       if (multiple) {
         const newValues = currentValues.includes(option.value)
           ? currentValues.filter(v => v !== option.value)
           : [...currentValues, option.value];
-        
+
         if (values === undefined) {
           setInternalValues(newValues);
         }
-        
+
         const newOptions = allOptions.filter(opt => newValues.includes(opt.value));
         onValuesChange?.(newValues, newOptions);
       } else {
@@ -191,13 +129,13 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
         onChange?.(option.value, option);
         setIsOpen(false);
       }
-      
+
       setSearchQuery('');
     }, [multiple, currentValues, value, values, onChange, onValuesChange, allOptions]);
-    
+
     const handleClear = useCallback((e: React.MouseEvent) => {
       e.stopPropagation();
-      
+
       if (multiple) {
         if (values === undefined) {
           setInternalValues([]);
@@ -210,18 +148,18 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
         onChange?.('', { value: '', label: '' });
       }
     }, [multiple, value, values, onChange, onValuesChange]);
-    
+
     const baseTriggerStyles = 'flex items-center justify-between w-full rounded-lg border bg-white px-3 py-2 text-left text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:cursor-not-allowed disabled:bg-gray-50 dark:bg-gray-800 dark:text-gray-100';
-    
+
     const stateStyles = error
       ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:focus:ring-red-900'
       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200 dark:border-gray-600 dark:focus:border-blue-500 dark:focus:ring-blue-900';
-    
+
     const renderOption = (option: SelectOption, groupIndex?: number) => {
       const isSelected = multiple
         ? currentValues.includes(option.value)
         : currentValue === option.value;
-      
+
       return (
         <div
           key={`${groupIndex}-${option.value}`}
@@ -260,7 +198,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
         </div>
       );
     };
-    
+
     return (
       <div ref={ref} className={cn('w-full', wrapperClassName)}>
         {label && (
@@ -331,7 +269,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
               </svg>
             </span>
           </button>
-          
+
           {isOpen && (
             <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-auto">
               {searchable && (
@@ -357,7 +295,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
                   </div>
                 </div>
               )}
-              
+
               {filteredOptions.length === 0 ? (
                 <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   暂无数据
@@ -369,9 +307,9 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
                         opt.label.toLowerCase().includes(searchQuery.toLowerCase())
                       )
                     : group.options;
-                  
+
                   if (groupFilteredOptions.length === 0) return null;
-                  
+
                   return (
                     <div key={group.label}>
                       <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50">

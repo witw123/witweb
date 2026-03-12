@@ -1,3 +1,9 @@
+﻿/**
+ * BlogPostPage - 文章详情页面组件
+ *
+ * 负责单篇文章详情页的页面级状态编排：加载文章与评论缓存、渲染 Markdown、
+ * 驱动点赞/收藏等指标更新，并在作者进入编辑模式时切换到内联编辑器。
+ */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
@@ -31,6 +37,12 @@ type TocItem = {
   level: number;
 };
 
+/**
+ * 生成标题锚点 slug
+ *
+ * @param {string} text - 标题原文
+ * @returns {string} 可用于目录锚点的 slug
+ */
 function slugify(text: string) {
   return String(text || "")
     .trim()
@@ -80,6 +92,7 @@ export default function BlogPostPage() {
     (profile.role === "admin" || profile.username === adminUsername)
   );
 
+  // Markdown 转 HTML 后仍需清洗，避免正文里带入危险属性或脚本。
   const sanitizeHtml = useCallback(
     (html: string) => {
       if (!purifier) return html;
@@ -100,6 +113,7 @@ export default function BlogPostPage() {
     [post?.tags]
   );
 
+  // 用正文纯文本长度粗略估算阅读时长，供详情页头部展示。
   const readingStats = useMemo(() => {
     const text = String(post?.content || "")
       .replace(/```[\s\S]*?```/g, " ")
@@ -114,12 +128,14 @@ export default function BlogPostPage() {
     return { length, minutes };
   }, [post?.content]);
 
-  const { html: markdownHtml, toc: tocItems } = useMemo(() => {
+  // 普通文本走轻量渲染；只有检测到 Markdown 语法时才构建目录和完整 renderer。
+  const { html: markdownHtml, toc: tocItems, isPlainText } = useMemo(() => {
     const source = String(post?.content || "");
     if (!hasMarkdownSyntax(source)) {
       return {
         html: sanitizeHtml(renderPlainTextHtml(source)),
         toc: [] as TocItem[],
+        isPlainText: true,
       };
     }
 
@@ -144,9 +160,10 @@ export default function BlogPostPage() {
     };
 
     const html = marked.parse(source, { renderer, gfm: true, breaks: true });
-    return { html: sanitizeHtml(String(html)), toc: items };
+    return { html: sanitizeHtml(String(html)), toc: items, isPlainText: false };
   }, [post?.content, sanitizeHtml]);
 
+  // 详情页和列表页共用同一组计数，这里本地更新后同步广播到全局事件总线。
   function applyMetricsUpdate(data: PostMetricsData) {
     if (!slug) return;
     const next = {
@@ -160,6 +177,7 @@ export default function BlogPostPage() {
     emitPostMetricsUpdated({ slug, ...next });
   }
 
+  // 统一处理点赞、点踩和收藏三类动作，减少重复鉴权和日志逻辑。
   async function requestMetricAction(
     action: "like" | "dislike" | "favorite",
     onUnauthed?: () => void
@@ -195,6 +213,7 @@ export default function BlogPostPage() {
     await requestMetricAction("favorite", () => router.push("/login"));
   }
 
+  // 编辑保存成功后重新拉取详情，避免本地状态和服务端持久化结果漂移。
   async function handleSaveEdit() {
     setEditStatus("");
     if (!editTitle.trim() || !editContent.trim()) {
@@ -231,6 +250,7 @@ export default function BlogPostPage() {
     setEditContent((previous) => `${previous}\n\n${markup}\n`);
   }
 
+  // 兼容 HTML img 和 Markdown 图片两种表示形式的替换。
   function replaceImageSrc(oldSrc: string, newSrc: string, widthValue: string) {
     const escaped = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const htmlPattern = new RegExp(`<img[^>]*src=["']${escaped}["'][^>]*>`, "g");
@@ -309,6 +329,7 @@ export default function BlogPostPage() {
         status={status}
         canEdit={canEdit}
         isEditing={isEditing}
+        isPlainText={isPlainText}
         tagList={tagList}
         readingStats={readingStats}
         tocItems={tocItems}

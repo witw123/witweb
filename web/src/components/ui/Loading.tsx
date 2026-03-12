@@ -1,4 +1,10 @@
-"use client";
+﻿"use client";
+
+/**
+ * Loading 加载组件
+ *
+ * 提供统一的旋转加载指示器和可选文本，适合页面级和局部区域的等待态展示。
+ */
 
 interface LoadingProps {
   size?: "sm" | "md" | "lg";
@@ -6,6 +12,7 @@ interface LoadingProps {
   className?: string;
 }
 
+/** 不同尺寸下的圆环大小与边框粗细。 */
 const sizeStyles = {
   sm: "h-4 w-4 border-2",
   md: "h-8 w-8 border-2",

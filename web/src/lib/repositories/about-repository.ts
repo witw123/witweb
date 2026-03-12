@@ -1,10 +1,22 @@
+/**
+ * 关于页面内容仓储
+ *
+ * 负责"关于我"页面的持久化数据操作，包括：
+ * - 获取关于页面内容（支持默认内容回退）
+ * - 创建或更新关于页面内容（upsert 模式）
+ *
+ * 使用 PostgreSQL 原生 SQL 进行数据操作
+ */
+
 import { pgQueryOne, pgRun } from "@/lib/postgres-query";
 
+/** 关于页面链接项 */
 export type AboutLink = {
   label: string;
   url: string;
 };
 
+/** 关于页面完整内容 */
 export type AboutContent = {
   title: string;
   subtitle: string;
@@ -57,6 +69,11 @@ function parseLinks(raw: string | null): AboutLink[] {
   );
 }
 
+/**
+ * 关于页面内容数据访问类
+ *
+ * 提供静态初始化表和内容读写方法
+ */
 class AboutRepository {
   private initialized = false;
 

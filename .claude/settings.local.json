@@ -18,7 +18,18 @@
       "Read(//c/Users/witw/.claude/skills/ui-ux-pro-max/**)",
       "Bash(python scripts/search.py \"personal blog portfolio developer tech\" --design-system -p \"WitWeb\" -f markdown)",
       "Bash(python scripts/search.py \"blog card grid responsive\" --domain style -n 5)",
-      "Bash(python scripts/search.py \"dark mode blog card hover\" --domain ux -n 5)"
+      "Bash(python scripts/search.py \"dark mode blog card hover\" --domain ux -n 5)",
+      "Bash(npm run:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find d:/code/witweb/web/src/lib -type f -name *.ts)",
+      "Bash(find d:/code/witweb/web/src/app/api -type f -name *.ts)",
+      "Bash(find d:/code/witweb/web/src/features -type f -name *.ts)",
+      "Bash(find d:/code/witweb/web/src/components -type f -name *.ts)",
+      "Bash(grep -l ^/** d:/code/witweb/web/src/lib/*.ts)",
+      "Bash(grep -L \"^\\\\/\\\\*\\\\*\" d:/code/witweb/web/src/lib/*.ts)",
+      "Bash(find d:/code/witweb/web/src/lib -name *.ts -type f)",
+      "Bash(git -C \"d:/code/witweb\" status --short)"
     ]
   }
 }

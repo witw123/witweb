@@ -1,6 +1,12 @@
+﻿/**
+ * MarkdownToolbar - Markdown 工具栏组件
+ *
+ * 为编辑器提供常用 Markdown 操作入口，包括包裹、插入前缀、模板片段和图片上传。
+ * 它只负责描述动作，不直接操作正文，真正的文本变换由上层 Hook 处理。
+ */
 "use client";
 
-import { useCallback, type ButtonHTMLAttributes } from "react";
+import { useCallback } from "react";
 import { cn } from "@/lib/utils/cn";
 
 export type ToolbarAction =
@@ -24,7 +30,6 @@ interface MarkdownToolbarProps {
   className?: string;
 }
 
-// Heroicons-style SVG icons
 const BoldIcon = (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6z" />
@@ -74,6 +79,7 @@ const QuoteIcon = (
   </svg>
 );
 
+/** 单个工具按钮，负责展示图标和快捷键提示。 */
 function ToolbarButtonComponent({
   icon,
   label,
@@ -150,7 +156,7 @@ export function MarkdownToolbar({ onAction, onImageUpload, disabled, className }
       id: "image",
       icon: ImageIcon,
       label: "图片",
-      action: { type: "handler", handler: onImageUpload || (() => { }) },
+      action: { type: "handler", handler: onImageUpload || (() => {}) },
     },
     {
       id: "code",
@@ -174,12 +180,7 @@ export function MarkdownToolbar({ onAction, onImageUpload, disabled, className }
   ];
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-0.5",
-        className
-      )}
-    >
+    <div className={cn("flex items-center gap-0.5", className)}>
       {buttons.map((button) => (
         <ToolbarButtonComponent
           key={button.id}

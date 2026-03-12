@@ -1,3 +1,10 @@
+﻿/**
+ * 用户仓储层
+ *
+ * 负责用户资料、角色、关注关系和后台用户列表的数据访问。
+ * 这里聚合了用户中心和后台都会用到的核心查询，避免用户相关 SQL 分散在多个服务里。
+ */
+
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { pgQuery, pgQueryOne, pgRun } from "@/lib/postgres-query";
 import type { FollowerItem, FollowerListResponse, FollowingItem, FollowingListResponse, User } from "@/types";
@@ -26,6 +33,7 @@ export interface UpdatePasswordData {
   password: string;
 }
 
+/** 规范化用户列表分页参数。 */
 function normalizePagination(page = 1, size = 20): { page: number; size: number; offset: number } {
   const validPage = Math.max(1, page);
   const validSize = Math.max(1, Math.min(50, size));
@@ -52,6 +60,7 @@ export class UserRepository {
     return pgQueryOne<User>("SELECT * FROM users WHERE username = ?", [username]);
   }
 
+  /** 保留单独入口，便于未来区分是否允许读出密码字段。 */
   async findByUsernameWithPassword(username: string): Promise<User | null> {
     return pgQueryOne<User>("SELECT * FROM users WHERE username = ?", [username]);
   }
@@ -61,6 +70,7 @@ export class UserRepository {
     return !!row;
   }
 
+  /** 创建用户并返回新用户 ID。 */
   async create(data: CreateUserData): Promise<number> {
     const now = new Date().toISOString();
     const row = await pgQueryOne<{ id: number }>(
@@ -84,6 +94,7 @@ export class UserRepository {
     return Number(row?.id || 0);
   }
 
+  /** 动态更新用户资料，仅改动传入字段。 */
   async update(username: string, data: UpdateUserData): Promise<boolean> {
     const fields: string[] = [];
     const params: unknown[] = [];
@@ -150,6 +161,7 @@ export class UserRepository {
     return result.changes > 0;
   }
 
+  /** 批量删除普通用户，显式排除管理员和指定保留用户名。 */
   async bulkDeleteByUsernames(usernames: string[], excludeUsernames: string[] = []): Promise<number> {
     const targets = Array.from(new Set(usernames.map((item) => item.trim()).filter(Boolean)));
     if (targets.length === 0) return 0;
@@ -168,6 +180,7 @@ export class UserRepository {
     return (await pgRun(sql, params)).changes;
   }
 
+  /** 通用用户列表查询，支持关键字搜索。 */
   async list(page = 1, size = 20, search?: string): Promise<PaginatedResult<User>> {
     const { page: validPage, size: validSize, offset } = normalizePagination(page, size);
     let whereClause = "";
@@ -191,6 +204,11 @@ export class UserRepository {
     return { items, total, page: validPage, size: validSize };
   }
 
+  /**
+   * 后台用户列表
+   *
+   * 支持按角色、活跃度和关键字筛选，并把超级管理员用户名映射到固定角色标签。
+   */
   async listAdmin(
     page = 1,
     size = 20,
@@ -255,6 +273,7 @@ export class UserRepository {
     return { items, total, page: validPage, size: validSize };
   }
 
+  /** 批量查询基础用户资料，适合列表补齐昵称和头像。 */
   async listBasicByUsernames(usernames: string[]): Promise<Array<Pick<User, "username" | "nickname" | "avatar_url">>> {
     const unique = Array.from(new Set(usernames.map((item) => item?.trim()).filter(Boolean)));
     if (unique.length === 0) return [];
@@ -268,6 +287,7 @@ export class UserRepository {
     return result.changes;
   }
 
+  /** 查询关注数和粉丝数。 */
   async getFollowCounts(username: string): Promise<{ following_count: number; follower_count: number }> {
     const following =
       (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM follows WHERE follower = ?", [username]))?.cnt || 0;
@@ -288,6 +308,7 @@ export class UserRepository {
     return !!row;
   }
 
+  /** 关注前显式阻止自己关注自己。 */
   async follow(follower: string, following: string): Promise<boolean> {
     if (follower === following) {
       throw new ApiError(ErrorCode.BAD_REQUEST, "不能关注自己");
@@ -309,6 +330,7 @@ export class UserRepository {
     return result.changes > 0;
   }
 
+  /** 查询当前用户的关注列表。 */
   async listFollowing(
     username: string,
     page = 1,
@@ -376,6 +398,7 @@ export class UserRepository {
     return { items, total, page: validPage, size: validSize };
   }
 
+  /** 查询当前用户的粉丝列表，并附带“我是否已回关”状态。 */
   async listFollowers(
     username: string,
     page = 1,

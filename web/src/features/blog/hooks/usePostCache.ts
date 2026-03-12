@@ -1,4 +1,11 @@
-"use client";
+﻿"use client";
+
+/**
+ * 文章缓存 Hook
+ *
+ * 统一管理详情页所需的文章、评论和分类缓存，并处理跨组件指标同步。
+ * 详情页、评论区和指标按钮都会依赖它来刷新或局部更新缓存。
+ */
 
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -77,6 +84,7 @@ export function usePostCache({
       void refreshPost();
       void refreshComments();
     };
+    // 资料或文章发生变更时，详情页主数据和评论列表都可能受影响。
     window.addEventListener("profile-updated", handler as EventListener);
     window.addEventListener("blog-updated", handler as EventListener);
     return () => {
@@ -88,6 +96,7 @@ export function usePostCache({
   useEffect(() => {
     if (!slug || typeof window === "undefined" || !isAuthenticated) return;
     const viewedKey = `post:viewed:${slug}`;
+    // 同一标签页会话内只记录一次浏览，避免刷新页面导致阅读数异常膨胀。
     if (sessionStorage.getItem(viewedKey)) return;
 
     void postRequest<{ view_count: number }>(getVersionedApiPath(`/blog/${slug}/view`))
@@ -110,7 +119,7 @@ export function usePostCache({
 
       queryClient.setQueryData<PostDetail | null>(queryKeys.postDetail(slug), (previous) => {
         if (!previous) return previous;
-        const next = {
+        return {
           ...previous,
           ...(detail.like_count !== undefined ? { like_count: detail.like_count } : {}),
           ...(detail.dislike_count !== undefined
@@ -126,7 +135,6 @@ export function usePostCache({
             ? { favorited_by_me: detail.favorited_by_me }
             : {}),
         };
-        return next;
       });
     };
 
@@ -146,6 +154,7 @@ export function usePostCache({
 
   useEffect(() => {
     if (!slug || !post) return;
+    // 每当详情缓存里的计数变化时，同步广播给列表页等其他订阅方。
     emitPostMetricsUpdated({
       slug,
       like_count: post.like_count,

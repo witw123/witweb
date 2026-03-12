@@ -1,3 +1,13 @@
+/**
+ * Radar 主题管理 API
+ *
+ * 获取用户保存的 Radar 主题列表，或创建新的保存主题（可将感兴趣的资讯或分析保存为收藏）
+ *
+ * @route /api/v1/radar/topics
+ * @method GET - 获取主题列表
+ * @method POST - 创建新主题
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, validateQuery, z } from "@/lib/validate";

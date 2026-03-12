@@ -10,6 +10,27 @@ import type { SuccessResponse } from "@/lib/api-response";
 import type { FollowerItem } from "@/types/user";
 import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
+/**
+ * FollowersPageContent - 用户粉丝列表页面组件
+ *
+ * 展示指定用户的粉丝列表，支持查看他人或自己的粉丝。
+ * 当前用户可以关注列表中的其他用户。
+ *
+ * @component
+ * @example
+ * <FollowersPageContent />
+ */
+
+/**
+ * readSuccessData - 解析 API 响应数据
+ *
+ * 从 API 响应中提取成功的数据，仅在响应 success 为 true 时返回数据。
+ * 用于统一处理 API 响应格式，避免在多处重复相同的验证逻辑。
+ *
+ * @template T - 期望的数据类型
+ * @param {unknown} payload - API 响应数据
+ * @returns {T | null} 解析后的数据，解析失败返回 null
+ */
 function readSuccessData<T>(payload: unknown): T | null {
   if (!payload || typeof payload !== "object") return null;
   const parsed = payload as Partial<SuccessResponse<T>>;
@@ -17,6 +38,18 @@ function readSuccessData<T>(payload: unknown): T | null {
   return parsed.data ?? null;
 }
 
+/**
+ * FollowersPageContent - 粉丝列表页面内容组件
+ *
+ * 展示用户的粉丝列表，通过 URL 参数 username 指定要查看的用户。
+ * 未指定用户名时展示当前登录用户的粉丝。
+ * 支持关注/回关列表中的用户。
+ *
+ * @component
+ * @example
+ * <FollowersPageContent /> // 查看自己的粉丝
+ * // 或通过 URL /followers?username=john 查看 john 的粉丝
+ */
 export default function FollowersPageContent() {
   const { isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
@@ -118,6 +151,15 @@ export default function FollowersPageContent() {
   );
 }
 
+/**
+ * FollowerAvatar - 粉丝头像组件
+ *
+ * 渲染粉丝用户的头像图片，包含懒优化处理。
+ * 如果头像 URL 为空，则显示默认的首字母头像。
+ *
+ * @param {FollowerItem} user - 粉丝用户对象
+ * @returns {JSX.Element} 头像图片元素
+ */
 function FollowerAvatar({ user }: { user: FollowerItem }) {
   const avatarSrc = getThumbnailUrl(user.avatar_url || "", 128);
   const avatarUnoptimized = shouldBypassImageOptimization(avatarSrc);

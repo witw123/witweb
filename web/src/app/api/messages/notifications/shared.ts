@@ -1,3 +1,11 @@
+/**
+ * Notifications API - 通知数据处理
+ *
+ * 提供获取用户通知的功能
+ * 支持获取回复通知、点赞通知、@提及通知和系统通知
+ * 需要用户登录后访问
+ */
+
 import { NextRequest } from "next/server";
 import { commentRepository, drizzlePostRepository, userRepository } from "@/lib/repositories";
 import { getAuthUser } from "@/lib/http";
@@ -23,6 +31,15 @@ type SenderActivityWithProfile = SenderActivity & {
   sender_avatar: string;
 };
 
+/**
+ * 丰富发送者信息
+ *
+ * 根据发送者用户名列表获取用户资料，补充昵称和头像信息
+ *
+ * @template T - 包含 sender 字段的类型
+ * @param {T[]} items - 需要丰富信息的通知列表
+ * @returns {Promise<(T & { sender_nickname: string; sender_avatar: string })[]>} 丰富后的通知列表
+ */
 async function enrichSender<T extends { sender: string }>(items: T[]) {
   const rows = await userRepository.listBasicByUsernames(items.map((item) => item.sender));
   const userMap = new Map(rows.map((row) => [row.username, row]));
@@ -37,6 +54,15 @@ async function enrichSender<T extends { sender: string }>(items: T[]) {
   });
 }
 
+/**
+ * 构建通知列表 GET 响应
+ *
+ * 获取当前用户的各类通知，包含回复、点赞、@提及和系统通知
+ * 需要用户登录，返回分页数据
+ *
+ * @param {NextRequest} req - HTTP 请求对象，包含 type、page、size 查询参数
+ * @returns {Promise<Response>} 通知列表响应
+ */
 export async function buildNotificationsResponse(req: NextRequest): Promise<Response> {
   const user = await getAuthUser();
   if (!user) {

@@ -1,3 +1,13 @@
+/**
+ * Agent 运行管理 API
+ *
+ * 创建和获取 Agent 运行列表
+ *
+ * @route /api/v1/agent/runs
+ * @method GET - 获取运行列表
+ * @method POST - 创建新运行
+ */
+
 import { createRun, listRuns } from "@/lib/agent";
 import { AGENT_MODELS } from "@/lib/agent-llm";
 import { successResponse } from "@/lib/api-response";
@@ -5,6 +15,7 @@ import { getAuthUser } from "@/lib/http";
 import { validateBody, validateQuery, z } from "@/lib/validate";
 import { assertAuthenticated, withErrorHandler } from "@/middleware/error-handler";
 
+/** 请求体验证 Schema */
 const bodySchema = z.object({
   agent_type: z.enum(["topic", "writing", "publish"]),
   model: z.enum(AGENT_MODELS).default("gemini-3-pro"),

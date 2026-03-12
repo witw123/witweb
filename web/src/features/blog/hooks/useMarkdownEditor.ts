@@ -1,6 +1,14 @@
+﻿/**
+ * Markdown 编辑器 Hook
+ *
+ * 封装正文输入框的快捷编辑能力，包括工具栏动作、快捷键和基础统计。
+ * 该 Hook 不持有内容状态本身，只负责基于受控内容计算新值并通过回调回传。
+ */
+
 import { useCallback, useRef } from "react";
 import type { ToolbarAction } from "@/features/blog/components/MarkdownToolbar";
 
+/** 编辑器统计数据。 */
 export interface EditorStats {
   chars: number;
   words: number;
@@ -8,6 +16,7 @@ export interface EditorStats {
   readingTime: number;
 }
 
+/** Markdown 编辑器配置。 */
 export interface UseMarkdownEditorOptions {
   content: string;
   onChange: (content: string) => void;
@@ -15,13 +24,22 @@ export interface UseMarkdownEditorOptions {
   onPublish?: () => void;
 }
 
+/**
+ * 提供 Markdown 编辑能力
+ *
+ * @param {UseMarkdownEditorOptions} options - 编辑器配置
+ * @returns {object} 编辑器引用、统计和动作处理器
+ */
 export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseMarkdownEditorOptions) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Calculate statistics
   const stats: EditorStats = calculateStats(content);
 
-  // Insert text at cursor position
+  /**
+   * 在光标位置插入文本
+   *
+   * 当没有 textarea 引用时退化为直接拼接到末尾，保证非聚焦场景也能工作。
+   */
   const insertText = useCallback(
     (text: string, replaceSelection = true) => {
       const textarea = textareaRef.current;
@@ -32,12 +50,10 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
 
       const start = textarea.selectionStart || 0;
       const end = replaceSelection ? textarea.selectionEnd || start : start;
-      const selectedText = content.slice(start, end);
 
       const newContent = content.slice(0, start) + text + content.slice(end);
       onChange(newContent);
 
-      // Set cursor position after update
       requestAnimationFrame(() => {
         textarea.focus();
         const cursorPos = start + text.length;
@@ -47,7 +63,11 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
     [content, onChange]
   );
 
-  // Wrap selected text with prefix/suffix
+  /**
+   * 用指定前后缀包裹选中文本
+   *
+   * 未选中文本时默认填入“文字”，减少工具栏动作后的空结果。
+   */
   const wrapSelection = useCallback(
     (before: string, after: string) => {
       const textarea = textareaRef.current;
@@ -63,7 +83,6 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
       const newContent = content.slice(0, start) + before + selectedText + after + content.slice(end);
       onChange(newContent);
 
-      // Select the wrapped text
       requestAnimationFrame(() => {
         textarea.focus();
         const newStart = start + before.length;
@@ -74,7 +93,7 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
     [content, onChange]
   );
 
-  // Insert prefix at line start
+  /** 在当前行行首插入前缀，适合标题、引用和列表。 */
   const insertPrefix = useCallback(
     (prefix: string) => {
       const textarea = textareaRef.current;
@@ -86,7 +105,6 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
       const start = textarea.selectionStart || 0;
       const end = textarea.selectionEnd || start;
 
-      // Find the start of current line
       const lineStart = content.lastIndexOf("\n", start - 1) + 1;
       const lineEnd = content.indexOf("\n", end);
       const actualLineEnd = lineEnd === -1 ? content.length : lineEnd;
@@ -103,7 +121,7 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
     [content, onChange]
   );
 
-  // Insert from template
+  /** 按模板插入文本，支持用当前选区替换 `{text}` 占位符。 */
   const insertTemplate = useCallback(
     (template: string) => {
       const textarea = textareaRef.current;
@@ -122,14 +140,13 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
 
       requestAnimationFrame(() => {
         textarea.focus();
-        // Position cursor after inserted text
         textarea.setSelectionRange(start + text.length, start + text.length);
       });
     },
     [content, onChange]
   );
 
-  // Handle toolbar action
+  /** 根据工具栏动作类型分派到具体编辑操作。 */
   const handleAction = useCallback(
     (action: ToolbarAction) => {
       switch (action.type) {
@@ -150,7 +167,11 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
     [wrapSelection, insertPrefix, insertTemplate]
   );
 
-  // Handle keyboard shortcuts
+  /**
+   * 处理编辑器快捷键
+   *
+   * 使用 Ctrl/Cmd 作为跨平台修饰键，兼容 Windows 和 macOS。
+   */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       const isMod = e.ctrlKey || e.metaKey;
@@ -192,11 +213,18 @@ export function useMarkdownEditor({ content, onChange, onSave, onPublish }: UseM
   };
 }
 
+/**
+ * 计算编辑器统计数据
+ *
+ * 中文按字符、英文按词估算阅读时长，提供给状态栏展示。
+ *
+ * @param {string} content - 当前正文内容
+ * @returns {EditorStats} 统计结果
+ */
 function calculateStats(content: string): EditorStats {
   const chars = content.length;
   const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
   const words = content.trim().split(/\s+/).filter(Boolean).length;
-  // Average reading speed: 400 Chinese chars/min or 200 English words/min
   const readingTime = Math.ceil((chineseChars + words * 2) / 400);
 
   return { chars, words, chineseChars, readingTime };

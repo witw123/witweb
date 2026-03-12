@@ -1,13 +1,13 @@
 ﻿/**
- * API common type definitions
+ * API 通用类型定义
+ *
+ * 汇总前后端交互时复用频率最高的响应、参数和客户端配置类型，
+ * 避免不同功能模块各自定义一份近似但不完全一致的接口契约。
  */
 
-import type { UserProfile } from './user';
+import type { UserProfile } from "./user";
 
-
-/**
- * API error response
- */
+/** API 错误响应。 */
 export interface APIErrorResponse {
   detail?: string;
   error?: string;
@@ -15,17 +15,13 @@ export interface APIErrorResponse {
   status?: number;
 }
 
-/**
- * API success response
- */
+/** API 成功响应。 */
 export interface APISuccessResponse<T = unknown> {
   data: T;
   success: true;
 }
 
-/**
- * API paginated response
- */
+/** 列表型 API 的分页响应。 */
 export interface APIPaginatedResponse<T = unknown> {
   items: T[];
   total: number;
@@ -34,69 +30,49 @@ export interface APIPaginatedResponse<T = unknown> {
   has_more?: boolean;
 }
 
-/**
- * Generic operation response
- */
+/** 通用操作结果响应，例如删除、收藏或状态切换。 */
 export interface APIOperationResponse {
   ok: boolean;
   error?: string;
   message?: string;
 }
 
-
-/**
- * Next.js API handler type
- */
+/** 不带动态参数的 Next.js API 处理器。 */
 export type APIHandler = (request: Request) => Promise<Response>;
 
-/**
- * Next.js API handler with params
- */
+/** 带动态参数的 Next.js API 处理器。 */
 export type APIHandlerWithParams<P = Record<string, string>> = (
   request: Request,
   context: { params: P }
 ) => Promise<Response>;
 
-
-/**
- * Pagination query params
- */
+/** 通用分页查询参数。 */
 export interface PaginationParams {
   page?: number;
   size?: number;
   limit?: number;
 }
 
-/**
- * Search query params
- */
+/** 通用搜索查询参数。 */
 export interface SearchParams extends PaginationParams {
   q?: string;
   query?: string;
 }
 
-
-/**
- * Upload response
- */
+/** 上传成功响应。 */
 export interface UploadResponse {
   url: string;
   filename?: string;
   size?: number;
 }
 
-/**
- * Upload error
- */
+/** 上传失败响应。 */
 export interface UploadError {
   error: string;
   field?: string;
 }
 
-
-/**
- * Site statistics
- */
+/** 站点基础统计数据。 */
 export interface SiteStats {
   total_users: number;
   total_posts: number;
@@ -104,9 +80,7 @@ export interface SiteStats {
   total_likes: number;
 }
 
-/**
- * Admin dashboard stats
- */
+/** 后台仪表盘聚合统计。 */
 export interface AdminStats {
   overview: {
     total_users: number;
@@ -124,24 +98,17 @@ export interface AdminStats {
   }[];
 }
 
+/** 支持的 HTTP 方法。 */
+export type HTTPMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD";
 
-/**
- * HTTP methods
- */
-export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
-
-/**
- * Fetch options
- */
-export interface FetchOptions extends Omit<RequestInit, 'method' | 'body'> {
+/** API 客户端请求选项。 */
+export interface FetchOptions extends Omit<RequestInit, "method" | "body"> {
   method?: HTTPMethod;
   body?: Record<string, unknown> | FormData | string | null;
   params?: Record<string, string | number | boolean | undefined | null>;
 }
 
-/**
- * API client config
- */
+/** API 客户端配置。 */
 export interface APIClientConfig {
   baseURL?: string;
   headers?: Record<string, string>;
@@ -149,72 +116,51 @@ export interface APIClientConfig {
   withCredentials?: boolean;
 }
 
-
-/**
- * Dynamic route params - username
- */
+/** 用户名动态路由参数。 */
 export interface UsernameParams {
   params: {
     username: string;
   };
 }
 
-/**
- * Dynamic route params - slug
- */
+/** slug 动态路由参数。 */
 export interface SlugParams {
   params: {
     slug: string;
   };
 }
 
-/**
- * Dynamic route params - id
- */
+/** 数字或字符串 ID 动态路由参数。 */
 export interface IdParams {
   params: {
     id: string;
   };
 }
 
-
-/**
- * WebSocket message
- */
+/** WebSocket 消息结构。 */
 export interface WebSocketMessage<T = unknown> {
   type: string;
   payload: T;
   timestamp?: number;
 }
 
-/**
- * Real-time notification
- */
+/** 实时通知结构。 */
 export interface RealtimeNotification {
-  type: 'message' | 'like' | 'comment' | 'follow' | 'system';
+  type: "message" | "like" | "comment" | "follow" | "system";
   title: string;
   content: string;
   link?: string;
   created_at: string;
 }
 
-
-/**
- * Nullable type
- */
+/** 可空类型别名。 */
 export type Nullable<T> = T | null;
 
-/**
- * Optional fields type
- */
+/** 将指定字段改为可选。 */
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
-/**
- * Required fields type
- */
+/** 将指定字段改为必填。 */
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
-/**
- * API response type
- */
+/** 轻量 API 响应类型别名。 */
 export type APIResponse<T> = Promise<{ data: T } | { error: string }>;

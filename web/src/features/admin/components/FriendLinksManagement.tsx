@@ -1,3 +1,16 @@
+/**
+ * FriendLinksManagement - 友链管理页面组件
+ *
+ * 提供友链（友情链接）管理功能，包括：
+ * - 创建新友链
+ * - 编辑友链信息（名称、网址、描述、图标、排序）
+ * - 启用/禁用友链
+ * - 删除友链
+ *
+ * @component
+ * @example
+ * <FriendLinksManagement />
+ */
 "use client";
 
 import Image from "next/image";

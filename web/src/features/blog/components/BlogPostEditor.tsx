@@ -1,3 +1,9 @@
+﻿/**
+ * BlogPostEditor - 文章编辑器组件
+ *
+ * 负责渲染详情页内联编辑表单，把标题、分类、标签、正文和封面图编辑能力集中在一处。
+ * 组件本身不管理状态，只消费父组件传入的受控值和回调。
+ */
 "use client";
 
 import type { Category } from "@/types";

@@ -1,6 +1,14 @@
-﻿import path from "path";
+﻿/**
+ * Studio 视频生成模块
+ *
+ * 提供视频生成任务的创建、状态查询、结果获取和历史记录管理功能
+ * 支持 Sora2 视频生成和 GrSAI 图像生成 API
+ */
+
+import path from "path";
 import fs from "fs";
 import { videoTaskRepository } from "./repositories";
+import { resolveApiConfig } from "./api-registry";
 import { apiConfig } from "./config";
 import { maskSensitiveValue } from "./security";
 
@@ -59,6 +67,11 @@ type HistoryRow = {
   duration_seconds?: number | null;
 };
 
+/**
+ * 获取 Studio 配置
+ *
+ * @returns 当前配置对象
+ */
 export async function getConfig(): Promise<StudioConfig> {
   const cfg = (await videoTaskRepository.getConfig()) as StudioConfig;
   if (!cfg.query_defaults || typeof cfg.query_defaults !== "object") {
@@ -71,30 +84,60 @@ async function setConfigValue(key: string, value: unknown) {
   await videoTaskRepository.setConfigValue(key as keyof StudioConfig, value);
 }
 
+/**
+ * 设置 API 密钥（已弃用）
+ *
+ * @deprecated 请使用环境变量 SORA2_API_KEY 或 GRSAI_TOKEN
+ * @param api_key - API 密钥
+ */
 export async function setApiKey(api_key: string) {
   console.warn("[DEPRECATED] Storing API keys in database is deprecated. Use SORA2_API_KEY or GRSAI_TOKEN environment variable instead.");
   await setConfigValue("api_key", api_key);
 }
 
+/**
+ * 设置认证 Token（已弃用）
+ *
+ * @deprecated 请使用环境变量 GRSAI_TOKEN
+ * @param token - 认证 Token
+ */
 export async function setToken(token: string) {
   console.warn("[DEPRECATED] Storing tokens in database is deprecated. Use GRSAI_TOKEN environment variable instead.");
   await setConfigValue("token", token);
 }
 
+/**
+ * 获取 API 状态信息
+ *
+ * @returns API 配置状态、密钥预览和主机模式
+ */
 export async function getApiStatus() {
   const apiKey = await getApiKey();
+  const resolved = await resolveApiConfig("video_generation");
   return {
     configured: !!apiKey,
     apiKeyPreview: apiKey ? maskSensitiveValue(apiKey, 4, 4) : null,
     hostMode: await getHostMode(),
     hosts: HOSTS,
+    source: resolved?.source || "env",
+    provider: resolved?.provider_code || null,
   };
 }
 
+/**
+ * 设置主机模式
+ *
+ * @param host_mode - 主机模式：auto/domestic/overseas
+ */
 export async function setHostMode(host_mode: string) {
   await setConfigValue("host_mode", host_mode);
 }
 
+/**
+ * 设置默认查询参数
+ *
+ * @param data - 查询参数字典
+ */
 export async function setQueryDefaults(data: Record<string, unknown>) {
   const cfg = await getConfig();
   const current = typeof cfg.query_defaults === "object" && cfg.query_defaults ? cfg.query_defaults : {};
@@ -114,6 +157,14 @@ async function iterHosts() {
 }
 
 async function getApiKey(): Promise<string | undefined> {
+  const resolved = await resolveApiConfig("video_generation");
+  if (resolved?.api_key) {
+    return resolved.api_key;
+  }
+  if (resolved?.token) {
+    return resolved.token;
+  }
+
   const envKey = apiConfig.sora2.apiKey || apiConfig.grsai.token;
   if (envKey) {
     return envKey;
@@ -124,6 +175,7 @@ async function getApiKey(): Promise<string | undefined> {
 }
 
 async function postJson(pathname: string, payload: unknown, headers: Record<string, string> = {}) {
+  const resolved = await resolveApiConfig("video_generation");
   const apiKey = await getApiKey();
   const authHeader = apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined;
 
@@ -131,10 +183,16 @@ async function postJson(pathname: string, payload: unknown, headers: Record<stri
     console.warn("[API WARNING] No API key configured. Set SORA2_API_KEY or GRSAI_TOKEN environment variable.");
   }
   let lastErr: unknown = null;
-  for (const host of await iterHosts()) {
+  const hosts = resolved?.base_url ? [resolved.base_url] : await iterHosts();
+  for (const host of hosts) {
     for (let i = 0; i < 3; i += 1) {
       try {
-        const requestHeaders: HeadersInit = { "Content-Type": "application/json", ...(authHeader || {}), ...headers };
+        const requestHeaders: HeadersInit = {
+          "Content-Type": "application/json",
+          ...(authHeader || {}),
+          ...(resolved?.extra_headers || {}),
+          ...headers,
+        };
         const res = await fetch(host + pathname, {
           method: "POST",
           headers: requestHeaders,
@@ -173,6 +231,12 @@ async function deleteTaskTime(taskId: string) {
   await videoTaskRepository.deleteTaskTime(taskId);
 }
 
+/**
+ * 创建视频生成任务
+ *
+ * @param payload - 任务参数
+ * @returns 任务 ID
+ */
 export async function createVideoTask(payload: unknown) {
   const data = extractData<TaskIdPayload>(await postJson(CREATE_API, payload));
   const taskId = data?.id;
@@ -181,14 +245,30 @@ export async function createVideoTask(payload: unknown) {
   return taskId;
 }
 
+/**
+ * 获取任务结果
+ *
+ * @param taskId - 任务 ID
+ * @returns 远程任务结果
+ */
 export async function getResult(taskId: string) {
   return extractData<RemoteTaskResult>(await postJson(RESULT_API, { id: taskId }));
 }
 
+/**
+ * 移除活跃任务
+ *
+ * @param taskId - 任务 ID
+ */
 export async function removeActiveTask(taskId: string) {
   await videoTaskRepository.removeActiveTask(taskId);
 }
 
+/**
+ * 获取活跃任务列表
+ *
+ * @returns 活跃任务数组
+ */
 export async function getActiveTasks() {
   return await videoTaskRepository.getActiveTasks();
 }
@@ -212,6 +292,15 @@ async function saveHistory(file: string, prompt: string, taskId?: string, pid?: 
   });
 }
 
+/**
+ * 完成视频任务
+ *
+ * 获取任务结果，如成功则下载视频并保存到本地，返回文件路径
+ *
+ * @param taskId - 任务 ID
+ * @param prompt - 视频描述
+ * @returns 完成结果（成功返回文件路径，失败返回状态信息）
+ */
 export async function finalizeVideo(taskId: string, prompt: string) {
   const history = (await videoTaskRepository.getHistoryByTaskId(taskId)) as
     | { file?: string; url?: string; pid?: string }
@@ -238,6 +327,12 @@ export async function finalizeVideo(taskId: string, prompt: string) {
   return { id: taskId, file: filename, url: videoUrl, pid };
 }
 
+/**
+ * 创建角色上传任务
+ *
+ * @param payload - 任务参数
+ * @returns 任务 ID
+ */
 export async function uploadCharacterTask(payload: unknown) {
   const data = extractData<TaskIdPayload>(await postJson(UPLOAD_CHARACTER_API, payload));
   const taskId = data?.id;
@@ -245,6 +340,12 @@ export async function uploadCharacterTask(payload: unknown) {
   return taskId;
 }
 
+/**
+ * 创建角色生成任务
+ *
+ * @param payload - 任务参数
+ * @returns 任务 ID
+ */
 export async function createCharacterTask(payload: unknown) {
   const data = extractData<TaskIdPayload>(await postJson(CREATE_CHARACTER_API, payload));
   const taskId = data?.id;
@@ -252,6 +353,11 @@ export async function createCharacterTask(payload: unknown) {
   return taskId;
 }
 
+/**
+ * 获取生成历史记录
+ *
+ * @returns 历史记录列表
+ */
 export async function getHistory() {
   return (await videoTaskRepository.getHistory()).map((item) => ({
     file: item.file,
@@ -264,6 +370,13 @@ export async function getHistory() {
   }));
 }
 
+/**
+ * 获取本地视频文件列表
+ *
+ * 扫描 downloads 目录，返回所有本地视频及其元数据
+ *
+ * @returns 本地视频列表（按修改时间倒序）
+ */
 export async function getLocalVideos() {
   ensureDirs();
   if (!fs.existsSync(downloadDir)) return [];
@@ -292,6 +405,12 @@ export async function getLocalVideos() {
   return items.sort((a, b) => b.mtime - a.mtime);
 }
 
+/**
+ * 删除本地视频文件
+ *
+ * @param name - 文件名
+ * @throws 文件不存在或路径无效时抛出错误
+ */
 export async function deleteVideo(name: string) {
   const base = path.basename(name || "");
   if (base !== name) throw new Error("invalid name");

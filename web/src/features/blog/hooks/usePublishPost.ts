@@ -1,4 +1,10 @@
-"use client";
+﻿"use client";
+
+/**
+ * 发布文章 Hook
+ *
+ * 统一封装新建文章和更新文章的请求逻辑，并在成功后刷新标签、分类和文章列表缓存。
+ */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getVersionedApiPath } from "@/lib/api-version";
@@ -12,7 +18,7 @@ type PublishPostInput = {
   categoryId: string;
   excerpt?: string;
   coverImageUrl?: string;
-  slug?: string; // If provided, update existing post
+  slug?: string;
 };
 
 type PublishPostResult = {
@@ -67,6 +73,7 @@ export function usePublishPost() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.tags(12) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
+        // 文章列表键有多种参数形态，这里按顶层 posts 前缀统一失效。
         queryClient.invalidateQueries({ queryKey: ["posts"] }),
       ]);
     },

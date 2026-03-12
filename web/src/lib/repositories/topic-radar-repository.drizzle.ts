@@ -1,3 +1,10 @@
+/**
+ * 主题雷达仓储层 (Drizzle ORM 实现)
+ *
+ * 提供主题雷达相关数据的查询操作，使用 Drizzle ORM 进行数据库访问
+ * 仅包含只读查询方法，写操作仍使用原生 SQL 的 topicRadarRepository
+ */
+
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/drizzle";
 import {
@@ -10,6 +17,11 @@ import {
 } from "@/lib/db/schema";
 import type { RadarSourceRecord } from "./topic-radar-repository";
 
+/**
+ * Drizzle ORM 主题雷达数据访问类
+ *
+ * 提供主题雷达相关的只读查询操作
+ */
 export class DrizzleTopicRadarRepository {
   async listSourceUrlsByUser(username: string): Promise<Array<{ url: string }>> {
     const db = getDb();

@@ -1,3 +1,12 @@
+/**
+ * Radar 数据抓取 API
+ *
+ * 手动触发 Radar 数据源抓取，可指定单个数据源或抓取所有已启用的数据源
+ *
+ * @route /api/v1/radar/fetch
+ * @method POST - 触发数据源抓取
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

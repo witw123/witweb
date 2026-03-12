@@ -1,3 +1,12 @@
+/**
+ * 文章点踩 API
+ *
+ * 为文章添加或取消点踩，支持切换状态（再次点击取消点踩）
+ *
+ * @route /api/v1/blog/:slug/dislike
+ * @method POST - 点踩/取消点踩文章
+ */
+
 import { getAuthUser } from "@/lib/http";
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { drizzlePostRepository } from "@/lib/repositories";
@@ -9,6 +18,16 @@ const paramsSchema = z.object({
   slug: z.string().trim().min(1, "slug is required"),
 });
 
+/**
+ * 点踩/取消点踩文章
+ *
+ * 切换用户对文章的点踩状态，返回最新的点赞/点踩/收藏/评论数
+ * 再次点击已点踩的文章将取消点踩
+ *
+ * @route POST /api/v1/blog/:slug/dislike
+ * @param {string} slug - 文章 slug 路径参数
+ * @returns {object} 点踩状态及更新后的计数
+ */
 export const POST = withErrorHandler(async (_: Request, { params }: { params: Promise<{ slug: string }> }) => {
   const user = await getAuthUser();
   assertAuthenticated(user);

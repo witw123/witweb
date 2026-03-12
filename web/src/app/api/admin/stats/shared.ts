@@ -1,3 +1,11 @@
+/**
+ * Admin Stats 统计处理器
+ *
+ * 提供管理员仪表盘所需的统计数据处理函数
+ * 包括概览数据和趋势数据的查询
+ *
+ * @module
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { successResponse } from "@/lib/api-response";
 import { assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -27,6 +35,14 @@ async function assertDashboardPermission() {
   assertAuthorized(!!auth && hasAdminPermission(auth.role, "dashboard.view"), "需要仪表盘查看权限");
 }
 
+/**
+ * 获取管理员统计概览数据
+ *
+ * 返回系统关键指标的统计信息
+ * 包括用户总数、博客总数、已发布博客数和草稿博客数
+ *
+ * @returns {Promise<Response>} 包含统计数据的成功响应
+ */
 export async function getAdminStatsOverviewHandler() {
   await assertDashboardPermission();
   await validateQuery(new Request("http://localhost"), overviewQuerySchema);
@@ -41,6 +57,16 @@ export async function getAdminStatsOverviewHandler() {
   return successResponse(stats);
 }
 
+/**
+ * 获取管理员统计趋势数据
+ *
+ * 返回指定时间范围内的每日统计数据
+ * 包括新增用户、新增文章、活跃用户和消息数量
+ * 默认查询近7天数据，最多支持30天
+ *
+ * @param {Request} req - HTTP 请求对象，包含查询参数 days
+ * @returns {Promise<Response>} 包含每日趋势数据和总计的响应
+ */
 export async function getAdminStatsTrendsHandler(req: Request) {
   await assertDashboardPermission();
 

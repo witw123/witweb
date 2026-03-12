@@ -4,9 +4,20 @@ import { getDb } from "@/lib/db/drizzle";
 import { follows, users } from "@/lib/db/schema";
 import type { FollowerItem, FollowerListResponse, FollowingItem, FollowingListResponse, User } from "@/types";
 
+/** 用户基本信息类型（仅包含公开信息） */
 type BasicUser = Pick<User, "username" | "nickname" | "avatar_url">;
+
+/** 用户角色类型 */
 type UserRole = NonNullable<User["role"]>;
 
+/**
+ * 规范化用户角色
+ *
+ * 将数据库中的角色字符串转换为有效的角色枚举值
+ *
+ * @param {string|null} role - 数据库中的角色字符串
+ * @returns {User["role"]} 规范化的角色
+ */
 function normalizeRole(role: string | null): User["role"] {
   const value = (role || "user") as UserRole;
   const allowed: UserRole[] = [
@@ -20,7 +31,18 @@ function normalizeRole(role: string | null): User["role"] {
   return allowed.includes(value) ? value : "user";
 }
 
+/**
+ * 用户数据仓库（Drizzle 实现）
+ *
+ * 负责用户相关的数据操作，包括用户查询、关注关系等
+ */
 export class DrizzleUserRepository {
+  /**
+   * 根据用户名查找用户
+   *
+   * @param {string} username - 用户名
+   * @returns {Promise<User|null>} 用户信息，不存在则返回 null
+   */
   async findByUsername(username: string): Promise<User | null> {
     const db = getDb();
     const rows = await db
@@ -50,6 +72,12 @@ export class DrizzleUserRepository {
     };
   }
 
+  /**
+   * 检查用户名是否存在
+   *
+   * @param {string} username - 用户名
+   * @returns {Promise<boolean>} 是否存在
+   */
   async existsByUsername(username: string): Promise<boolean> {
     const db = getDb();
     const rows = await db
@@ -61,6 +89,12 @@ export class DrizzleUserRepository {
     return rows.length > 0;
   }
 
+  /**
+   * 批量获取用户基本信息
+   *
+   * @param {string[]} usernames - 用户名列表
+   * @returns {Promise<BasicUser[]>} 用户基本信息列表
+   */
   async listBasicByUsernames(usernames: string[]): Promise<BasicUser[]> {
     const db = getDb();
     const unique = Array.from(new Set(usernames.map((item) => item?.trim()).filter(Boolean)));
@@ -76,6 +110,12 @@ export class DrizzleUserRepository {
       .where(inArray(users.username, unique));
   }
 
+  /**
+   * 获取用户关注数量
+   *
+   * @param {string} username - 用户名
+   * @returns {{following_count: number; follower_count: number}} 关注数和粉丝数
+   */
   async getFollowCounts(username: string): Promise<{ following_count: number; follower_count: number }> {
     const db = getDb();
     const [followingRow] = await db

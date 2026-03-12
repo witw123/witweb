@@ -1,4 +1,15 @@
-﻿"use client";
+﻿/**
+ * AboutPage - 关于页面组件
+ *
+ * 展示个人简介页面，支持 Markdown 格式的内容渲染。
+ * 管理员（超级管理员）可以编辑页面内容。
+ * 包含技能标签、社交链接、最近文章等模块。
+ *
+ * @component
+ * @example
+ * <AboutPage />
+ */
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";

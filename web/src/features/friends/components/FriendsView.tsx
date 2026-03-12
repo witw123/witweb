@@ -1,3 +1,17 @@
+/**
+ * FriendsView - 好友列表页面组件
+ *
+ * 展示好友列表页面，支持：
+ * - 在线好友筛选
+ * - 全部好友查看
+ * - 待处理请求（关注/粉丝）
+ * - 已屏蔽用户
+ * - 添加好友功能
+ *
+ * @component
+ * @example
+ * <FriendsView />
+ */
 "use client";
 
 import Image from "next/image";

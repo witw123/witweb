@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * VideoLayout 视频生成中心布局组件
+ *
+ * 整合视频生成功能的各个模块：
+ * - 视频生成：创建新任务
+ * - 角色管理：管理角色素材
+ * - 任务列表：查看任务状态
+ * - 作品库：查看生成结果
+ * - 设置：配置 API 密钥等
+ *
+ * @component
+ * @example
+ * <VideoLayout initialTab="create" />
+ */
+
 import { useState } from "react";
 import { CreateForm } from "./CreateForm";
 import { CharacterLab } from "./CharacterLab";
@@ -7,10 +22,16 @@ import { TaskList } from "./TaskList";
 import { Gallery } from "./Gallery";
 import { SettingsPanel } from "../settings/SettingsPanel";
 
+/**
+ * VideoLayout 组件属性
+ */
 interface VideoLayoutProps {
   initialTab?: string;
 }
 
+/**
+ * Tab 配置项
+ */
 const tabs = [
   { id: "create", label: "视频生成" },
   { id: "character", label: "角色管理" },
@@ -19,6 +40,9 @@ const tabs = [
   { id: "settings", label: "设置" },
 ] as const;
 
+/**
+ * VideoLayout 组件 - 视频生成中心布局
+ */
 export function VideoLayout({ initialTab = "create" }: VideoLayoutProps) {
   const [activeSubTab, setActiveSubTab] = useState(initialTab);
 

@@ -1,3 +1,13 @@
+/**
+ * 视频任务核心仓储
+ *
+ * 提供视频生成任务的完整数据操作：
+ * - 任务的创建、状态更新、删除
+ * - 任务查询与列表
+ * - 任务结果管理
+ * - 用户统计数据
+ */
+
 import { randomUUID } from "crypto";
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 import type { VideoResult, VideoTask, VideoTaskType } from "@/types";
@@ -5,6 +15,11 @@ import type { PaginatedResult } from "./types";
 import { normalizeVideoPagination } from "./video-task-repository.shared";
 import type { CreateVideoTaskData, UpdateVideoTaskData } from "./video-task-repository.types";
 
+/**
+ * 视频任务核心数据访问类
+ *
+ * 提供视频任务和结果的全部 CRUD 操作
+ */
 export class VideoTaskCoreRepository {
   async findById(id: string): Promise<VideoTask | null> {
     return await pgQueryOne<VideoTask>("SELECT * FROM video_tasks WHERE id = ?", [id]);

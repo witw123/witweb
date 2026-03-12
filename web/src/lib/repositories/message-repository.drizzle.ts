@@ -1,3 +1,9 @@
+/**
+ * 私信消息数据仓库（Drizzle 实现）
+ *
+ * 负责私信和会话的数据库操作
+ */
+
 import { and, asc, eq, or, sql } from "drizzle-orm";
 import { ApiError, ErrorCode } from "@/lib/api-error";
 import { getDb } from "@/lib/db/drizzle";
@@ -9,7 +15,16 @@ import type {
   PrivateMessage,
 } from "@/types";
 
+/**
+ * 私信消息数据仓库（Drizzle 实现）
+ */
 export class DrizzleMessageRepository {
+  /**
+   * 获取用户的会话列表
+   *
+   * @param {string} username - 用户名
+   * @returns {Promise<ConversationListItem[]>} 会话列表
+   */
   async getConversationList(username: string): Promise<ConversationListItem[]> {
     const db = getDb();
     const rows = await db

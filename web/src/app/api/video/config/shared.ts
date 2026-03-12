@@ -1,3 +1,12 @@
+/**
+ * 视频配置共享处理函数
+ *
+ * 提供视频配置获取和更新的通用处理逻辑
+ *
+ * @route /api/video/config
+ * @method GET - 获取视频配置
+ * @method POST - 更新视频配置
+ */
 import { NextRequest } from "next/server";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { getConfig, setApiKey, setHostMode, setQueryDefaults, setToken } from "@/lib/studio";
@@ -33,6 +42,13 @@ async function assertAdminAccess() {
   return user;
 }
 
+/**
+ * 获取视频配置
+ *
+ * 返回当前视频服务的配置信息，包括 host_mode 和 query_defaults
+ *
+ * @returns {Promise<Response>} 包含视频配置的响应
+ */
 export async function getVideoConfigHandler() {
   await assertAdminAccess();
 
@@ -47,6 +63,14 @@ export async function getVideoConfigHandler() {
   });
 }
 
+/**
+ * 更新视频配置
+ *
+ * 更新视频服务的配置参数，支持设置 API 密钥、Token、主机模式和查询默认值
+ *
+ * @param {NextRequest} req - Next.js 请求对象
+ * @returns {Promise<Response>} 操作结果响应
+ */
 export async function updateVideoConfigHandler(req: NextRequest) {
   await assertAdminAccess();
 

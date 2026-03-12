@@ -1,4 +1,27 @@
-﻿"use client";
+﻿/**
+ * HeroSection - 英雄区域组件
+ *
+ * 页面顶部的醒目展示区域，通常用于首页，包含：
+ * - 标题
+ * - 副标题
+ * - 主要操作按钮
+ * - 次要操作按钮（链接）
+ *
+ * @component
+ * @param {object} props - 组件属性
+ * @param {string} [props.title] - 主标题
+ * @param {string} [props.subtitle] - 副标题
+ * @param {{ label: string; onClick: () => void }} [props.primaryAction] - 主要操作
+ * @param {{ label: string; href: string }} [props.secondaryAction] - 次要操作（链接）
+ * @example
+ * <HeroSection
+ *   title="欢迎来到我的博客"
+ *   subtitle="分享技术见解和项目经验"
+ *   primaryAction={{ label: "开始阅读", onClick: scrollToPosts }}
+ *   secondaryAction={{ label: "关于我", href: "/about" }}
+ * />
+ */
+"use client";
 
 import Link from "next/link";
 

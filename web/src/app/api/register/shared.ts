@@ -1,3 +1,11 @@
+/**
+ * Register API - 用户注册数据处理
+ *
+ * 提供用户注册功能
+ * 验证用户名唯一性、密码强度、验证码（如果启用）
+ * 注册成功后自动登录并返回令牌
+ */
+
 import { createToken, hashPassword } from "@/lib/auth";
 import { drizzleUserRepository, userRepository } from "@/lib/repositories";
 import { getUserByUsername, publicProfile } from "@/lib/user";
@@ -23,6 +31,15 @@ const registerSchema = z.object({
   captchaToken: z.string().trim().max(4096).optional(),
 });
 
+/**
+ * 处理用户注册 POST 请求
+ *
+ * 验证用户信息唯一性和密码强度，注册成功后自动登录
+ * 包含验证码验证（如果启用 Turnstile）
+ *
+ * @param {Request} req - HTTP 请求对象，包含 username、password、nickname 等
+ * @returns {Promise<Response>} 注册结果响应，包含令牌和用户资料
+ */
 export async function handleRegisterPost(req: Request) {
   assertAuthPayloadSize(req);
 

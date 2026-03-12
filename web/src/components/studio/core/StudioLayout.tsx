@@ -1,12 +1,31 @@
 ﻿"use client";
 
+/**
+ * StudioLayout 创作工作台布局组件
+ *
+ * 工作台的主布局容器，包含：
+ * - 侧边栏导航（StudioSidebar）
+ * - 顶部标题栏
+ * - 主内容区域（根据 activeTab 切换不同模块）
+ *   - 仪表盘（StudioDashboard）
+ *   - 视频生成模块（VideoLayout）
+ *   - 选题雷达模块（RadarLayout）
+ *
+ * @component
+ * @example
+ * <StudioLayout />
+ */
+
 import { useState } from "react";
 import { StudioSidebar } from "./StudioSidebar";
 import { StudioDashboard } from "./StudioDashboard";
 import { VideoLayout } from "../modules/video/VideoLayout";
-import { AgentLayout } from "../modules/agent/AgentLayout";
+
 import { RadarLayout } from "../modules/radar/RadarLayout";
 
+/**
+ * StudioLayout 组件 - 工作台主布局
+ */
 export default function StudioLayout() {
   const [activeTab, setActiveTab] = useState("home");
 
@@ -16,7 +35,7 @@ export default function StudioLayout() {
   const getHeaderTitle = () => {
     if (activeTab === "home") return "创作工作台";
     if (isVideoModule) return "视频生成中心";
-    if (activeTab === "agent") return "AI 创作代理";
+
     if (activeTab === "radar") return "选题雷达";
     return "Studio";
   };
@@ -37,7 +56,7 @@ export default function StudioLayout() {
           <div className="h-full animate-in fade-in duration-500">
             {activeTab === "home" && <StudioDashboard setActiveTab={setActiveTab} />}
             {isVideoModule && <VideoLayout initialTab={videoSubTab} />}
-            {activeTab === "agent" && <AgentLayout />}
+
             {activeTab === "radar" && <RadarLayout />}
           </div>
         </div>

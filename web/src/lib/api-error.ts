@@ -1,4 +1,11 @@
-﻿export const HttpStatus = {
+﻿/**
+ * API 错误定义
+ *
+ * 定义 HTTP 状态码、错误码和错误类
+ */
+
+/** HTTP 状态码 */
+export const HttpStatus = {
   OK: 200,
   CREATED: 201,
   BAD_REQUEST: 400,
@@ -14,6 +21,7 @@
 
 export type HttpStatusCode = (typeof HttpStatus)[keyof typeof HttpStatus];
 
+/** API 错误码 */
 export const ErrorCode = {
   UNAUTHORIZED: "UNAUTHORIZED",
   INVALID_TOKEN: "INVALID_TOKEN",
@@ -40,6 +48,7 @@ export const ErrorCode = {
 
 export type ErrorCodeType = (typeof ErrorCode)[keyof typeof ErrorCode];
 
+/** 错误码对应消息 */
 export const ErrorCodeMessages: Record<ErrorCodeType, string> = {
   [ErrorCode.UNAUTHORIZED]: "Unauthorized. Please log in first.",
   [ErrorCode.INVALID_TOKEN]: "Invalid authentication token.",

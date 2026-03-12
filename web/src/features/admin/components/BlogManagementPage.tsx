@@ -1,3 +1,16 @@
+/**
+ * BlogManagementPage - 文章管理页面组件
+ *
+ * 提供后台文章管理功能，包括：
+ * - 文章列表展示和筛选（按状态、作者、标签、日期）
+ * - 文章编辑、删除、恢复、永久删除
+ * - 批量操作（批量发布、批量删除等）
+ * - 回收站模式
+ *
+ * @component
+ * @example
+ * <BlogManagementPage />
+ */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

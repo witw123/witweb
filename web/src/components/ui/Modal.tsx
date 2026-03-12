@@ -1,25 +1,8 @@
-/**
+﻿/**
  * Modal 模态框组件
- * 
- * 支持关闭按钮、点击外部关闭、动画效果的模态框组件
- * 
- * @example
- * // 基础用法
- * <Modal isOpen={isOpen} onClose={() => setIsOpen(false)}>
- *   <Modal.Header>标题</Modal.Header>
- *   <Modal.Body>内容</Modal.Body>
- *   <Modal.Footer>底部</Modal.Footer>
- * </Modal>
- * 
- * // 不同尺寸
- * <Modal size="sm" ... />
- * <Modal size="md" ... />
- * <Modal size="lg" ... />
- * <Modal size="xl" ... />
- * <Modal size="full" ... />
- * 
- * // 不可关闭
- * <Modal closeOnOverlayClick={false} showCloseButton={false} ... />
+ *
+ * 提供可移植到 `document.body` 的通用对话框容器，支持尺寸、遮罩关闭、ESC 关闭和组合式头/体/尾结构。
+ * 模态框打开时会锁定页面滚动，关闭时自动恢复。
  */
 
 'use client';
@@ -31,49 +14,34 @@ import { cn } from '@/lib/utils/cn';
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 export interface ModalProps {
-  /** 是否显示 */
   isOpen: boolean;
-  /** 关闭回调 */
   onClose: () => void;
-  /** 模态框尺寸 */
   size?: ModalSize;
-  /** 是否显示关闭按钮 */
   showCloseButton?: boolean;
-  /** 是否允许点击遮罩层关闭 */
   closeOnOverlayClick?: boolean;
-  /** 是否允许按 ESC 键关闭 */
   closeOnEsc?: boolean;
-  /** 自定义类名 */
   className?: string;
-  /** 遮罩层类名 */
   overlayClassName?: string;
-  /** 内容类名 */
   contentClassName?: string;
-  /** 子元素 */
   children: ReactNode;
 }
 
 export interface ModalHeaderProps {
-  /** 标题 */
   children: ReactNode;
-  /** 自定义类名 */
   className?: string;
 }
 
 export interface ModalBodyProps {
-  /** 内容 */
   children: ReactNode;
-  /** 自定义类名 */
   className?: string;
 }
 
 export interface ModalFooterProps {
-  /** 底部内容 */
   children: ReactNode;
-  /** 自定义类名 */
   className?: string;
 }
 
+/** 不同尺寸下的最大宽度配置。 */
 const sizeStyles: Record<ModalSize, string> = {
   sm: 'max-w-sm',
   md: 'max-w-md',
@@ -82,9 +50,7 @@ const sizeStyles: Record<ModalSize, string> = {
   full: 'max-w-full mx-4',
 };
 
-/**
- * 模态框头部组件
- */
+/** 模态框头部。 */
 function ModalHeader({ children, className }: ModalHeaderProps) {
   return (
     <div className={cn('px-6 py-4 border-b border-gray-200 dark:border-gray-700', className)}>
@@ -93,9 +59,7 @@ function ModalHeader({ children, className }: ModalHeaderProps) {
   );
 }
 
-/**
- * 模态框内容组件
- */
+/** 模态框内容区。 */
 function ModalBody({ children, className }: ModalBodyProps) {
   return (
     <div className={cn('px-6 py-4', className)}>
@@ -104,9 +68,7 @@ function ModalBody({ children, className }: ModalBodyProps) {
   );
 }
 
-/**
- * 模态框底部组件
- */
+/** 模态框底部操作区。 */
 function ModalFooter({ children, className }: ModalFooterProps) {
   return (
     <div className={cn('px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3', className)}>
@@ -115,12 +77,6 @@ function ModalFooter({ children, className }: ModalFooterProps) {
   );
 }
 
-/**
- * 模态框组件
- * 
- * @param props - ModalProps
- * @returns ReactElement | null
- */
 function Modal({
   isOpen,
   onClose,
@@ -133,32 +89,31 @@ function Modal({
   contentClassName,
   children,
 }: ModalProps) {
-  // ESC 键关闭
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape' && closeOnEsc) {
       onClose();
     }
   }, [closeOnEsc, onClose]);
-  
+
   useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     }
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
   }, [isOpen, handleKeyDown]);
-  
-  // 防止内容点击冒泡
+
+  // 阻止内容区点击冒泡到遮罩，避免误关闭。
   const handleContentClick = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
-  
+
   if (!isOpen) return null;
-  
+
   const modalContent = (
     <div
       className={cn(
@@ -168,10 +123,8 @@ function Modal({
       )}
       onClick={closeOnOverlayClick ? onClose : undefined}
     >
-      {/* 遮罩层 */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      
-      {/* 内容区 */}
+
       <div
         className={cn(
           'relative w-full bg-white dark:bg-gray-800 rounded-xl shadow-2xl',
@@ -181,7 +134,6 @@ function Modal({
         )}
         onClick={handleContentClick}
       >
-        {/* 关闭按钮 */}
         {showCloseButton && (
           <button
             type="button"
@@ -194,19 +146,18 @@ function Modal({
             </svg>
           </button>
         )}
-        
+
         <div className={contentClassName}>
           {children}
         </div>
       </div>
     </div>
   );
-  
-  // 使用 Portal 渲染到 body
+
   if (typeof document !== 'undefined') {
     return createPortal(modalContent, document.body);
   }
-  
+
   return null;
 }
 

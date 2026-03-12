@@ -1,88 +1,166 @@
-﻿import "server-only";
+﻿/**
+ * Topic Radar 热点雷达模块
+ *
+ * 提供热点内容抓取、分析、存储和告警功能
+ * 支持 RSS、HTML、API 三种数据源类型，可配置Webhook告警
+ */
+
+import "server-only";
 import { drizzleTopicRadarRepository, topicRadarRepository } from "./repositories";
 
+/** 雷达数据源类型 */
 export type RadarSourceType = "rss" | "html" | "api";
 
+/** 雷达数据源 */
 export type RadarSource = {
+  /** 数据源 ID */
   id: number;
+  /** 数据源名称 */
   name: string;
+  /** 数据源 URL */
   url: string;
+  /** 数据源类型 */
   type: RadarSourceType;
+  /** 解析器配置（JSON） */
   parser_config_json: string;
+  /** 是否启用 */
   enabled: number;
+  /** 最后抓取状态 */
   last_fetch_status: "idle" | "ok" | "failed";
+  /** 最后抓取错误信息 */
   last_fetch_error: string;
+  /** 最后抓取时间 */
   last_fetched_at: string | null;
+  /** 最后抓取条目数 */
   last_fetch_count: number;
+  /** 创建者 */
   created_by: string;
+  /** 创建时间 */
   created_at: string;
+  /** 更新时间 */
   updated_at: string;
 };
 
+/** 雷达热点条目 */
 export type RadarItem = {
+  /** 条目 ID */
   id: number;
+  /** 数据源 ID */
   source_id: number;
+  /** 标题 */
   title: string;
+  /** 链接 */
   url: string;
+  /** 摘要 */
   summary: string;
+  /** 发布时间 */
   published_at: string;
+  /** 热度分数 */
   score: number;
+  /** 原始数据（JSON） */
   raw_json: string;
+  /** 抓取时间 */
   fetched_at: string;
 };
 
+/** 收藏的雷达主题 */
 export type RadarSavedTopic = {
+  /** 主题 ID */
   id: number;
+  /** 创建者 */
   created_by: string;
+  /** 类型：item-原始条目，analysis-分析结果 */
   kind: "item" | "analysis";
+  /** 标题 */
   title: string;
+  /** 摘要 */
   summary: string;
+  /** 内容 */
   content: string;
+  /** 来源名称 */
   source_name: string;
+  /** 来源 URL */
   source_url: string;
+  /** 热度分数 */
   score: number;
+  /** 标签（JSON 数组） */
   tags_json: string;
+  /** 创建时间 */
   created_at: string;
+  /** 更新时间 */
   updated_at: string;
 };
 
+/** 雷达告警通知渠道 */
 export type RadarNotification = {
+  /** 渠道 ID */
   id: number;
+  /** 创建者 */
   created_by: string;
+  /** 渠道类型 */
   type: "webhook";
+  /** 渠道名称 */
   name: string;
+  /** Webhook URL */
   webhook_url: string;
+  /** 密钥 */
   secret: string;
+  /** 是否启用 */
   enabled: number;
+  /** 创建时间 */
   created_at: string;
+  /** 更新时间 */
   updated_at: string;
 };
 
+/** 雷达告警规则类型 */
 export type RadarAlertRuleType = "new_item" | "keyword" | "source" | "min_score";
 
+/** 雷达告警规则 */
 export type RadarAlertRule = {
+  /** 规则 ID */
   id: number;
+  /** 创建者 */
   created_by: string;
+  /** 规则名称 */
   name: string;
+  /** 规则类型 */
   rule_type: RadarAlertRuleType;
+  /** 关键词（如适用） */
   keyword: string;
+  /** 数据源 ID（如适用） */
   source_id: number | null;
+  /** 最小分数阈值 */
   min_score: number;
+  /** 通知渠道 ID */
   channel_id: number;
+  /** 是否启用 */
   enabled: number;
+  /** 创建时间 */
   created_at: string;
+  /** 更新时间 */
   updated_at: string;
 };
 
+/** 雷达告警发送日志 */
 export type RadarAlertLog = {
+  /** 日志 ID */
   id: number;
+  /** 创建者 */
   created_by: string;
+  /** 热点条目 ID */
   item_id: number;
+  /** 渠道 ID */
   channel_id: number;
+  /** 规则 ID */
   rule_id: number;
+  /** 发送状态 */
   status: "success" | "failed";
+  /** 响应内容 */
   response_text: string;
+  /** 错误信息 */
   error_text: string;
+  /** 发送时间 */
   sent_at: string;
 };
 
@@ -359,11 +437,30 @@ async function ensureDefaultRadarSources(username: string) {
   }
 }
 
+/**
+ * 获取雷达数据源列表
+ *
+ * 如用户无数据源，自动创建默认配置
+ *
+ * @param username - 用户名
+ * @returns 数据源列表
+ */
 export async function listRadarSources(username: string): Promise<RadarSource[]> {
   await ensureDefaultRadarSources(username);
   return (await drizzleTopicRadarRepository.listSourcesByUser(username)) as RadarSource[];
 }
 
+/**
+ * 创建雷达数据源
+ *
+ * @param input.username - 用户名
+ * @param input.name - 数据源名称
+ * @param input.url - 数据源 URL
+ * @param input.type - 数据源类型
+ * @param input.parserConfigJson - 解析器配置（可选）
+ * @param input.enabled - 是否启用（可选）
+ * @returns 创建结果（包含新数据源 ID）
+ */
 export async function createRadarSource(input: {
   username: string;
   name: string;
@@ -386,6 +483,13 @@ export async function createRadarSource(input: {
   };
 }
 
+/**
+ * 更新雷达数据源
+ *
+ * @param sourceId - 数据源 ID
+ * @param username - 用户名
+ * @param patch - 更新字段
+ */
 export async function updateRadarSource(
   sourceId: number,
   username: string,
@@ -405,11 +509,28 @@ export async function updateRadarSource(
   });
 }
 
+/**
+ * 删除雷达数据源
+ *
+ * 同时删除该数据源下的所有热点条目
+ *
+ * @param sourceId - 数据源 ID
+ * @param username - 用户名
+ */
 export async function deleteRadarSource(sourceId: number, username: string) {
   const deleted = await topicRadarRepository.deleteSourceWithItems(sourceId, username);
   if (!deleted) throw new Error("source_not_found");
 }
 
+/**
+ * 获取雷达热点列表
+ *
+ * @param username - 用户名
+ * @param options.limit - 限制数量（1-200，默认100）
+ * @param options.q - 搜索关键词（可选）
+ * @param options.sourceId - 数据源筛选（可选）
+ * @returns 热点列表
+ */
 export async function listRadarItems(username: string, options: { limit?: number; q?: string; sourceId?: number } = {}) {
   await ensureDefaultRadarSources(username);
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 200);
@@ -420,10 +541,26 @@ export async function listRadarItems(username: string, options: { limit?: number
   })) as Array<RadarItem & { source_name: string }>;
 }
 
+/**
+ * 获取告警通知渠道列表
+ *
+ * @param username - 用户名
+ * @returns 通知渠道列表
+ */
 export async function listRadarNotifications(username: string): Promise<RadarNotification[]> {
   return (await drizzleTopicRadarRepository.listNotificationsByUser(username)) as RadarNotification[];
 }
 
+/**
+ * 创建告警通知渠道
+ *
+ * @param input.username - 用户名
+ * @param input.name - 渠道名称
+ * @param input.webhookUrl - Webhook URL
+ * @param input.secret - 密钥（可选）
+ * @param input.enabled - 是否启用（可选）
+ * @returns 创建结果
+ */
 export async function createRadarNotification(input: {
   username: string;
   name: string;
@@ -444,6 +581,13 @@ export async function createRadarNotification(input: {
   };
 }
 
+/**
+ * 更新告警通知渠道
+ *
+ * @param notificationId - 渠道 ID
+ * @param username - 用户名
+ * @param patch - 更新字段
+ */
 export async function updateRadarNotification(
   notificationId: number,
   username: string,
@@ -458,15 +602,42 @@ export async function updateRadarNotification(
   });
 }
 
+/**
+ * 删除告警通知渠道
+ *
+ * 同时删除该渠道下的所有告警规则
+ *
+ * @param notificationId - 渠道 ID
+ * @param username - 用户名
+ */
 export async function deleteRadarNotification(notificationId: number, username: string) {
   const deleted = await topicRadarRepository.deleteNotificationWithRules(notificationId, username);
   if (!deleted) throw new Error("notification_not_found");
 }
 
+/**
+ * 获取告警规则列表
+ *
+ * @param username - 用户名
+ * @returns 告警规则列表（包含渠道名称）
+ */
 export async function listRadarAlertRules(username: string): Promise<Array<RadarAlertRule & { channel_name: string }>> {
   return (await drizzleTopicRadarRepository.listAlertRulesByUser(username)) as Array<RadarAlertRule & { channel_name: string }>;
 }
 
+/**
+ * 创建告警规则
+ *
+ * @param input.username - 用户名
+ * @param input.name - 规则名称
+ * @param input.ruleType - 规则类型
+ * @param input.keyword - 关键词（keyword 类型必填）
+ * @param input.sourceId - 数据源 ID（可选）
+ * @param input.minScore - 最小分数阈值（可选）
+ * @param input.channelId - 通知渠道 ID
+ * @param input.enabled - 是否启用（可选）
+ * @returns 创建结果
+ */
 export async function createRadarAlertRule(input: {
   username: string;
   name: string;
@@ -496,6 +667,13 @@ export async function createRadarAlertRule(input: {
   };
 }
 
+/**
+ * 更新告警规则
+ *
+ * @param ruleId - 规则 ID
+ * @param username - 用户名
+ * @param patch - 更新字段
+ */
 export async function updateRadarAlertRule(
   ruleId: number,
   username: string,
@@ -523,11 +701,25 @@ export async function updateRadarAlertRule(
   });
 }
 
+/**
+ * 删除告警规则
+ *
+ * @param ruleId - 规则 ID
+ * @param username - 用户名
+ */
 export async function deleteRadarAlertRule(ruleId: number, username: string) {
   const deleted = await topicRadarRepository.deleteAlertRule(ruleId, username);
   if (!deleted) throw new Error("rule_not_found");
 }
 
+/**
+ * 获取告警日志列表
+ *
+ * @param username - 用户名
+ * @param options.limit - 限制数量（1-200，默认100）
+ * @param options.status - 状态筛选（可选）
+ * @returns 告警日志列表
+ */
 export async function listRadarAlertLogs(
   username: string,
   options: { limit?: number; status?: "success" | "failed" } = {}
@@ -539,6 +731,13 @@ export async function listRadarAlertLogs(
   })) as Array<RadarAlertLog & { rule_name: string; channel_name: string; item_title: string }>;
 }
 
+/**
+ * 清空雷达热点条目
+ *
+ * @param username - 用户名
+ * @param options.sourceId - 数据源 ID（可选，不指定则清空用户所有条目）
+ * @returns 删除结果
+ */
 export async function clearRadarItems(username: string, options: { sourceId?: number } = {}) {
   await ensureDefaultRadarSources(username);
 
@@ -552,6 +751,15 @@ export async function clearRadarItems(username: string, options: { sourceId?: nu
   return { deleted: await topicRadarRepository.clearItemsByUser(username) };
 }
 
+/**
+ * 获取收藏的主题列表
+ *
+ * @param username - 用户名
+ * @param options.limit - 限制数量（1-200，默认80）
+ * @param options.q - 搜索关键词（可选）
+ * @param options.kind - 类型筛选（可选）
+ * @returns 收藏主题列表
+ */
 export async function listRadarSavedTopics(
   username: string,
   options: { limit?: number; q?: string; kind?: "item" | "analysis" } = {}
@@ -576,6 +784,20 @@ export async function listRadarSavedTopics(
   }));
 }
 
+/**
+ * 收藏雷达主题
+ *
+ * @param input.username - 用户名
+ * @param input.kind - 类型
+ * @param input.title - 标题
+ * @param input.summary - 摘要（可选）
+ * @param input.content - 内容（可选）
+ * @param input.sourceName - 来源名称（可选）
+ * @param input.sourceUrl - 来源 URL（可选）
+ * @param input.score - 热度分数（可选）
+ * @param input.tags - 标签数组（可选）
+ * @returns 创建结果
+ */
 export async function createRadarSavedTopic(input: {
   username: string;
   kind: "item" | "analysis";
@@ -604,6 +826,13 @@ export async function createRadarSavedTopic(input: {
   };
 }
 
+/**
+ * 删除收藏的主题
+ *
+ * @param topicId - 主题 ID
+ * @param username - 用户名
+ * @returns 删除结果
+ */
 export async function deleteRadarSavedTopic(topicId: number, username: string) {
   const deleted = await topicRadarRepository.deleteSavedTopic(topicId, username);
   if (!deleted) throw new Error("topic_not_found");
@@ -744,6 +973,15 @@ async function fetchApiItems(sourceUrl: string, parser: ParserConfig): Promise<N
   }
 }
 
+/**
+ * 立即抓取指定数据源
+ *
+ * 执行一次实时抓取，解析内容并保存到数据库，触发匹配的告警
+ *
+ * @param sourceId - 数据源 ID
+ * @param username - 用户名
+ * @returns 抓取结果（获取条数、新增条数）
+ */
 export async function fetchRadarSourceNow(sourceId: number, username: string) {
   await ensureDefaultRadarSources(username);
 
@@ -791,6 +1029,14 @@ export async function fetchRadarSourceNow(sourceId: number, username: string) {
   return { sourceId: source.id, fetched: items.length, inserted: persisted.inserted };
 }
 
+/**
+ * 抓取所有启用的数据源
+ *
+ * 遍历用户所有启用的数据源，依次执行抓取
+ *
+ * @param username - 用户名
+ * @returns 各数据源的抓取结果数组
+ */
 export async function fetchAllEnabledSources(username: string) {
   await ensureDefaultRadarSources(username);
 

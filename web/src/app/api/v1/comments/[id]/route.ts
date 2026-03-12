@@ -1,9 +1,20 @@
+/**
+ * 评论操作 API
+ *
+ * 提供评论更新、删除功能
+ *
+ * @route /api/v1/comments/{id}
+ * @method PUT - 更新评论
+ * @method DELETE - 删除评论
+ */
+
 import { errorResponses, successResponse } from "@/lib/api-response";
 import { getAuthUser, isAdminUser } from "@/lib/http";
 import { drizzleCommentRepository } from "@/lib/repositories";
 import { assertAuthenticated, withErrorHandler } from "@/middleware/error-handler";
 import { validateBody, validateParams, z } from "@/lib/validate";
 
+/** 路径参数验证 Schema */
 const paramsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });

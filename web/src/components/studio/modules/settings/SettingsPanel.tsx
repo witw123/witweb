@@ -1,5 +1,17 @@
 "use client";
 
+/**
+ * SettingsPanel 视频中心设置面板组件
+ *
+ * 提供视频生成功能的配置选项：
+ * - API 密钥管理
+ * - 线路模式选择（自动/国内/海外）
+ *
+ * @component
+ * @example
+ * <SettingsPanel />
+ */
+
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
@@ -7,15 +19,24 @@ import { get, post } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { queryKeys } from "@/lib/query-keys";
 
+/**
+ * 从错误对象中提取错误信息
+ */
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
+/**
+ * 视频配置响应类型
+ */
 type VideoConfigResponse = {
   host_mode?: "auto" | "domestic" | "overseas";
   query_defaults?: Record<string, unknown>;
 };
 
+/**
+ * SettingsPanel 组件 - 视频中心设置
+ */
 export function SettingsPanel() {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();

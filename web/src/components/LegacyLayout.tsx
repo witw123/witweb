@@ -1,5 +1,22 @@
 ﻿"use client";
 
+/**
+ * LegacyLayout 传统布局组件
+ *
+ * 提供网站的整体布局结构，包括：
+ * - 顶部导航栏（首页、分类、工作台、友链、发布文章、关于我）
+ * - 用户菜单（登录/注册、消息、个人中心、收藏、退出登录）
+ * - 移动端响应式菜单
+ * - 未读消息计数显示
+ * - 访问追踪组件
+ *
+ * @component
+ * @example
+ * <LegacyLayout>
+ *   <PageContent />
+ * </LegacyLayout>
+ */
+
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +33,9 @@ import VisitTracker from "./VisitTracker";
 
 const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "witw";
 
+/**
+ * LegacyLayout 组件属性
+ */
 export default function LegacyLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, updateProfile, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -24,6 +44,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const isStudio = pathname.startsWith("/studio");
+  const isAgent = pathname.startsWith("/agent");
   const isHome = pathname === "/";
   const canAccessAdmin = isAuthenticated && hasAdminAccess(normalizeRole(user?.role, user?.username === adminUsername));
   const userAvatarSrc = user?.avatar_url ? getThumbnailUrl(user.avatar_url, 64) : "";
@@ -73,7 +94,9 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
   }, [showUserMenu]);
 
   const navClass = (path: string) =>
-    pathname === path || (path === "/studio" && isStudio) ? "nav-link active" : "nav-link";
+    pathname === path || (path === "/studio" && isStudio) || (path === "/agent" && isAgent)
+      ? "nav-link active"
+      : "nav-link";
 
   return (
     <div className="layout">
@@ -97,6 +120,9 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
             </Link>
             <Link href="/studio" className={navClass("/studio")} onClick={closeMobileMenu}>
               工作台
+            </Link>
+            <Link href="/agent" className={navClass("/agent")} onClick={closeMobileMenu}>
+              AI Agent
             </Link>
             <Link href="/friends" className={navClass("/friends")} onClick={closeMobileMenu}>
               友链
@@ -222,7 +248,7 @@ export default function LegacyLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
 
-      <main className={`main-content ${isStudio || isHome ? "full-width" : "container"}`}>{children}</main>
+      <main className={`main-content ${isStudio || isAgent || isHome ? "full-width" : "container"}`}>{children}</main>
 
       <Footer />
     </div>

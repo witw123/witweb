@@ -1,3 +1,12 @@
+/**
+ * Admin 当前用户权限查询 API
+ *
+ * 获取当前登录管理员的权限信息
+ * 包括角色、权限列表及每个权限的标签
+ *
+ * @route /api/admin/me/permissions
+ * @method GET - 获取当前用户权限信息
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { successResponse } from "@/lib/api-response";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";

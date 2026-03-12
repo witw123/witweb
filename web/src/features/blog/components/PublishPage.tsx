@@ -1,3 +1,10 @@
+﻿/**
+ * PublishPage - 文章发布/编辑页面
+ *
+ * 提供 Markdown 写作、预览、图片上传和本地草稿能力。
+ * 同一页面同时承担“新建文章”和“编辑已有文章”两种模式，因此需要在草稿恢复、
+ * 提交和本地存储逻辑上严格区分场景。
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +32,11 @@ type LocalPublishDraft = {
   updatedAt: string;
 };
 
+/**
+ * 读取从 AI 创作代理导入的草稿
+ *
+ * 只有 URL 中显式带上 `from_agent=1` 时才尝试读取，避免误加载旧代理草稿。
+ */
 function readImportedDraft(): { title: string; content: string; tags: string; imported: boolean } {
   if (typeof window === "undefined") {
     return { title: "", content: "", tags: "", imported: false };
@@ -50,6 +62,7 @@ function readImportedDraft(): { title: string; content: string; tags: string; im
   }
 }
 
+/** 草稿按用户名隔离，避免多人共用设备时互相覆盖。 */
 function getLocalDraftKey(username?: string): string {
   const suffix = username?.trim() ? username.trim().toLowerCase() : "anon";
   return `${LOCAL_DRAFT_KEY_PREFIX}:${suffix}`;
@@ -110,7 +123,7 @@ export default function PublishPage() {
   const loadedDraftUserRef = useRef<string | null>(null);
   const initialDraft = useMemo(() => readImportedDraft(), []);
 
-  // Check if editing existing post
+  // 带 slug 参数时进入编辑模式，否则为新建模式。
   const editSlug = searchParams.get("slug");
   const isEditing = Boolean(editSlug);
 
@@ -132,7 +145,6 @@ export default function PublishPage() {
 
   const currentDraftUser = user?.username;
 
-  // Load existing post for editing
   useEffect(() => {
     if (!editSlug || !isAuthenticated) return;
 
@@ -160,10 +172,9 @@ export default function PublishPage() {
       }
     };
 
-    loadPost();
+    void loadPost();
   }, [editSlug, isAuthenticated]);
 
-  // Markdown editor hook
   const { textareaRef, stats, handleAction, handleKeyDown } = useMarkdownEditor({
     content,
     onChange: setContent,
@@ -171,17 +182,15 @@ export default function PublishPage() {
     onPublish: () => publish(),
   });
 
-  // Markdown preview hook
   const { html: previewHtml } = useMarkdownPreview({ content });
 
-  // Load draft on mount
   useEffect(() => {
     if (!initialDraft.imported || typeof window === "undefined") return;
     localStorage.removeItem(AGENT_DRAFT_KEY);
   }, [initialDraft.imported]);
 
   useEffect(() => {
-    // Skip draft loading when editing
+    // 编辑模式只读远端文章，不混入本地草稿，避免覆盖线上内容。
     if (isEditing) return;
 
     const userKey = (currentDraftUser || "anon").toLowerCase();
@@ -205,7 +214,6 @@ export default function PublishPage() {
     }
   }, [currentDraftUser, initialDraft.imported, isEditing]);
 
-  // Auto-save draft (skip when editing)
   useEffect(() => {
     if (isEditing) return;
 
@@ -258,6 +266,7 @@ export default function PublishPage() {
     setStatus("本地草稿已清空。");
   }
 
+  // 新建成功会清空草稿；更新成功则保留表单并跳转详情页。
   async function publish() {
     setStatus("");
     if (!title.trim() || !content.trim()) {
@@ -288,7 +297,6 @@ export default function PublishPage() {
 
       setStatus(result.message);
 
-      // Only clear form for new posts
       if (!isEditing) {
         setTitle("");
         setTags("");
@@ -304,7 +312,6 @@ export default function PublishPage() {
         window.dispatchEvent(new CustomEvent("blog-updated"));
       }
 
-      // Navigate to the post after successful publish/update
       if (result.slug) {
         setTimeout(() => {
           router.push(`/post/${result.slug}`);
@@ -315,7 +322,7 @@ export default function PublishPage() {
     }
   }
 
-  // Image upload
+  // 上传成功后把 Markdown 图片标记插入到当前光标位置，保持写作流连续。
   async function uploadImage(file: File) {
     if (!isAuthenticated) {
       router.push("/login");
@@ -359,12 +366,10 @@ export default function PublishPage() {
     }
   }
 
-  // Toolbar image upload handler
   const handleImageUpload = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
 
-  // Toolbar action handler
   const onToolbarAction = useCallback(
     (action: ToolbarAction) => {
       if (action.type === "handler") {
@@ -376,7 +381,6 @@ export default function PublishPage() {
     [handleAction, handleImageUpload]
   );
 
-  // Drag and drop
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -394,13 +398,12 @@ export default function PublishPage() {
 
       const file = e.dataTransfer.files[0];
       if (file?.type.startsWith("image/")) {
-        uploadImage(file);
+        void uploadImage(file);
       }
     },
     [uploadImage]
   );
 
-  // Paste image
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -410,7 +413,7 @@ export default function PublishPage() {
         if (item.type.startsWith("image/")) {
           e.preventDefault();
           const file = item.getAsFile();
-          if (file) uploadImage(file);
+          if (file) void uploadImage(file);
           break;
         }
       }
@@ -433,7 +436,7 @@ export default function PublishPage() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) uploadImage(file);
+            if (file) void uploadImage(file);
             e.target.value = "";
           }}
         />
@@ -450,9 +453,7 @@ export default function PublishPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-0 items-stretch bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden mt-6 mb-12 shadow-xl shadow-black/20">
-            {/* Left Column: Title + Editor */}
             <div className="flex flex-col min-w-0 p-6 lg:p-8">
-              {/* Huge Seamless Title */}
               <textarea
                 className="publish-seamless-title"
                 rows={title.length > 30 ? 2 : 1}
@@ -467,7 +468,6 @@ export default function PublishPage() {
                 }}
               />
 
-              {/* View mode tabs & Toolbar */}
               <div className="flex flex-wrap items-center justify-start gap-6 mt-auto mb-2 pt-2 px-2 border-b border-zinc-800/50 pb-2">
                 <div className="flex items-center gap-1">
                   {[
@@ -491,7 +491,6 @@ export default function PublishPage() {
                   ))}
                 </div>
 
-                {/* Markdown Toolbar Extracted */}
                 {viewMode !== "preview" && (
                   <MarkdownToolbar
                     onAction={onToolbarAction}
@@ -502,7 +501,6 @@ export default function PublishPage() {
                 )}
               </div>
 
-              {/* Editor area */}
               <div
                 className={cn(
                   "editor-container transition-colors min-h-[500px] flex flex-col",
@@ -518,7 +516,6 @@ export default function PublishPage() {
                     viewMode === "split" ? "grid grid-cols-1 lg:grid-cols-2 gap-px" : "block"
                   )}
                 >
-                  {/* Editor pane */}
                   {viewMode !== "preview" && (
                     <div className="editor-pane flex flex-col h-full relative">
                       <textarea
@@ -544,7 +541,6 @@ export default function PublishPage() {
                     </div>
                   )}
 
-                  {/* Preview pane */}
                   {viewMode !== "edit" && (
                     <div
                       className={cn(
@@ -571,9 +567,7 @@ export default function PublishPage() {
               </div>
             </div>
 
-            {/* Right Column: Sidebar Meta Settings & Actions */}
             <aside className="publish-sidebar-panel flex flex-col gap-6 p-6 lg:p-8 border-t lg:border-t-0 lg:border-l border-zinc-800 bg-zinc-950/40">
-              {/* Cover Image */}
               <div>
                 <span className="text-sm font-bold text-zinc-300 block mb-3">文章封面</span>
                 <CoverImageUploader
@@ -583,7 +577,6 @@ export default function PublishPage() {
                 />
               </div>
 
-              {/* Category */}
               <div>
                 <span className="text-sm font-bold text-zinc-300 block mb-2">分类专栏</span>
                 <select
@@ -600,7 +593,6 @@ export default function PublishPage() {
                 </select>
               </div>
 
-              {/* Tags */}
               <div>
                 <span className="text-sm font-bold text-zinc-300 block mb-2">标签</span>
                 <input
@@ -611,7 +603,6 @@ export default function PublishPage() {
                 />
               </div>
 
-              {/* Excerpt */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-zinc-300">摘要 (SEO)</span>
@@ -629,7 +620,6 @@ export default function PublishPage() {
                 />
               </div>
 
-              {/* Action Buttons */}
               <div className="pt-4 border-t border-zinc-800/50 flex flex-col gap-3 mt-2">
                 {status && (
                   <div className="text-accent text-xs text-center px-2 py-1 bg-blue-500/10 rounded-md">
@@ -670,7 +660,6 @@ export default function PublishPage() {
         )}
       </div>
 
-      {/* Hidden file input for toolbar/paste uploads */}
       <input
         ref={fileInputRef}
         type="file"
@@ -678,7 +667,7 @@ export default function PublishPage() {
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) uploadImage(file);
+          if (file) void uploadImage(file);
           e.currentTarget.value = "";
         }}
       />

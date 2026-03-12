@@ -1,3 +1,11 @@
+﻿/**
+ * 评论仓储层
+ *
+ * 负责博客评论的查询、写入、投票和通知相关数据访问。
+ * 评论属于高频交互数据，因此这里把列表查询、投票计数和提醒查询都集中在一个仓储里，
+ * 便于统一维护 SQL 和事务边界。
+ */
+
 import { pgQuery, pgQueryOne, pgRun, withPgTransaction } from "@/lib/postgres-query";
 import type { Comment, CommentListItem } from "@/types";
 
@@ -13,6 +21,7 @@ export interface UpdateCommentData {
   content: string;
 }
 
+/** 用户收到的回复或提及通知项。 */
 export interface NotificationFeedItem {
   sender: string;
   content: string;
@@ -21,6 +30,13 @@ export interface NotificationFeedItem {
   post_slug: string;
 }
 
+/**
+ * 规范化分页参数
+ *
+ * @param {number} [page=1] - 页码
+ * @param {number} [size=10] - 每页大小
+ * @returns {{ size: number; offset: number }} SQL 分页参数
+ */
 function normalizePagination(page = 1, size = 10): { size: number; offset: number } {
   const validPage = Math.max(1, page);
   const validSize = Math.max(1, Math.min(50, size));
@@ -29,10 +45,12 @@ function normalizePagination(page = 1, size = 10): { size: number; offset: numbe
 }
 
 export class CommentRepository {
+  /** 按 ID 查询单条评论。 */
   async findById(id: number): Promise<Comment | null> {
     return await pgQueryOne<Comment>("SELECT * FROM comments WHERE id = ?", [id]);
   }
 
+  /** 按文章 ID 获取评论列表，并附带点赞/点踩计数。 */
   async findByPostId(postId: number): Promise<CommentListItem[]> {
     const sql = `
       SELECT
@@ -52,6 +70,7 @@ export class CommentRepository {
     return await pgQuery<CommentListItem>(sql, [postId]);
   }
 
+  /** 按文章 slug 获取评论列表，供详情页直接消费。 */
   async findByPostSlug(slug: string): Promise<CommentListItem[]> {
     const sql = `
       SELECT
@@ -72,6 +91,7 @@ export class CommentRepository {
     return await pgQuery<CommentListItem>(sql, [slug]);
   }
 
+  /** 创建评论并返回新评论 ID。 */
   async create(data: CreateCommentData): Promise<number> {
     const now = new Date().toISOString();
     const row = await pgQueryOne<{ id: number }>(
@@ -85,11 +105,17 @@ export class CommentRepository {
     return Number(row?.id || 0);
   }
 
+  /** 仅更新评论正文内容。 */
   async updateContent(id: number, content: string): Promise<boolean> {
     const result = await pgRun("UPDATE comments SET content = ? WHERE id = ?", [content, id]);
     return result.changes > 0;
   }
 
+  /**
+   * 删除评论
+   *
+   * 先删投票再删评论，避免外键约束中断操作。
+   */
   async delete(id: number): Promise<boolean> {
     return await withPgTransaction<boolean>(async (client) => {
       await pgRun("DELETE FROM comment_votes WHERE comment_id = ?", [id], client);
@@ -98,6 +124,7 @@ export class CommentRepository {
     });
   }
 
+  /** 根据评论 ID 反查所属文章 slug。 */
   async getPostSlugForComment(commentId: number): Promise<string> {
     const row = await pgQueryOne<{ slug: string }>(
       `
@@ -111,6 +138,11 @@ export class CommentRepository {
     return row?.slug || "";
   }
 
+  /**
+   * 记录评论投票
+   *
+   * 用户已投过票时直接覆盖旧值，实现“切换赞/踩”的幂等体验。
+   */
   async vote(commentId: number, username: string, value: 1 | -1): Promise<boolean> {
     const existing = await pgQueryOne<{ id: number }>(
       "SELECT id FROM comment_votes WHERE comment_id = ? AND username = ?",
@@ -133,11 +165,13 @@ export class CommentRepository {
     return true;
   }
 
+  /** 取消用户对评论的投票。 */
   async removeVote(commentId: number, username: string): Promise<boolean> {
     const result = await pgRun("DELETE FROM comment_votes WHERE comment_id = ? AND username = ?", [commentId, username]);
     return result.changes > 0;
   }
 
+  /** 查询用户当前对评论的投票状态。 */
   async getUserVote(commentId: number, username: string): Promise<1 | -1 | null> {
     const result = await pgQueryOne<{ value: 1 | -1 }>(
       "SELECT value FROM comment_votes WHERE comment_id = ? AND username = ?",
@@ -146,6 +180,7 @@ export class CommentRepository {
     return result?.value || null;
   }
 
+  /** 汇总评论的点赞和点踩数。 */
   async getVoteCounts(commentId: number): Promise<{ like_count: number; dislike_count: number }> {
     const likes =
       (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comment_votes WHERE comment_id = ? AND value = 1", [
@@ -158,6 +193,7 @@ export class CommentRepository {
     return { like_count: likes, dislike_count: dislikes };
   }
 
+  /** 获取别人回复当前用户文章产生的通知流。 */
   async getRepliesToUser(username: string, page = 1, size = 10): Promise<NotificationFeedItem[]> {
     const { size: validSize, offset } = normalizePagination(page, size);
     const sql = `
@@ -176,6 +212,7 @@ export class CommentRepository {
     return await pgQuery<NotificationFeedItem>(sql, [username, username, validSize, offset]);
   }
 
+  /** 获取正文里 @ 提及当前用户的通知流。 */
   async getMentionsToUser(username: string, page = 1, size = 10): Promise<NotificationFeedItem[]> {
     const { size: validSize, offset } = normalizePagination(page, size);
     const sql = `
@@ -194,6 +231,7 @@ export class CommentRepository {
     return await pgQuery<NotificationFeedItem>(sql, [`%@${username}%`, username, validSize, offset]);
   }
 
+  /** 查询指定时间点之后新增的评论数。 */
   async getNewCommentsCount(username: string, since: string): Promise<number> {
     const row = await pgQueryOne<{ cnt: number }>(
       `
@@ -217,6 +255,7 @@ export class CommentRepository {
     return row?.cnt || 0;
   }
 
+  /** 提供后台概览所需的评论总量、今日量和近七日量。 */
   async getStats(): Promise<{ total: number; today: number; week: number }> {
     const total = (await pgQueryOne<{ cnt: number }>("SELECT COUNT(*)::int AS cnt FROM comments"))?.cnt || 0;
     const today =

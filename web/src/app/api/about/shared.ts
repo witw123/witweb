@@ -1,3 +1,11 @@
+/**
+ * About 页面 API - 关于页面数据处理
+ *
+ * 提供关于页面的 GET（获取）和 PUT（更新）功能
+ * GET 返回站点介绍信息和最近文章
+ * PUT 仅允许超级管理员更新内容
+ */
+
 import { successResponse } from "@/lib/api-response";
 import { getAuthIdentity } from "@/lib/http";
 import { aboutRepository, drizzlePostRepository } from "@/lib/repositories";
@@ -17,6 +25,13 @@ const updateAboutSchema = z.object({
   skills: z.array(z.string().trim().min(1).max(40)).max(30, "Too many skills").default([]),
 });
 
+/**
+ * 构建关于页面 GET 响应
+ *
+ * 获取站点介绍信息和最近发布的 5 篇文章
+ *
+ * @returns {Promise<Response>} 包含 about 数据和最近文章的响应
+ */
 export async function buildAboutGetResponse(): Promise<Response> {
   const about = await aboutRepository.get();
 
@@ -33,6 +48,14 @@ export async function buildAboutGetResponse(): Promise<Response> {
   return successResponse({ ...about, recentPosts });
 }
 
+/**
+ * 构建关于页面 PUT 响应
+ *
+ * 更新站点介绍信息，仅限超级管理员操作
+ *
+ * @param {Request} req - HTTP 请求对象，包含更新数据
+ * @returns {Promise<Response>} 更新后的数据
+ */
 export async function buildAboutPutResponse(req: Request): Promise<Response> {
   const auth = await getAuthIdentity();
   assertAuthorized(!!auth && auth.role === "super_admin", "Forbidden");

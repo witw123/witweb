@@ -1,3 +1,12 @@
+/**
+ * Agent 发布导出 API
+ *
+ * 将 Agent 生成的草稿内容（标题、正文、标签）导出为博客发布格式
+ *
+ * @route /api/v1/agent/runs/:id/export-to-publish
+ * @method POST - 导出为发布格式
+ * @requiresAuth 需要用户认证
+ */
 import { exportToPublish } from "@/lib/agent";
 import { errorResponses, successResponse } from "@/lib/api-response";
 import { getAuthUser } from "@/lib/http";

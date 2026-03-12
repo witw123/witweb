@@ -1,3 +1,16 @@
+/**
+ * 安全示例 API
+ *
+ * 演示多种安全特性的示例接口，包括：
+ * - 速率限制
+ * - 安全上下文创建
+ * - SQL 注入检测
+ * - 用户名和密码验证
+ *
+ * @route /api/secure-example
+ * @method GET - 测试安全特性的查询接口
+ * @method POST - 测试安全特性的操作接口
+ */
 import { NextRequest } from "next/server";
 import { withErrorHandler } from "@/middleware/error-handler";
 import { successResponse, errorResponses } from "@/lib/api-response";
@@ -31,6 +44,14 @@ const postSchema = z.object({
   query: z.string().max(200).optional(),
 });
 
+/**
+ * 安全示例 GET 请求
+ *
+ * 测试速率限制和安全上下文记录功能
+ *
+ * @param {NextRequest} req - Next.js 请求对象
+ * @returns {Response} 包含分页参数的安全响应
+ */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const rateLimitResult = rateLimitMiddleware(req);
   if (rateLimitResult) return rateLimitResult;
@@ -47,6 +68,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 });
 
+/**
+ * 安全示例 POST 请求
+ *
+ * 执行安全操作，包括用户名验证、密码验证和 SQL 注入检测
+ *
+ * @param {NextRequest} req - Next.js 请求对象
+ * @returns {Response} 处理结果的安全响应
+ */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const rateLimitResult = rateLimitMiddleware(req);
   if (rateLimitResult) return rateLimitResult;

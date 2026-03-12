@@ -1,4 +1,14 @@
-﻿"use client";
+﻿/**
+ * CategoriesPage - 文章分类页面组件
+ *
+ * 展示所有文章分类的页面，提供分类卡片展示。
+ * 用户可以点击分类卡片跳转到对应的文章列表。
+ *
+ * @component
+ * @example
+ * <CategoriesPage />
+ */
+"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";

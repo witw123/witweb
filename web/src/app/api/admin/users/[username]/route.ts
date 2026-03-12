@@ -1,3 +1,14 @@
+/**
+ * Admin User 管理 API - 单个用户操作
+ *
+ * 提供用户的查看、更新角色和删除功能
+ * 支持获取用户详情、修改用户角色、删除用户
+ *
+ * @route /api/admin/users/[username]
+ * @method GET - 获取用户详情（管理员视图）
+ * @method PUT - 更新用户角色
+ * @method DELETE - 删除用户
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { drizzlePostRepository, userRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";

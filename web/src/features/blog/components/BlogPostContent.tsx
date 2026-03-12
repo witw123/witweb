@@ -1,3 +1,9 @@
+﻿/**
+ * BlogPostContent - 文章内容展示组件
+ *
+ * 纯展示型组件，负责把详情页已准备好的文章数据、目录和交互回调渲染成完整阅读界面。
+ * 数据加载、Markdown 解析和权限判断都由上层页面处理，这里只保留视图层职责。
+ */
 "use client";
 
 import Image from "next/image";
@@ -18,6 +24,7 @@ type BlogPostContentProps = {
   status: "loading" | "error" | "ready";
   canEdit: boolean;
   isEditing: boolean;
+  isPlainText: boolean;
   tagList: string[];
   readingStats: {
     length: number;
@@ -37,6 +44,7 @@ export function BlogPostContent({
   status,
   canEdit,
   isEditing,
+  isPlainText,
   tagList,
   readingStats,
   tocItems,
@@ -52,7 +60,6 @@ export function BlogPostContent({
 
   return (
     <>
-      {/* Cover Image */}
       {coverUrl && (
         <div className="post-cover-wrapper -mx-4 -mt-5 mb-6 lg:-mx-6">
           <div className="relative aspect-[21/9] lg:aspect-[2.4/1] overflow-hidden rounded-xl">
@@ -142,13 +149,11 @@ export function BlogPostContent({
         </div>
       )}
 
-
-
       {status === "error" && <p>加载失败，请稍后再试。</p>}
 
       {status === "ready" && post && !isEditing && (
         <>
-          <div className="post-layout">
+          <div className={`post-layout ${tocItems.length === 0 ? "post-layout--single" : ""}`}>
             {tocItems.length > 0 && (
               <aside className="toc">
                 <div className="toc-title">目录</div>
@@ -179,7 +184,7 @@ export function BlogPostContent({
                 </div>
               )}
               <div
-                className="markdown"
+                className={`markdown ${isPlainText ? "markdown--plain" : ""}`}
                 dangerouslySetInnerHTML={{ __html: markdownHtml }}
               />
             </article>

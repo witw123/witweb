@@ -1,11 +1,39 @@
-﻿"use client";
+﻿/**
+ * Pagination - 分页导航组件
+ *
+ * 简单的分页控件，支持上一页/下一页切换
+ * 当总页数不超过 1 页时不渲染
+ *
+ * @component
+ */
+"use client";
 
+/**
+ * Pagination 组件属性
+ */
 interface PaginationProps {
+  /** 当前页码 */
   currentPage: number;
+  /** 总页数 */
   totalPages: number;
+  /** 页码变化回调 */
   onPageChange: (page: number) => void;
 }
 
+/**
+ * Pagination - 分页导航组件
+ *
+ * 渲染分页控件，包含上一页/下一页按钮和页码显示
+ * 在首页禁用上一页按钮，在末页禁用下一页按钮
+ *
+ * @component
+ * @example
+ * <Pagination
+ *   currentPage={3}
+ *   totalPages={10}
+ *   onPageChange={(page) => handlePageChange(page)}
+ * />
+ */
 export function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
   if (totalPages <= 1) return null;
 

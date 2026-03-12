@@ -1,3 +1,23 @@
+/**
+ * UserHoverCard - 用户悬停卡片组件
+ *
+ * 鼠标悬停时显示用户信息浮层，包含：
+ * - 用户头像、昵称
+ * - 关注数、粉丝数、获赞数
+ * - 个人简介
+ * - 关注/发消息按钮
+ *
+ * @component
+ * @param {object} props - 组件属性
+ * @param {string} props.username - 用户名
+ * @param {ReactNode} props.children - 触发悬停的内容（通常为用户名或头像）
+ * @param {string} [props.className] - 自定义样式类名
+ * @param {boolean} [props.disableHover] - 是否禁用悬停效果
+ * @example
+ * <UserHoverCard username="john">
+ *   <span>john</span>
+ * </UserHoverCard>
+ */
 "use client";
 
 import Image from "next/image";

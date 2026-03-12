@@ -1,4 +1,10 @@
-﻿"use client";
+﻿/**
+ * BlogListPage - 文章列表页面组件
+ *
+ * 承担首页文章流的交互编排：同步 URL 分类筛选、驱动分页请求、衔接搜索栏，
+ * 并把点赞、点踩、收藏与跳转评论等动作统一下发给列表项。
+ */
+"use client";
 
 import { useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,22 +16,33 @@ import { PostList } from "./post-list";
 import { Pagination } from "./pagination/Pagination";
 import { Loading } from "@/components/ui/Loading";
 
-// Adjust PAGE_SIZE to 6 so it's divisible by 2 and 3 for the grid layout
+/**
+ * 首页每页文章数。
+ *
+ * 固定为 6，便于在桌面端双列和三列布局之间保持整齐栅格。
+ */
 const PAGE_SIZE = 6;
 
+/**
+ * 渲染博客首页文章列表。
+ *
+ * 组件自身不直接处理远端请求细节，而是把数据获取和交互副作用下沉到 hooks，
+ * 这里只保留页面级状态拼装与视图分支判断。
+ *
+ * @returns {JSX.Element} 博客列表页
+ */
 export default function BlogListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated } = useAuth();
 
-  // 筛选状态
+  // `page` 和 `submittedQuery` 共同决定实际请求；`searchQuery` 只用于输入框草稿态。
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const selectedCategory = searchParams.get("category") || "";
   const hasCategoryFilter = Boolean(selectedCategory);
 
-  // 数据获取
   const { posts, status, error, updatePost, totalPages } = usePosts({
     page,
     pageSize: PAGE_SIZE,
@@ -33,7 +50,6 @@ export default function BlogListPage() {
     category: selectedCategory,
   });
 
-  // 行为处理
   const handleAuthRequired = useCallback(() => {
     router.push("/login");
   }, [router]);
@@ -45,6 +61,7 @@ export default function BlogListPage() {
   });
 
   const handleSearch = useCallback((value: string) => {
+    // 新搜索词提交后总是回到第一页，避免沿用旧页码导致空结果。
     setSubmittedQuery(value);
     setPage(1);
   }, []);
@@ -72,7 +89,7 @@ export default function BlogListPage() {
       <div id="posts-anchor" className="scroll-mt-20" />
 
       <div className="blog-list-container container mx-auto w-full pt-16">
-        {/* 状态展示 */}
+        {/* 加载和错误状态在页面层统一兜底，避免子组件分散处理空态逻辑。 */}
         {isLoading && (
           <div className="py-16">
             <Loading size="lg" />
@@ -88,7 +105,6 @@ export default function BlogListPage() {
           </div>
         )}
 
-        {/* 文章列表 */}
         {!isLoading && !hasError && (
           <div className="w-full">
             <section className="home-feed-shell min-w-0">

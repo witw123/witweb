@@ -1,3 +1,14 @@
+/**
+ * Radar 告警规则管理 API
+ *
+ * 获取用户配置的告警规则列表，或创建新的告警规则
+ * 支持按关键词、新资讯、来源或分数阈值等条件触发告警通知
+ *
+ * @route /api/v1/radar/alert-rules
+ * @method GET - 获取告警规则列表
+ * @method POST - 创建新告警规则
+ * @requiresAuth 需要用户认证
+ */
 import { getAuthUser } from "@/lib/http";
 import { withErrorHandler, assertAuthenticated } from "@/middleware/error-handler";
 import { validateBody, z } from "@/lib/validate";

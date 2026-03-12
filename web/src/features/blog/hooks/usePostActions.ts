@@ -1,4 +1,11 @@
-"use client";
+﻿"use client";
+
+/**
+ * 文章操作 Hook
+ *
+ * 统一封装点赞、点踩、收藏三类交互的鉴权、乐观更新和回滚逻辑。
+ * 这样列表项组件只需要关心“触发哪个动作”，无需各自维护请求状态。
+ */
 
 import { useCallback, useRef } from "react";
 import { getVersionedApiPath } from "@/lib/api-version";
@@ -6,12 +13,14 @@ import type { PostListItem } from "@/types/blog";
 import { post } from "@/lib/api-client";
 import { emitPostMetricsUpdated } from "../utils/postMetricsSync";
 
+/** 文章操作选项。 */
 interface UsePostActionsOptions {
   isAuthenticated: boolean;
   onUpdate: (slug: string, updates: Partial<PostListItem>) => void;
   onAuthRequired: () => void;
 }
 
+/** 服务端返回的动作结果。 */
 interface ActionResult {
   liked?: boolean;
   disliked?: boolean;
@@ -22,12 +31,19 @@ interface ActionResult {
   comment_count: number;
 }
 
+/** 当前页面缓存中的本地交互状态。 */
 type LocalState = {
   liked?: boolean;
   disliked?: boolean;
   favorited?: boolean;
 };
 
+/**
+ * 提供文章操作能力
+ *
+ * @param {UsePostActionsOptions} options - Hook 配置
+ * @returns {object} 包含点赞、点踩、收藏方法的对象
+ */
 export function usePostActions({ isAuthenticated, onUpdate, onAuthRequired }: UsePostActionsOptions) {
   const stateRef = useRef<Record<string, LocalState>>({});
   const pendingRef = useRef<Set<string>>(new Set());
@@ -48,6 +64,7 @@ export function usePostActions({ isAuthenticated, onUpdate, onAuthRequired }: Us
     if (!ensureAuth()) return;
 
     const pendingKey = `${slug}:${action}`;
+    // 同一篇文章的同一动作未完成前不重复发送，避免连点导致计数抖动。
     if (pendingRef.current.has(pendingKey)) return;
     pendingRef.current.add(pendingKey);
 
@@ -70,6 +87,7 @@ export function usePostActions({ isAuthenticated, onUpdate, onAuthRequired }: Us
     try {
       const result = await post<ActionResult>(getVersionedApiPath(`/blog/${slug}/${action}`));
 
+      // 持久化服务端确认后的状态，供下一次乐观更新计算基线使用。
       stateRef.current[slug] = {
         ...stateRef.current[slug],
         ...(result.liked !== undefined ? { liked: result.liked } : {}),
@@ -88,6 +106,7 @@ export function usePostActions({ isAuthenticated, onUpdate, onAuthRequired }: Us
       onUpdate(slug, updates);
       emitPostMetricsUpdated({ slug, ...updates });
     } catch {
+      // 请求失败时回滚到当前卡片原始值，保证 UI 与实际状态重新对齐。
       onUpdate(slug, currentPost);
       emitPostMetricsUpdated({
         slug,

@@ -1,3 +1,14 @@
+/**
+ * Admin Blog 管理 API
+ *
+ * 提供博客文章的查看、更新和删除功能
+ * 支持软删除和硬删除两种方式
+ *
+ * @route /api/admin/blogs/[id]
+ * @method GET - 获取博客详情（管理员视图）
+ * @method PUT - 更新博客内容或状态
+ * @method DELETE - 删除博客（支持软删除和硬删除）
+ */
 import { getAuthIdentity } from "@/lib/http";
 import { postRepository } from "@/lib/repositories";
 import { withErrorHandler, assertAuthenticated, assertAuthorized } from "@/middleware/error-handler";
@@ -6,10 +17,12 @@ import { validateBody, validateParams, z } from "@/lib/validate";
 import { recordAdminAudit } from "@/lib/admin-audit";
 import { hasAdminPermission } from "@/lib/rbac";
 
+/** URL 参数验证 Schema - 博客 ID */
 const paramsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+/** 更新博客请求体验证 Schema */
 const updateSchema = z.object({
   status: z.enum(["published", "draft", "deleted"]).optional(),
   title: z.string().optional(),

@@ -1,4 +1,12 @@
-"use client";
+﻿"use client";
+
+/**
+ * 文章列表 Hook
+ *
+ * 负责博客列表请求、缓存键计算和前端缓存同步。
+ * 该 Hook 把分页/搜索/筛选参数转换成稳定的查询键，并监听跨组件事件，
+ * 让列表页在文章资料更新后能及时刷新而不必强耦合到具体页面。
+ */
 
 import { useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +19,7 @@ import {
   type PostMetricsUpdateDetail,
 } from "../utils/postMetricsSync";
 
+/** 文章列表查询选项。 */
 interface UsePostsOptions {
   page?: number;
   pageSize?: number;
@@ -20,6 +29,7 @@ interface UsePostsOptions {
   category?: string;
 }
 
+/** 文章列表查询结果。 */
 interface PostsResult {
   items: PostListItem[];
   total: number;
@@ -27,6 +37,12 @@ interface PostsResult {
   size: number;
 }
 
+/**
+ * 获取文章列表
+ *
+ * @param {UsePostsOptions} options - 查询选项
+ * @returns {object} 查询结果，包含数据、加载状态、错误与缓存更新方法
+ */
 export function usePosts(options: UsePostsOptions) {
   const {
     page = 1,
@@ -79,6 +95,7 @@ export function usePosts(options: UsePostsOptions) {
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    // 保留上一页数据，减少分页切换时的闪烁感。
     placeholderData: (previousData) => previousData,
   });
 
@@ -89,6 +106,7 @@ export function usePosts(options: UsePostsOptions) {
       void queryClient.invalidateQueries({ queryKey: postsQueryKey });
     };
 
+    // 资料更新和文章更新都会影响列表展示，需要一起失效。
     window.addEventListener("blog-updated", refreshNow as EventListener);
     window.addEventListener("profile-updated", refreshNow as EventListener);
 
@@ -145,11 +163,17 @@ export function usePosts(options: UsePostsOptions) {
       );
   }, [postsQueryKey, queryClient]);
 
+  /** 主动刷新当前列表查询。 */
   const refresh = useCallback(
     () => queryClient.invalidateQueries({ queryKey: postsQueryKey }),
     [postsQueryKey, queryClient]
   );
 
+  /**
+   * 就地更新单篇文章的缓存项
+   *
+   * 适合点赞、收藏等只影响局部字段的交互，避免整页重新拉取。
+   */
   const updatePost = useCallback(
     (slug: string, updates: Partial<PostListItem>) => {
       queryClient.setQueryData<PostsResult>(postsQueryKey, (current) => {

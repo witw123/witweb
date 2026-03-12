@@ -1,3 +1,10 @@
+/**
+ * React Query 查询键定义
+ *
+ * 用于缓存和无效化查询
+ */
+
+/** 查询键工厂 */
 export const queryKeys = {
   categories: ["categories"] as const,
   tags: (limit: number) => ["tags", limit] as const,
@@ -30,6 +37,10 @@ export const queryKeys = {
   agentRuns: ["agent-runs"] as const,
   agentRunDetail: (runId: string) => ["agent-run-detail", runId] as const,
   agentGallery: ["agent-gallery"] as const,
+  agentGoalTimeline: (goalId: string | null) => ["agent-goal-timeline", goalId || ""] as const,
+  agentTools: ["agent-tools"] as const,
+  modelRegistry: ["model-registry"] as const,
+  promptTemplates: (scenario?: string) => ["prompt-templates", scenario || "all"] as const,
   videoConfig: ["video-config"] as const,
   videoOutputs: ["video-outputs"] as const,
   videoTasks: (filters?: { limit?: number; taskType?: string; status?: string }) =>

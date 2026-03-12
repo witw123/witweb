@@ -1,3 +1,16 @@
+/**
+ * DashboardPage - 管理后台仪表盘页面组件
+ *
+ * 展示系统概览统计数据和趋势图表，包括：
+ * - 总用户数、总文章数、已发布文章数、草稿数
+ * - 7天/30天趋势数据（新增用户、新增发文、活跃用户、消息量）
+ * - 趋势折线图可视化
+ * - 快捷操作入口
+ *
+ * @component
+ * @example
+ * <DashboardPage />
+ */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
