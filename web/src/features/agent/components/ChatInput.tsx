@@ -1,16 +1,24 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AGENT_INPUT_TEXT, createAgentThinkingStages, upsertAgentThinkingStage } from "@/features/agent/constants";
-import { getErrorMessage, isApiClientError, post } from "@/lib/api-client";
-import { getVersionedApiPath } from "@/lib/api-version";
 import type {
+  AgentAttachment,
   AgentConversationDto,
   AgentConversationMessage,
-  AgentReplyMeta,
   AgentConversationSummary,
+  AgentReplyMeta,
 } from "@/features/agent/types";
+import { AGENT_INPUT_TEXT, createAgentThinkingStages, upsertAgentThinkingStage } from "@/features/agent/constants";
+import { uploadAgentAttachmentRequest } from "@/lib/agent-attachment-client";
+import {
+  AGENT_ATTACHMENT_ACCEPT,
+  AGENT_ATTACHMENT_LIMIT,
+  buildAgentAttachmentFallbackMessage,
+  inferAgentAttachmentKind,
+} from "@/lib/agent-attachment-utils";
+import { getErrorMessage, isApiClientError, post } from "@/lib/api-client";
+import { getVersionedApiPath } from "@/lib/api-version";
 
 interface ChatInputProps {
   conversationId?: string | null;
@@ -30,6 +38,11 @@ interface OptimisticSnapshot {
   previousConversations?: AgentConversationSummary[];
 }
 
+interface PendingAttachment extends AgentAttachment {
+  local_status: "uploading" | "uploaded" | "failed";
+  error?: string;
+}
+
 type ConversationStreamDonePayload = {
   conversation: AgentConversationDto["conversation"];
   user_message: AgentConversationMessage;
@@ -45,6 +58,10 @@ const taskTypeOptions = [
   { value: "publish_draft", label: "发布草稿" },
 ] as const;
 
+function buildAttachmentDisplayContent(attachments: AgentAttachment[]) {
+  return buildAgentAttachmentFallbackMessage(attachments);
+}
+
 export function ChatInput({
   conversationId,
   onConversationReady,
@@ -56,10 +73,19 @@ export function ChatInput({
 }: ChatInputProps) {
   const [errorMsg, setErrorMsg] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const optimisticSnapshotRef = useRef<OptimisticSnapshot | null>(null);
   const queryClient = useQueryClient();
+
+  const uploadedAttachments = attachments
+    .filter((item) => item.local_status === "uploaded")
+    .map<AgentAttachment>(({ local_status: _localStatus, error: _error, ...attachment }) => attachment);
+  const isUploadingAttachment = attachments.some((item) => item.local_status === "uploading");
+  const optimisticDisplayContent = goal.trim() || buildAttachmentDisplayContent(uploadedAttachments);
+  const canSubmit = Boolean(optimisticDisplayContent) && !isUploadingAttachment && !disabled;
 
   const updateOptimisticThinking = (
     nextConversationId: string,
@@ -85,17 +111,80 @@ export function ChatInput({
     );
   };
 
+  const handleAttachmentUpload = async (files: FileList | null) => {
+    if (!files?.length) return;
+
+    const incoming = Array.from(files);
+    const availableSlots = AGENT_ATTACHMENT_LIMIT - attachments.length;
+    if (availableSlots <= 0) {
+      setErrorMsg(`最多只能上传 ${AGENT_ATTACHMENT_LIMIT} 个附件。`);
+      return;
+    }
+
+    const selected = incoming.slice(0, availableSlots);
+    setErrorMsg(selected.length < incoming.length ? `最多只能上传 ${AGENT_ATTACHMENT_LIMIT} 个附件。` : "");
+
+    const pendingItems = selected.map<PendingAttachment>((file) => ({
+      id: `local-att-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`,
+      name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      url: "",
+      size: file.size,
+      kind: inferAgentAttachmentKind(file.type || ""),
+      local_status: "uploading",
+    }));
+
+    setAttachments((current) => [...current, ...pendingItems]);
+
+    await Promise.all(
+      selected.map(async (file, index) => {
+        const pendingId = pendingItems[index].id;
+        try {
+          const uploaded = await uploadAgentAttachmentRequest(file);
+          setAttachments((current) =>
+            current.map((item) =>
+              item.id === pendingId
+                ? {
+                    ...uploaded,
+                    local_status: "uploaded",
+                  }
+                : item
+            )
+          );
+        } catch (error) {
+          setAttachments((current) =>
+            current.map((item) =>
+              item.id === pendingId
+                ? {
+                    ...item,
+                    local_status: "failed",
+                    error: getErrorMessage(error),
+                  }
+                : item
+            )
+          );
+          setErrorMsg(getErrorMessage(error));
+        }
+      })
+    );
+  };
+
+  const handleRemoveAttachment = (attachmentId: string) => {
+    setAttachments((current) => current.filter((item) => item.id !== attachmentId));
+  };
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       const userContent = goal.trim();
       const now = new Date().toISOString();
       const optimisticToken = Date.now().toString(36);
+      const userMessageContent = userContent || buildAttachmentDisplayContent(uploadedAttachments);
       let activeConversationId = conversationId;
       let baseConversation: AgentConversationSummary | null = null;
 
       if (!activeConversationId) {
         const created = await post<AgentConversationDto>(getVersionedApiPath("/agent/conversations"), {
-          title: userContent.slice(0, 24),
+          title: userMessageContent.slice(0, 24),
         });
         activeConversationId = created.conversation.id;
         baseConversation = created.conversation;
@@ -114,9 +203,10 @@ export function ChatInput({
         id: `local-user-${optimisticToken}`,
         conversation_id: activeConversationId,
         role: "user",
-        content: userContent,
+        content: userMessageContent,
         goal_id: null,
         created_at: now,
+        meta: uploadedAttachments.length > 0 ? { attachments: uploadedAttachments } : undefined,
       };
       const optimisticAssistantMessage: AgentConversationMessage = {
         id: `local-assistant-${optimisticToken}`,
@@ -141,8 +231,8 @@ export function ChatInput({
             current?.conversation ||
             baseConversation || {
               id: activeConversationId,
-              title: userContent.slice(0, 24),
-              last_message_preview: userContent,
+              title: userMessageContent.slice(0, 24),
+              last_message_preview: userMessageContent,
               status: "active",
               created_at: now,
               updated_at: now,
@@ -151,8 +241,8 @@ export function ChatInput({
           return {
             conversation: {
               ...currentConversation,
-              title: currentConversation.title || userContent.slice(0, 24),
-              last_message_preview: userContent,
+              title: currentConversation.title || userMessageContent.slice(0, 24),
+              last_message_preview: userMessageContent,
               updated_at: now,
             },
             messages: [...(current?.messages || []), optimisticUserMessage, optimisticAssistantMessage],
@@ -167,14 +257,14 @@ export function ChatInput({
         const nextSummary: AgentConversationSummary = {
           ...(baseConversation || previousConversation?.conversation || {
             id: activeConversationId,
-            title: userContent.slice(0, 24),
+            title: userMessageContent.slice(0, 24),
             status: "active",
             created_at: now,
             updated_at: now,
-            last_message_preview: userContent,
+            last_message_preview: userMessageContent,
           }),
-          title: (baseConversation || previousConversation?.conversation)?.title || userContent.slice(0, 24),
-          last_message_preview: userContent,
+          title: (baseConversation || previousConversation?.conversation)?.title || userMessageContent.slice(0, 24),
+          last_message_preview: userMessageContent,
           updated_at: now,
         };
 
@@ -203,6 +293,7 @@ export function ChatInput({
         body: JSON.stringify({
           content: userContent,
           task_type: showAdvanced ? taskType || undefined : undefined,
+          attachments: uploadedAttachments,
         }),
         signal: controller.signal,
       });
@@ -297,6 +388,7 @@ export function ChatInput({
       abortControllerRef.current = null;
       optimisticSnapshotRef.current = null;
       onGoalChange("");
+      setAttachments([]);
       setErrorMsg("");
       queryClient.setQueryData<AgentConversationDto>(["agent-conversations", nextConversationId, "detail"], (current) => {
         if (!current) {
@@ -327,7 +419,7 @@ export function ChatInput({
           }),
           goals: data.goals
             ? [
-                ...current.goals.filter((item) => !data.goals!.some((goal) => goal.goal.id === item.goal.id)),
+                ...current.goals.filter((item) => !data.goals!.some((goalItem) => goalItem.goal.id === item.goal.id)),
                 ...data.goals,
               ]
             : current.goals,
@@ -412,7 +504,7 @@ export function ChatInput({
   });
 
   const handleSubmit = () => {
-    if (!goal.trim() || submitMutation.isPending || disabled) return;
+    if (!canSubmit || submitMutation.isPending) return;
     submitMutation.mutate();
   };
 
@@ -437,6 +529,46 @@ export function ChatInput({
   return (
     <div className="agent-input-container">
       <div className="agent-input-box">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={AGENT_ATTACHMENT_ACCEPT}
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            void handleAttachmentUpload(event.target.files);
+            event.currentTarget.value = "";
+          }}
+        />
+
+        {attachments.length > 0 ? (
+          <div className="agent-attachment-list">
+            {attachments.map((attachment) => (
+              <div key={attachment.id} className={`agent-attachment-chip is-${attachment.local_status}`}>
+                <div className="agent-attachment-chip__body">
+                  <span className="agent-attachment-chip__name">{attachment.name}</span>
+                  <span className="agent-attachment-chip__meta">
+                    {attachment.local_status === "uploading"
+                      ? "上传中..."
+                      : attachment.local_status === "failed"
+                        ? attachment.error || "上传失败"
+                        : attachment.mime_type}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="agent-attachment-chip__remove"
+                  onClick={() => handleRemoveAttachment(attachment.id)}
+                  disabled={submitMutation.isPending}
+                  aria-label={`移除附件 ${attachment.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <textarea
           ref={textareaRef}
           className="agent-textarea custom-scrollbar"
@@ -456,19 +588,30 @@ export function ChatInput({
         {errorMsg ? <div className="mt-1 px-2 text-xs text-red-500">{errorMsg}</div> : null}
 
         <div className="agent-input-actions">
-          <button
-            type="button"
-            className={`agent-advanced-toggle ${showAdvanced ? "active" : ""}`}
-            onClick={() => setShowAdvanced((value) => !value)}
-            disabled={submitMutation.isPending || disabled}
-          >
-            {showAdvanced ? AGENT_INPUT_TEXT.advancedOpen : AGENT_INPUT_TEXT.advancedClosed}
-          </button>
+          <div className="agent-input-actions__left">
+            <button
+              type="button"
+              className="agent-attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={submitMutation.isPending || disabled || attachments.length >= AGENT_ATTACHMENT_LIMIT}
+            >
+              添加附件
+            </button>
+
+            <button
+              type="button"
+              className={`agent-advanced-toggle ${showAdvanced ? "active" : ""}`}
+              onClick={() => setShowAdvanced((value) => !value)}
+              disabled={submitMutation.isPending || disabled}
+            >
+              {showAdvanced ? AGENT_INPUT_TEXT.advancedOpen : AGENT_INPUT_TEXT.advancedClosed}
+            </button>
+          </div>
 
           <button
             className={`agent-send-btn ${submitMutation.isPending ? "is-stop" : ""}`}
             onClick={submitMutation.isPending ? handleStop : handleSubmit}
-            disabled={submitMutation.isPending ? false : !goal.trim() || disabled}
+            disabled={submitMutation.isPending ? false : !canSubmit}
             title={submitMutation.isPending ? AGENT_INPUT_TEXT.stopTitle : AGENT_INPUT_TEXT.sendTitle}
             type="button"
           >

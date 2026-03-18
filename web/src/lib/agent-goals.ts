@@ -1,6 +1,7 @@
 ﻿import "server-only";
 
 import { randomUUID } from "crypto";
+import type { AgentAttachment, AgentGalleryItem } from "@/features/agent/types";
 import type { AgentTimelineEvent } from "@/features/agent/timeline";
 import { sortAgentTimelineEvents } from "@/features/agent/timeline";
 import { getRagMemoryContext } from "@/lib/agent-memory";
@@ -16,7 +17,7 @@ import {
   isLangChainRagEnabled,
   retrieveKnowledgeContextWithLangChain,
 } from "@/lib/rag/langchain-rag";
-import { agentPlatformRepository } from "@/lib/repositories";
+import { agentPlatformRepository, type AgentGoalStepRow } from "@/lib/repositories";
 import { publicProfile } from "@/lib/user";
 import { z } from "@/lib/validate";
 
@@ -67,6 +68,8 @@ type StoredPlan = {
   template_id?: string | null;
   summary: string;
   steps: PlannedStep[];
+  attachments?: AgentAttachment[];
+  attachment_context?: string;
   knowledge_context?: Array<{
     title: string;
     content: string;
@@ -95,11 +98,17 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function emitGoalEvent(onEvent: GoalEventReporter | undefined, event: Omit<AgentTimelineEvent, "id">) {
-  return onEvent?.({
+function emitGoalEvent(
+  onEvent: GoalEventReporter | undefined,
+  event: Omit<AgentTimelineEvent, "id">,
+  collector?: AgentTimelineEvent[]
+) {
+  const hydratedEvent: AgentTimelineEvent = {
     id: `${event.kind}_${event.goal_id || "global"}_${event.step_key || event.approval_id || Date.now()}`,
     ...event,
-  });
+  };
+  collector?.push(hydratedEvent);
+  return onEvent?.(hydratedEvent);
 }
 
 function buildGoalStatusEvent(goalId: string, status: string, detail: string, createdAt = nowIso()): AgentTimelineEvent {
@@ -152,10 +161,109 @@ function parseJson<T>(raw: string, fallback: T): T {
   }
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readTagList(value: unknown) {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => readString(item)).filter(Boolean))];
+  }
+  if (typeof value === "string") {
+    return [...new Set(value.split(/[,，]/).map((item) => item.trim()).filter(Boolean))];
+  }
+  return [] as string[];
+}
+
+function previewUnknown(value: unknown, max = 220) {
+  const text =
+    typeof value === "string"
+      ? value.trim()
+      : JSON.stringify(value ?? {}, null, 0);
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (!compact) return "";
+  return compact.length > max ? `${compact.slice(0, max)}...` : compact;
+}
+
 function withoutDisabledVideoSteps(steps: PlannedStep[]) {
   return AGENT_VIDEO_GENERATION_DISABLED
     ? steps.filter((step) => step.tool_name !== "video.generate")
     : steps;
+}
+
+function needsPublicWebContext(taskType: ContentTaskType, goal: string) {
+  if (taskType === "hot_topic_article") return true;
+  const normalized = goal.trim().toLowerCase();
+  return [
+    "latest",
+    "recent",
+    "current",
+    "news",
+    "trend",
+    "today",
+    "最新",
+    "最近",
+    "近期",
+    "新闻",
+    "趋势",
+    "热点",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function buildFileReadStep(attachments: AgentAttachment[]): PlannedStep | null {
+  if (attachments.length === 0) return null;
+  return {
+    step_key: "read_attachments",
+    kind: "tool",
+    title: "Read uploaded attachments",
+    tool_name: "file.read",
+    rationale: "Read user-uploaded files first so planning and drafting can reuse attachment context.",
+    status: "planned",
+    input: { limit: Math.min(attachments.length, 4) },
+  };
+}
+
+function buildWebSearchStep(goal: string): PlannedStep {
+  return {
+    step_key: "search_web",
+    kind: "tool",
+    title: "Search public web",
+    tool_name: "web.search",
+    rationale: "Gather current public web references before planning or drafting.",
+    status: "planned",
+    input: { query: goal, limit: 5 },
+  };
+}
+
+function ensureContextualReadSteps(
+  steps: PlannedStep[],
+  taskType: ContentTaskType,
+  goal: string,
+  attachments: AgentAttachment[]
+) {
+  const nextSteps = [...steps];
+
+  if (attachments.length > 0 && !nextSteps.some((step) => step.tool_name === "file.read")) {
+    const fileReadStep = buildFileReadStep(attachments);
+    if (fileReadStep) {
+      nextSteps.unshift(fileReadStep);
+    }
+  }
+
+  if (needsPublicWebContext(taskType, goal) && !nextSteps.some((step) => step.tool_name === "web.search")) {
+    const webSearchStep = buildWebSearchStep(goal);
+    const readProfileIndex = nextSteps.findIndex((step) => step.tool_name === "profile.read");
+    const insertAt = readProfileIndex >= 0 ? readProfileIndex + 1 : attachments.length > 0 ? 1 : 0;
+    nextSteps.splice(insertAt, 0, webSearchStep);
+  }
+
+  return nextSteps;
 }
 
 function hasExplicitExecutionIntent(goal: string) {
@@ -224,12 +332,17 @@ function inferTaskType(goal: string, inputTaskType?: ContentTaskType): ContentTa
   return "hot_topic_article";
 }
 
-function buildTaskFallbackPlan(taskType: ContentTaskType, executionMode: GoalExecutionMode, goal: string): PlannedStep[] {
+function buildTaskFallbackPlan(
+  taskType: ContentTaskType,
+  executionMode: GoalExecutionMode,
+  goal: string,
+  attachments: AgentAttachment[] = []
+): PlannedStep[] {
   const publishApproval = executionMode === "confirm";
 
   switch (taskType) {
     case "continue_article":
-      return withoutDisabledVideoSteps([
+      return ensureContextualReadSteps(withoutDisabledVideoSteps([
         {
           step_key: "read_profile",
           kind: "tool",
@@ -266,9 +379,9 @@ function buildTaskFallbackPlan(taskType: ContentTaskType, executionMode: GoalExe
           risk_level: "publish_or_send",
           input: { status: "draft" },
         },
-      ]);
+      ]), taskType, goal, attachments);
     case "article_to_video":
-      return withoutDisabledVideoSteps([
+      return ensureContextualReadSteps(withoutDisabledVideoSteps([
         {
           step_key: "read_profile",
           kind: "tool",
@@ -297,9 +410,9 @@ function buildTaskFallbackPlan(taskType: ContentTaskType, executionMode: GoalExe
           risk_level: "publish_or_send",
           input: { duration: 10, aspectRatio: "9:16" },
         },
-      ]);
+      ]), taskType, goal, attachments);
     case "publish_draft":
-      return withoutDisabledVideoSteps([
+      return ensureContextualReadSteps(withoutDisabledVideoSteps([
         {
           step_key: "read_profile",
           kind: "tool",
@@ -328,10 +441,10 @@ function buildTaskFallbackPlan(taskType: ContentTaskType, executionMode: GoalExe
           risk_level: "publish_or_send",
           input: { status: "draft" },
         },
-      ]);
+      ]), taskType, goal, attachments);
     case "hot_topic_article":
     default:
-      return withoutDisabledVideoSteps([
+      return ensureContextualReadSteps(withoutDisabledVideoSteps([
         {
           step_key: "read_profile",
           kind: "tool",
@@ -380,7 +493,7 @@ function buildTaskFallbackPlan(taskType: ContentTaskType, executionMode: GoalExe
           risk_level: "publish_or_send",
           input: { duration: 10, aspectRatio: "9:16" },
         },
-      ]);
+      ]), taskType, goal, attachments);
   }
 }
 export function inferAutonomousTaskType(goal: string, inputTaskType?: ContentTaskType): ContentTaskType {
@@ -449,10 +562,11 @@ export function inferAutonomousTaskType(goal: string, inputTaskType?: ContentTas
 function buildAutonomousFallbackPlan(
   taskType: ContentTaskType,
   executionMode: GoalExecutionMode,
-  goal: string
+  goal: string,
+  attachments: AgentAttachment[] = []
 ): PlannedStep[] {
   if (taskType === "general_assistant") {
-    return [
+    return ensureContextualReadSteps([
       {
         step_key: "reply_directly",
         kind: "llm",
@@ -461,10 +575,10 @@ function buildAutonomousFallbackPlan(
         status: "planned",
         input: { mode: "general_assistant" },
       },
-    ];
+    ], taskType, goal, attachments);
   }
 
-  return buildTaskFallbackPlan(taskType, executionMode, goal);
+  return buildTaskFallbackPlan(taskType, executionMode, goal, attachments);
 }
 
 function isWritingTaskType(taskType: ContentTaskType) {
@@ -475,11 +589,12 @@ function ensureWritingPlanSteps(
   steps: PlannedStep[],
   taskType: ContentTaskType,
   executionMode: GoalExecutionMode,
-  goal: string
+  goal: string,
+  attachments: AgentAttachment[] = []
 ) {
   if (!isWritingTaskType(taskType)) return steps;
 
-  const fallbackSteps = buildAutonomousFallbackPlan(taskType, executionMode, goal);
+  const fallbackSteps = buildAutonomousFallbackPlan(taskType, executionMode, goal, attachments);
   const hasCompose = steps.some((step) => step.step_key === "compose_content" || step.kind === "llm");
   const hasCreatePost = steps.some((step) => step.step_key === "create_post" || step.tool_name === "blog.create_post");
   const nextSteps = [...steps];
@@ -503,7 +618,7 @@ function ensureWritingPlanSteps(
     }
   }
 
-  return nextSteps;
+  return ensureContextualReadSteps(nextSteps, taskType, goal, attachments);
 }
 
 function sanitizePlannerStep(
@@ -545,15 +660,21 @@ async function buildPlannerPlan(
   goal: string,
   taskType: ContentTaskType,
   executionMode: GoalExecutionMode,
-  templateId?: string
+  input?: {
+    templateId?: string;
+    attachments?: AgentAttachment[];
+    attachmentContext?: string;
+  }
 ): Promise<StoredPlan> {
+  const attachments = input?.attachments || [];
+  const attachmentContext = input?.attachmentContext || "";
   const toolRegistry = listAgentTools().filter((tool) =>
     AGENT_VIDEO_GENERATION_DISABLED ? tool.name !== "video.generate" : true
   );
   const model = getModelDescriptor();
   const resolvedModel = await resolveApiConfig("agent_llm");
   const profile = await publicProfile(username, username);
-  const template = templateId ? await getPromptTemplate(username, templateId) : null;
+  const template = input?.templateId ? await getPromptTemplate(username, input.templateId) : null;
   const knowledge = await searchKnowledge(username, { query: goal, limit: 3 }).catch(() => ({
     items: [],
     rewritten_query: goal,
@@ -564,9 +685,11 @@ async function buildPlannerPlan(
     return {
       model: resolvedModel?.model || model.id,
       task_type: taskType,
-      template_id: templateId || null,
+      template_id: input?.templateId || null,
       summary: "Use a direct conversational reply for this goal.",
-      steps: buildAutonomousFallbackPlan(taskType, executionMode, goal),
+      steps: buildAutonomousFallbackPlan(taskType, executionMode, goal, attachments),
+      attachments,
+      attachment_context: attachmentContext,
       knowledge_context: knowledge.items.map((item) => ({
         title: item.title,
         content: item.content,
@@ -579,9 +702,11 @@ async function buildPlannerPlan(
     return {
       model: model.id,
       task_type: taskType,
-      template_id: templateId || null,
+      template_id: input?.templateId || null,
       summary: "Using product-task fallback plan because no model is configured.",
-      steps: buildAutonomousFallbackPlan(taskType, executionMode, goal),
+      steps: buildAutonomousFallbackPlan(taskType, executionMode, goal, attachments),
+      attachments,
+      attachment_context: attachmentContext,
       knowledge_context: knowledge.items.map((item) => ({
         title: item.title,
         content: item.content,
@@ -610,6 +735,8 @@ async function buildPlannerPlan(
           `Tools JSON: ${JSON.stringify(toolRegistry)}`,
           `User profile JSON: ${JSON.stringify(profile || {})}`,
           `Knowledge JSON: ${JSON.stringify(knowledge.items)}`,
+          attachments.length ? `Attachments JSON: ${JSON.stringify(attachments)}` : "",
+          attachmentContext ? `Attachment context:\n${attachmentContext}` : "",
           template?.task_prompt ? `Template task prompt:\n${template.task_prompt}` : "",
           "Choose the smallest effective set of tools for the user's goal. Prefer read tools first, then analysis, then drafting, then write actions if needed.",
           "Do not assume every goal needs a blog draft. Only choose write tools when they help complete the user's request.",
@@ -619,13 +746,19 @@ async function buildPlannerPlan(
       (value) => plannerResponseSchema.parse(value)
     );
 
-    const steps = ensureWritingPlanSteps(
-      response.parsed.steps
-        .map((item) => sanitizePlannerStep(item, executionMode))
-        .filter((item): item is PlannedStep => Boolean(item)),
+    const steps = ensureContextualReadSteps(
+      ensureWritingPlanSteps(
+        response.parsed.steps
+          .map((item) => sanitizePlannerStep(item, executionMode))
+          .filter((item): item is PlannedStep => Boolean(item)),
+        taskType,
+        executionMode,
+        goal,
+        attachments
+      ),
       taskType,
-      executionMode,
-      goal
+      goal,
+      attachments
     );
 
     if (steps.length === 0) {
@@ -635,9 +768,11 @@ async function buildPlannerPlan(
     return {
       model: response.model.id,
       task_type: taskType,
-      template_id: templateId || null,
+      template_id: input?.templateId || null,
       summary: response.parsed.summary,
       steps,
+      attachments,
+      attachment_context: attachmentContext,
       knowledge_context: knowledge.items.map((item) => ({
         title: item.title,
         content: item.content,
@@ -648,9 +783,11 @@ async function buildPlannerPlan(
     return {
       model: resolvedModel?.model || model.id,
       task_type: taskType,
-      template_id: templateId || null,
+      template_id: input?.templateId || null,
       summary: "Planner fell back to the fixed creator workflow.",
-      steps: buildAutonomousFallbackPlan(taskType, executionMode, goal),
+      steps: buildAutonomousFallbackPlan(taskType, executionMode, goal, attachments),
+      attachments,
+      attachment_context: attachmentContext,
       knowledge_context: knowledge.items.map((item) => ({
         title: item.title,
         content: item.content,
@@ -660,12 +797,65 @@ async function buildPlannerPlan(
   }
 }
 
+function buildCompletedToolContext(plan: StoredPlan, goalSteps: AgentGoalStepRow[]) {
+  const planStepMap = new Map(plan.steps.map((step) => [step.step_key, step]));
+  const blocks: string[] = [];
+
+  for (const step of goalSteps) {
+    if (step.status !== "done") continue;
+    const plannedStep = planStepMap.get(step.step_key);
+    if (!plannedStep || plannedStep.kind !== "tool" || !plannedStep.tool_name) continue;
+
+    const parsedOutput = asRecord(parseJson(step.output_json, {}));
+    const result = asRecord(parsedOutput?.result) || parsedOutput;
+
+    if (plannedStep.tool_name === "file.read") {
+      const items = Array.isArray(result?.items) ? result.items : [];
+      const summaries = items
+        .map((item) => asRecord(item))
+        .filter(Boolean)
+        .map((item) => {
+          const name = readString(item?.name);
+          const excerpt = readString(item?.content_excerpt);
+          return excerpt ? `- ${name}: ${excerpt}` : name ? `- ${name}: metadata only` : "";
+        })
+        .filter(Boolean);
+
+      if (summaries.length > 0) {
+        blocks.push(`Attachment reads:\n${summaries.join("\n")}`);
+      }
+    }
+
+    if (plannedStep.tool_name === "web.search") {
+      const items = Array.isArray(result?.items) ? result.items : [];
+      const summaries = items
+        .map((item) => asRecord(item))
+        .filter(Boolean)
+        .map((item) => {
+          const title = readString(item?.title);
+          const snippet = readString(item?.snippet);
+          const url = readString(item?.url);
+          const line = [title, snippet].filter(Boolean).join(": ");
+          return line ? `- ${line}${url ? ` (${url})` : ""}` : "";
+        })
+        .filter(Boolean);
+
+      if (summaries.length > 0) {
+        blocks.push(`Public web references:\n${summaries.join("\n")}`);
+      }
+    }
+  }
+
+  return blocks.join("\n\n");
+}
+
 async function synthesizeDraft(
   username: string,
   goal: string,
   plan: StoredPlan,
   templateId?: string,
-  conversationId?: string | null
+  conversationId?: string | null,
+  goalId?: string
 ): Promise<DraftBundle> {
   const template = templateId ? await getPromptTemplate(username, templateId) : null;
   const memoryContext = await getRagMemoryContext(username, conversationId).catch(() => ({
@@ -675,9 +865,12 @@ async function synthesizeDraft(
   }));
   const legacyReferences = (plan.knowledge_context || []).map((item) => ({
     title: item.title,
-    content: item.content,
-    citation: item.citation,
-  }));
+      content: item.content,
+      citation: item.citation,
+    }));
+  const completedToolContext = goalId
+    ? buildCompletedToolContext(plan, await agentPlatformRepository.getGoalSteps(goalId).catch(() => []))
+    : "";
   const ragRetrieval = isLangChainRagEnabled()
     ? await retrieveKnowledgeContextWithLangChain({
         username,
@@ -710,6 +903,8 @@ async function synthesizeDraft(
     memoryContext.longTermMemories.length
       ? `Long-term memory:\n${memoryContext.longTermMemories.map((item) => `- ${item.key}: ${item.value}`).join("\n")}`
       : "",
+    plan.attachment_context ? `Attachment context:\n${plan.attachment_context}` : "",
+    completedToolContext,
     goal,
     referenceBlock,
   ].filter(Boolean).join("\n\n");
@@ -814,7 +1009,7 @@ async function resolveStepInput(
 ) {
   if (step.step_key === "create_post") {
     const draft =
-      draftCache || (await synthesizeDraft(username, goal, plan, plan.template_id || undefined, conversationId));
+      draftCache || (await synthesizeDraft(username, goal, plan, plan.template_id || undefined, conversationId, goalId));
     return {
       ...step.input,
       title: draft.title,
@@ -827,10 +1022,29 @@ async function resolveStepInput(
 
   if (step.step_key === "create_video") {
     const draft =
-      draftCache || (await synthesizeDraft(username, goal, plan, plan.template_id || undefined, conversationId));
+      draftCache || (await synthesizeDraft(username, goal, plan, plan.template_id || undefined, conversationId, goalId));
     return {
       ...step.input,
       prompt: draft.videoPrompt || draft.coverPrompt || goal,
+    };
+  }
+
+  if (step.tool_name === "file.read") {
+    return {
+      ...step.input,
+      attachments: plan.attachments || [],
+      limit:
+        typeof step.input.limit === "number"
+          ? step.input.limit
+          : Math.min((plan.attachments || []).length || 1, 4),
+    };
+  }
+
+  if (step.tool_name === "web.search") {
+    return {
+      ...step.input,
+      query: readString(step.input.query) || goal,
+      limit: typeof step.input.limit === "number" ? step.input.limit : 5,
     };
   }
 
@@ -852,13 +1066,19 @@ export async function createAgentGoal(
     executionMode?: GoalExecutionMode;
     templateId?: string;
     taskType?: ContentTaskType;
+    attachments?: AgentAttachment[];
+    attachmentContext?: string;
   }
 ) {
   const goalId = `goal_${randomUUID().replace(/-/g, "")}`;
   const ts = nowIso();
   const executionMode = input.executionMode || "confirm";
   const taskType = inferAutonomousTaskType(input.goal, input.taskType);
-  const plan = await buildPlannerPlan(username, input.goal, taskType, executionMode, input.templateId);
+  const plan = await buildPlannerPlan(username, input.goal, taskType, executionMode, {
+    templateId: input.templateId,
+    attachments: input.attachments,
+    attachmentContext: input.attachmentContext,
+  });
   const status = plan.steps.some((step) => step.requires_approval) ? "waiting_approval" : "planned";
 
   await agentPlatformRepository.createGoal({
@@ -955,10 +1175,11 @@ export async function executeAgentGoal(goalId: string, username: string, options
   let waitingApproval = false;
   let hasFailure = false;
   let draftCache: DraftBundle | null = null;
+  const runtimeEvents: AgentTimelineEvent[] = [];
 
   const runningTs = nowIso();
   await agentPlatformRepository.updateGoalStatus(goalId, username, "running", goal.summary, goal.plan_json, runningTs);
-  await emitGoalEvent(options?.onEvent, buildGoalStatusEvent(goalId, "running", "Goal ?????", runningTs));
+  await emitGoalEvent(options?.onEvent, buildGoalStatusEvent(goalId, "running", "Goal 开始执行", runningTs), runtimeEvents);
 
   for (const step of plan.steps) {
     const existing = await agentPlatformRepository.getGoalStepByKey(goalId, step.step_key);
@@ -997,7 +1218,8 @@ export async function executeAgentGoal(goalId: string, username: string, options
           goal.goal,
           plan,
           goal.template_id || undefined,
-          goal.conversation_id || null
+          goal.conversation_id || null,
+          goalId
         );
         const finishedAt = nowIso();
         await agentPlatformRepository.updateGoalStepByKey({
@@ -1010,7 +1232,35 @@ export async function executeAgentGoal(goalId: string, username: string, options
           }),
           finishedAt,
         });
-        await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", "???????", finishedAt));
+        await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", "草稿生成完成", finishedAt), runtimeEvents);
+        if (draftCache?.title) {
+          await emitGoalEvent(
+            options?.onEvent,
+            buildArtifactEvent(goalId, step.step_key, "title", "文章标题", previewUnknown(draftCache.title), finishedAt),
+            runtimeEvents
+          );
+        }
+        if (draftCache?.content) {
+          await emitGoalEvent(
+            options?.onEvent,
+            buildArtifactEvent(goalId, step.step_key, "content", "正文草稿", previewUnknown(draftCache.content), finishedAt),
+            runtimeEvents
+          );
+        }
+        if (draftCache?.coverPrompt) {
+          await emitGoalEvent(
+            options?.onEvent,
+            buildArtifactEvent(goalId, step.step_key, "cover_prompt", "封面提示词", previewUnknown(draftCache.coverPrompt), finishedAt),
+            runtimeEvents
+          );
+        }
+        if (draftCache?.videoPrompt) {
+          await emitGoalEvent(
+            options?.onEvent,
+            buildArtifactEvent(goalId, step.step_key, "video_prompt", "视频脚本 / 提示词", previewUnknown(draftCache.videoPrompt), finishedAt),
+            runtimeEvents
+          );
+        }
         continue;
       }
 
@@ -1027,7 +1277,7 @@ export async function executeAgentGoal(goalId: string, username: string, options
           }),
           finishedAt,
         });
-        await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", "???????", finishedAt));
+        await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", "参考资料准备完成", finishedAt), runtimeEvents);
         continue;
       }
 
@@ -1045,7 +1295,7 @@ export async function executeAgentGoal(goalId: string, username: string, options
             }),
             finishedAt,
           });
-          await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", "?????????????????", finishedAt));
+          await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", "视频生成暂未开放，已保留脚本输出", finishedAt), runtimeEvents);
           continue;
         }
 
@@ -1065,6 +1315,11 @@ export async function executeAgentGoal(goalId: string, username: string, options
             JSON.stringify(inputPayload)
           );
         }
+        await emitGoalEvent(
+          options?.onEvent,
+          buildToolStartEvent(goalId, step, previewUnknown(inputPayload), nowIso()),
+          runtimeEvents
+        );
         const output = await executeAgentTool(username, step.tool_name, inputPayload);
 
         const finishedAt = nowIso();
@@ -1079,7 +1334,26 @@ export async function executeAgentGoal(goalId: string, username: string, options
           }),
           finishedAt,
         });
-        await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", step.tool_name || "??????", finishedAt));
+        await emitGoalEvent(
+          options?.onEvent,
+          buildToolResultEvent(goalId, step, previewUnknown(output), "done", finishedAt),
+          runtimeEvents
+        );
+        await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "done", step.tool_name || "工具执行完成", finishedAt), runtimeEvents);
+        if (step.step_key === "create_post") {
+          await emitGoalEvent(
+            options?.onEvent,
+            buildArtifactEvent(goalId, step.step_key, "post_result", "草稿保存结果", previewUnknown(output), finishedAt),
+            runtimeEvents
+          );
+        }
+        if (step.step_key === "create_video") {
+          await emitGoalEvent(
+            options?.onEvent,
+            buildArtifactEvent(goalId, step.step_key, "video_result", "视频执行结果", previewUnknown(output), finishedAt),
+            runtimeEvents
+          );
+        }
       }
     } catch (error) {
       hasFailure = true;
@@ -1095,7 +1369,14 @@ export async function executeAgentGoal(goalId: string, username: string, options
         }),
         finishedAt: failedAt,
       });
-      await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "failed", errorMessage, failedAt));
+      if (step.kind === "tool" && step.tool_name) {
+        await emitGoalEvent(
+          options?.onEvent,
+          buildToolResultEvent(goalId, step, previewUnknown(errorMessage), "failed", failedAt),
+          runtimeEvents
+        );
+      }
+      await emitGoalEvent(options?.onEvent, buildStepEvent(goalId, step, "failed", errorMessage, failedAt), runtimeEvents);
       break;
     }
   }
@@ -1116,13 +1397,17 @@ export async function executeAgentGoal(goalId: string, username: string, options
     JSON.stringify(plan),
     finishedTs
   );
-  await emitGoalEvent(options?.onEvent, buildGoalStatusEvent(goalId, nextStatus, nextSummary, finishedTs));
+  await emitGoalEvent(options?.onEvent, buildGoalStatusEvent(goalId, nextStatus, nextSummary, finishedTs), runtimeEvents);
 
   const timeline = await getAgentGoalTimeline(goalId, username);
+  const mergedTimeline = {
+    ...timeline,
+    events: sortAgentTimelineEvents([...(timeline.events || []), ...runtimeEvents]),
+  };
   if (goal.conversation_id) {
   const assistantSummary =
       nextStatus === "done"
-        ? extractGoalCompletionContent(timeline, draftCache?.content?.trim().slice(0, 320) || nextSummary)
+        ? extractGoalCompletionContent(mergedTimeline, draftCache?.content?.trim().slice(0, 320) || nextSummary)
         : nextStatus === "waiting_approval"
           ? "我已生成正文草稿，等待你确认后再保存。"
           : "执行中出现错误。你可以修正后继续执行剩余步骤。";
@@ -1149,12 +1434,12 @@ export async function executeAgentGoal(goalId: string, username: string, options
             { key: "goal", title: "规划并执行任务", status: "done" },
           ],
         },
-        timeline_events: timeline.events || [],
+        timeline_events: mergedTimeline.events || [],
       }),
     });
   }
 
-  return timeline;
+  return mergedTimeline;
 }
 
 function buildGoalTimelineEvents(
@@ -1213,6 +1498,160 @@ function extractGoalCompletionContent(
   }
 
   return fallbackSummary;
+}
+
+function extractGoalDeliverable(
+  timeline: Awaited<ReturnType<typeof getAgentGoalTimeline>>
+): Omit<AgentGalleryItem, "goal_id" | "conversation_id" | "task_type" | "status" | "updated_at"> | null {
+  const llmStep = [...timeline.timeline].reverse().find((step) => step.kind === "llm" && step.status === "done");
+  const llmOutput = asRecord(llmStep?.output);
+  const llmSeo = asRecord(llmOutput?.seo);
+
+  const createPostStep = [...timeline.timeline].reverse().find((step) => step.step_key === "create_post" && step.status === "done");
+  const createPostInput = asRecord(createPostStep?.input);
+  const createPostOutput = asRecord(createPostStep?.output);
+  const createPostResult = asRecord(createPostOutput?.result);
+
+  const createVideoStep = [...timeline.timeline].reverse().find((step) => step.step_key === "create_video" && step.status === "done");
+  const createVideoInput = asRecord(createVideoStep?.input);
+
+  const title =
+    readString(llmOutput?.title) ||
+    readString(createPostInput?.title) ||
+    readString(timeline.goal.summary) ||
+    readString(timeline.goal.goal) ||
+    "未命名作品";
+  const content = readString(llmOutput?.content) || readString(createPostInput?.content);
+  const videoPrompt = readString(llmOutput?.videoPrompt) || readString(createVideoInput?.prompt);
+  const coverPrompt = readString(llmOutput?.coverPrompt);
+  const seoTitle = readString(llmSeo?.title);
+  const tags = [...new Set([...readTagList(llmOutput?.tags), ...readTagList(createPostInput?.tags)])];
+  const summary = content || videoPrompt || readString(timeline.goal.summary) || readString(timeline.goal.goal);
+  const hasDeliverable = Boolean(
+    content ||
+    videoPrompt ||
+    coverPrompt ||
+    seoTitle ||
+    tags.length > 0 ||
+    (createPostResult && Object.keys(createPostResult).length > 0)
+  );
+
+  if (!hasDeliverable || !summary) {
+    return null;
+  }
+
+  return {
+    title,
+    summary,
+    tags,
+    source: createPostResult ? "post_draft" : videoPrompt ? "video_prompt" : "goal_timeline",
+    preview: {
+      ...(content ? { content } : {}),
+      ...(seoTitle ? { seo_title: seoTitle } : {}),
+      ...(coverPrompt ? { cover_prompt: coverPrompt } : {}),
+      ...(videoPrompt ? { video_prompt: videoPrompt } : {}),
+    },
+  };
+}
+
+function buildToolStartEvent(
+  goalId: string,
+  step: Pick<PlannedStep, "step_key" | "title" | "tool_name">,
+  inputPreview: string,
+  createdAt = nowIso()
+): AgentTimelineEvent {
+  return {
+    id: `tool_start_${goalId}_${step.step_key}_${createdAt}`,
+    source: "tool",
+    kind: "tool_start",
+    goal_id: goalId,
+    step_key: step.step_key,
+    tool_name: step.tool_name || null,
+    title: step.title,
+    status: "running",
+    detail: step.tool_name || step.title,
+    input_preview: inputPreview,
+    created_at: createdAt,
+  };
+}
+
+function buildToolResultEvent(
+  goalId: string,
+  step: Pick<PlannedStep, "step_key" | "title" | "tool_name">,
+  outputPreview: string,
+  status: "done" | "failed" = "done",
+  createdAt = nowIso()
+): AgentTimelineEvent {
+  return {
+    id: `tool_result_${goalId}_${step.step_key}_${createdAt}`,
+    source: "tool",
+    kind: "tool_result",
+    goal_id: goalId,
+    step_key: step.step_key,
+    tool_name: step.tool_name || null,
+    title: step.title,
+    status,
+    detail: step.tool_name || step.title,
+    output_preview: outputPreview,
+    created_at: createdAt,
+  };
+}
+
+function buildArtifactEvent(
+  goalId: string,
+  stepKey: string,
+  artifactKind: string,
+  title: string,
+  preview: string,
+  createdAt = nowIso()
+): AgentTimelineEvent {
+  return {
+    id: `artifact_${goalId}_${stepKey}_${artifactKind}_${createdAt}`,
+    source: "artifact",
+    kind: "artifact",
+    goal_id: goalId,
+    step_key: stepKey,
+    artifact_kind: artifactKind,
+    artifact_preview: preview,
+    title,
+    status: "done",
+    created_at: createdAt,
+  };
+}
+
+export async function listAgentGoalGalleryItems(
+  username: string,
+  options?: {
+    size?: number;
+    status?: "planned" | "waiting_approval" | "running" | "done" | "failed";
+  }
+): Promise<AgentGalleryItem[]> {
+  const size = Math.max(1, Math.min(48, options?.size || 24));
+  const candidates = await agentPlatformRepository.listGoalsByUser(username, {
+    limit: Math.min(size * 3, 96),
+    status: options?.status,
+  });
+
+  const timelines = await Promise.all(
+    candidates
+      .filter((goal) => goal.task_type !== "general_assistant")
+      .map(async (goal) => {
+        const timeline = await getAgentGoalTimeline(goal.id, username);
+        const deliverable = extractGoalDeliverable(timeline);
+        if (!deliverable) return null;
+
+        return {
+          goal_id: goal.id,
+          conversation_id: goal.conversation_id,
+          task_type: goal.task_type,
+          status: goal.status,
+          updated_at: goal.updated_at,
+          ...deliverable,
+        } satisfies AgentGalleryItem;
+      })
+  );
+
+  return timelines.filter(Boolean).slice(0, size) as AgentGalleryItem[];
 }
 
 export async function getAgentGoalTimeline(goalId: string, username: string) {

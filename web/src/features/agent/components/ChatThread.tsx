@@ -7,6 +7,7 @@ import { useAuth } from "@/app/providers";
 import { get, getErrorMessage, post } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 import type {
+  AgentAttachment,
   AgentCitation,
   AgentConversationDto,
   AgentConversationMessage,
@@ -15,6 +16,7 @@ import type {
   AgentGoalStep,
   AgentGoalTimelineDto,
 } from "@/features/agent/types";
+import { formatAgentAttachmentSize } from "@/lib/agent-attachment-utils";
 import type { AgentTimelineEvent } from "@/features/agent/timeline";
 import { ChatInput } from "./ChatInput";
 
@@ -64,6 +66,18 @@ function statusLabel(status?: string) {
   return status || "--";
 }
 
+function isToolTraceEvent(event: AgentTimelineEvent) {
+  return event.kind === "tool_start" || event.kind === "tool_result";
+}
+
+function isArtifactTraceEvent(event: AgentTimelineEvent) {
+  return event.kind === "artifact";
+}
+
+function getEventPreview(event: AgentTimelineEvent) {
+  return event.output_preview || event.input_preview || event.artifact_preview || event.detail || "";
+}
+
 function getDisplayStepTitle(step: Pick<AgentGoalPlanStep, "step_key" | "title" | "tool_name">) {
   if (step.step_key === "create_video" || step.tool_name === "video.generate") {
     return "生成视频提示词";
@@ -79,6 +93,8 @@ function getToolDisplayName(toolName?: string) {
     "blog.create_post": "保存博客草稿",
     "radar.fetch_and_analyze": "分析近期热点",
     "knowledge.search": "检索知识库",
+    "web.search": "搜索公开网页",
+    "file.read": "读取附件内容",
     "messages.create_draft": "生成私信草稿",
     "messages.send": "发送站内消息",
     "integrations.n8n_dispatch": "触发外部分发",
@@ -172,6 +188,10 @@ function summarizeOutputCards(cards: Array<{ label: string; value: string; tone?
   return `${first.label}: ${preview}`;
 }
 
+function getMessageAttachments(message: AgentConversationMessage) {
+  return Array.isArray(message.meta?.attachments) ? message.meta.attachments : [];
+}
+
 function CitationList({ citations }: { citations: AgentCitation[] }) {
   if (citations.length === 0) return null;
   return (
@@ -197,6 +217,29 @@ function CitationList({ citations }: { citations: AgentCitation[] }) {
   );
 }
 
+function MessageAttachmentList({ attachments }: { attachments: AgentAttachment[] }) {
+  if (attachments.length === 0) return null;
+
+  return (
+    <div className="agent-message-attachments">
+      {attachments.map((attachment) => (
+        <a
+          key={attachment.id}
+          href={attachment.url}
+          target="_blank"
+          rel="noreferrer"
+          className="agent-message-attachment"
+        >
+          <div className="agent-message-attachment__title">{attachment.name}</div>
+          <div className="agent-message-attachment__meta">
+            {attachment.kind === "image" ? "图片" : "文档"} / {formatAgentAttachmentSize(attachment.size)}
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function ThinkPanel({
   message,
   linkedGoal,
@@ -213,6 +256,8 @@ function ThinkPanel({
   const citations = Array.isArray(meta.citations) ? meta.citations : [];
   const thinkingStages = meta.thinking?.stages || [];
   const timelineEvents = Array.isArray(meta.timeline_events) ? meta.timeline_events : [];
+  const toolEvents = timelineEvents.filter(isToolTraceEvent);
+  const artifactEvents = timelineEvents.filter(isArtifactTraceEvent);
   const hasExecution = !!meta.execution_stage || thinkingStages.some((item) => item.key === "goal");
   const hasTimeline = timelineEvents.length > 0;
   const planSteps = linkedGoal?.goal.plan.steps || [];
@@ -273,6 +318,8 @@ function ThinkPanel({
           {typeof meta.knowledge_hit_count === "number" ? <span className="agent-think-chip">{meta.knowledge_hit_count} 条命中</span> : null}
           {typeof meta.citation_count === "number" ? <span className="agent-think-chip">{meta.citation_count} 条引用</span> : null}
           {hasTimeline ? <span className="agent-think-chip">{timelineEvents.length} 条事件</span> : null}
+          {toolEvents.length > 0 ? <span className="agent-think-chip">{toolEvents.length} 次工具调用</span> : null}
+          {artifactEvents.length > 0 ? <span className="agent-think-chip">{artifactEvents.length} 项产物</span> : null}
         </div>
       </summary>
       <div className="agent-think-panel__body">
@@ -441,6 +488,40 @@ function ThinkPanel({
                 <div className="agent-think-section__content">{meta.execution_stage}</div>
               </div>
             ) : null}
+            {toolEvents.length > 0 ? (
+              <div className="agent-think-section">
+                <div className="agent-think-section__label">工具执行</div>
+                <div className="space-y-2">
+                  {toolEvents.map((event) => (
+                    <div key={`tool-${event.id}`} className="rounded-xl bg-white/5 px-3 py-2 text-sm text-zinc-300">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-white">{getToolDisplayName(event.tool_name || event.title)}</div>
+                        <span className={`agent-status-chip is-${event.status}`}>{statusLabel(event.status)}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {event.kind === "tool_start" ? "输入摘要" : "输出摘要"}
+                      </div>
+                      {getEventPreview(event) ? (
+                        <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-zinc-400">{getEventPreview(event)}</pre>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {artifactEvents.length > 0 ? (
+              <div className="agent-think-section">
+                <div className="agent-think-section__label">产物预览</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {artifactEvents.map((event) => (
+                    <article key={`artifact-${event.id}`} className="agent-output-card">
+                      <div className="agent-output-label">{event.title}</div>
+                      <pre className="agent-output-value">{getEventPreview(event) || event.artifact_kind || "无预览"}</pre>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {thinkingStages.length > 0 ? (
               <div className="agent-think-section">
                 <div className="agent-think-section__label">执行轨迹</div>
@@ -501,6 +582,7 @@ function GoalThreadBlock({
 }) {
   const pendingApprovals = goalTimeline.approvals.filter((approval) => approval.status === "pending");
   const completedSteps = goalTimeline.timeline.filter((item) => item.status === "done" || item.status === "failed");
+  const visibleLiveEvents = liveEvents.filter((event) => event.kind !== "approval");
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const primaryApproval = pendingApprovals[0] || null;
 
@@ -616,6 +698,27 @@ function GoalThreadBlock({
               })}
           </div>
         </details>
+      ) : null}
+
+      {visibleLiveEvents.length > 0 && goalTimeline.goal.status !== "done" && goalTimeline.goal.status !== "failed" ? (
+        <div className="agent-think-section">
+          <div className="agent-think-section__label">实时执行</div>
+          <div className="space-y-2">
+            {visibleLiveEvents.map((event) => (
+              <div key={`live-${event.id}`} className="rounded-xl bg-white/5 px-3 py-2 text-sm text-zinc-300">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium text-white">
+                    {event.kind === "artifact" ? event.title : getToolDisplayName(event.tool_name || event.title)}
+                  </div>
+                  <span className={`agent-status-chip is-${event.status}`}>{statusLabel(event.status)}</span>
+                </div>
+                {getEventPreview(event) ? (
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-zinc-400">{getEventPreview(event)}</pre>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -733,11 +836,21 @@ export function ChatThread({
             const trimmed = line.trim();
             if (!trimmed) continue;
             const payload = JSON.parse(trimmed) as
+              | { type: "goal_status"; event: AgentTimelineEvent }
+              | { type: "tool_start"; event: AgentTimelineEvent }
+              | { type: "tool_result"; event: AgentTimelineEvent }
+              | { type: "artifact"; event: AgentTimelineEvent }
               | { type: "timeline"; event: AgentTimelineEvent }
               | { type: "done"; timeline: AgentGoalTimelineDto }
               | { type: "error"; message: string };
 
-            if (payload.type === "timeline") {
+            if (
+              payload.type === "timeline" ||
+              payload.type === "goal_status" ||
+              payload.type === "tool_start" ||
+              payload.type === "tool_result" ||
+              payload.type === "artifact"
+            ) {
               setLiveGoalEvents((current) => ({
                 ...current,
                 [goalId]: [...(current[goalId] || []), payload.event],
@@ -791,10 +904,23 @@ export function ChatThread({
   };
 
   const renderMessageContent = (message: AgentConversationMessage) => {
-    if (message.role === "assistant" && (message.local_status === "pending" || message.local_status === "streaming") && !message.content) {
+    const attachments = getMessageAttachments(message);
+    const hasContent = Boolean(message.content?.trim());
+
+    if (message.role === "assistant" && (message.local_status === "pending" || message.local_status === "streaming") && !hasContent) {
       return null;
     }
-    return <div className="agent-answer-card">{message.content}</div>;
+
+    if (!hasContent && attachments.length === 0) {
+      return null;
+    }
+
+    return (
+      <>
+        {hasContent ? <div className="agent-answer-card">{message.content}</div> : null}
+        <MessageAttachmentList attachments={attachments} />
+      </>
+    );
   };
 
   return (

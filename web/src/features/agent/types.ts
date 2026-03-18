@@ -32,6 +32,19 @@ export interface AgentReplyMeta {
   timeline_events?: AgentTimelineEvent[];
 }
 
+export interface AgentAttachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  url: string;
+  size: number;
+  kind: "image" | "document";
+}
+
+export interface AgentMessageMeta extends AgentReplyMeta {
+  attachments?: AgentAttachment[];
+}
+
 export interface AgentGoalPlanStep {
   step_key: string;
   title: string;
@@ -96,6 +109,24 @@ export interface AgentGoalTimelineDto {
   events?: AgentTimelineEvent[];
 }
 
+export interface AgentGalleryItem {
+  goal_id: string;
+  conversation_id: string | null;
+  task_type: string | null;
+  status: string;
+  updated_at: string;
+  title: string;
+  summary: string;
+  tags: string[];
+  source: "goal_timeline" | "post_draft" | "video_prompt";
+  preview: {
+    content?: string;
+    seo_title?: string;
+    cover_prompt?: string;
+    video_prompt?: string;
+  };
+}
+
 export interface AgentConversationSummary {
   id: string;
   title: string;
@@ -112,7 +143,7 @@ export interface AgentConversationMessage {
   content: string;
   goal_id: string | null;
   created_at: string;
-  meta?: AgentReplyMeta;
+  meta?: AgentMessageMeta;
   local_status?: "pending" | "streaming" | "stopped" | "finalized";
 }
 

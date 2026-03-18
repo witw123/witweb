@@ -364,47 +364,95 @@
 
 ## Agent
 
-### `POST /api/v1/agent/runs`
+### `GET /api/v1/agent/conversations`
 
 用途：
 
-- 创建新的 Agent 任务
+- 获取当前用户的 Agent 会话列表
 
-### `GET /api/v1/agent/runs`
-
-用途：
-
-- 获取当前用户的 Agent run 列表
-
-### `POST /api/v1/agent/runs/stream`
+### `POST /api/v1/agent/conversations`
 
 用途：
 
-- 以流式方式创建 Agent run
+- 创建新的 Agent 会话
 
-### `GET /api/v1/agent/runs/[id]`
-
-用途：
-
-- 获取单个 Agent run 详情
-
-### `DELETE /api/v1/agent/runs/[id]`
+### `GET /api/v1/agent/conversations/[id]`
 
 用途：
 
-- 删除一个 Agent run
+- 获取单个 Agent 会话详情
 
-### `POST /api/v1/agent/runs/[id]/continue`
-
-用途：
-
-- 基于已有 run 继续优化
-
-### `POST /api/v1/agent/runs/[id]/export-to-publish`
+### `DELETE /api/v1/agent/conversations/[id]`
 
 用途：
 
-- 导出到发布页草稿
+- 删除一个 Agent 会话
+
+### `GET /api/v1/agent/conversations/by-goal/[goalId]`
+
+用途：
+
+- 将旧 goal 跳转兼容到对应会话
+
+### `POST /api/v1/agent/conversations/[id]/messages`
+
+用途：
+
+- 向会话追加一条消息
+
+### `POST /api/v1/agent/conversations/[id]/messages/stream`
+
+用途：
+
+- 以流式方式向会话发送消息并接收回复
+
+### `GET /api/v1/agent/goals`
+
+用途：
+
+- 获取 Agent goals 的画廊投影列表
+
+### `POST /api/v1/agent/goals`
+
+用途：
+
+- 创建新的 Agent goal 计划
+
+### `GET /api/v1/agent/goals/[id]/timeline`
+
+用途：
+
+- 获取单个 goal 的时间线、审批和交付状态
+
+### `POST /api/v1/agent/goals/[id]/execute`
+
+用途：
+
+- 执行单个 goal
+
+### `POST /api/v1/agent/goals/[id]/execute/stream`
+
+用途：
+
+- 以流式方式执行单个 goal
+
+### `POST /api/v1/agent/approvals/[id]/approve`
+
+用途：
+
+- 批准高风险 Agent 动作
+
+### `POST /api/v1/agent/approvals/[id]/reject`
+
+用途：
+
+- 拒绝高风险 Agent 动作
+
+### `GET /api/v1/agent/tools`
+
+用途：
+
+- 获取当前 Agent 工具注册表
 
 ### `GET /api/v1/agent/ping`
 

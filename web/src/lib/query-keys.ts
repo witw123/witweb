@@ -34,8 +34,6 @@ export const queryKeys = {
   messageConversations: ["message-conversations"] as const,
   messageNotifications: (type: string) => ["message-notifications", type] as const,
   messageMessages: (conversationId: number | null) => ["message-messages", conversationId] as const,
-  agentRuns: ["agent-runs"] as const,
-  agentRunDetail: (runId: string) => ["agent-run-detail", runId] as const,
   agentGallery: ["agent-gallery"] as const,
   agentGoalTimeline: (goalId: string | null) => ["agent-goal-timeline", goalId || ""] as const,
   agentTools: ["agent-tools"] as const,

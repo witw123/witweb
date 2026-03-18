@@ -463,6 +463,38 @@
   word-break: break-word;
 }
 
+.agent-message-attachments {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-message-attachment {
+  display: block;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.34);
+  text-decoration: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.agent-message-attachment:hover {
+  border-color: rgba(96, 165, 250, 0.34);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.agent-message-attachment__title {
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agent-message-attachment__meta {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
 .agent-meta-deck {
   display: grid;
   gap: 16px;
@@ -614,6 +646,67 @@
   color: #64748b;
 }
 
+.agent-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.agent-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.agent-attachment-chip.is-uploading {
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.agent-attachment-chip.is-failed {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.agent-attachment-chip__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-attachment-chip__name {
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-attachment-chip__meta {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.agent-attachment-chip__remove {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.agent-attachment-chip__remove:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .agent-input-actions {
   display: flex;
   align-items: center;
@@ -621,6 +714,39 @@
   gap: 12px;
   margin-top: 8px;
   padding: 0 8px;
+}
+
+.agent-input-actions__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-attach-btn:hover:not(:disabled) {
+  color: #dbeafe;
+  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.agent-attach-btn:disabled {
+  color: #64748b;
+  background: rgba(15, 23, 42, 0.35);
+  cursor: not-allowed;
 }
 
 .agent-advanced-toggle {
@@ -1512,11 +1638,17 @@
     padding: 0;
   }
 
+  .agent-input-actions__left {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .agent-decision-header {
     flex-direction: column;
     align-items: flex-start;
   }
 
+  .agent-attach-btn,
   .agent-type-selector,
   .agent-advanced-toggle,
   .agent-send-btn {

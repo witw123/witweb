@@ -1,44 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers";
 import { get } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { SubPageHeader } from "@/features/agent/components/SubPageHeader";
-
-type RunListItem = {
-  id: string;
-  goal: string;
-  status: string;
-  model?: string;
-  updated_at: string;
-};
-
-type Artifact = {
-  id: number;
-  kind: "title" | "content" | "tags" | "seo" | "cover_prompt";
-  content: string;
-};
-
-type GalleryItem = {
-  runId: string;
-  title: string;
-  content: string;
-  tags: string;
-  updatedAt: string;
-  model: string;
-};
+import type { AgentGalleryItem } from "@/features/agent/types";
 
 function formatDateTime(value?: string) {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("zh-CN", { hour12: false });
-}
-
-function getArtifactText(artifacts: Artifact[], kind: Artifact["kind"]) {
-  return artifacts.find((item) => item.kind === kind)?.content?.trim() || "";
 }
 
 function excerpt(markdown: string, max = 180) {
@@ -52,54 +27,40 @@ function excerpt(markdown: string, max = 180) {
   return plain.length > max ? `${plain.slice(0, max)}...` : plain;
 }
 
+function taskTypeLabel(taskType?: string | null) {
+  const mapping: Record<string, string> = {
+    hot_topic_article: "热点文章",
+    continue_article: "续写草稿",
+    article_to_video: "视频提示词",
+    publish_draft: "发布草稿",
+  };
+  return taskType ? mapping[taskType] || taskType : "执行结果";
+}
+
+function sourceLabel(source: AgentGalleryItem["source"]) {
+  if (source === "post_draft") return "已保存草稿";
+  if (source === "video_prompt") return "视频提示词";
+  return "执行结果";
+}
+
+function buildThreadHref(item: AgentGalleryItem) {
+  return item.conversation_id
+    ? `/agent?conversationId=${item.conversation_id}`
+    : `/agent?goalId=${item.goal_id}`;
+}
+
 export function AgentGallery() {
   const { isAuthenticated } = useAuth();
 
   const galleryQuery = useQuery({
     queryKey: ["agent-gallery"],
-    queryFn: async () => {
-      const listData = await get<{ items: RunListItem[] }>(
-        `${getVersionedApiPath("/agent/runs")}?page=1&size=30`
-      );
-
-      const runs = (Array.isArray(listData.items) ? listData.items : []).filter(
-        (run) => run.status === "done"
-      );
-
-      const details = await Promise.all(
-        runs.slice(0, 16).map(async (run) => {
-          const detailData = await get<{ artifacts: Artifact[] }>(
-            getVersionedApiPath(`/agent/runs/${run.id}`)
-          );
-          const artifacts = Array.isArray(detailData.artifacts)
-            ? detailData.artifacts
-            : [];
-
-          const title =
-            getArtifactText(artifacts, "title") || run.goal || "未命名作品";
-          const content = getArtifactText(artifacts, "content");
-          const tags = getArtifactText(artifacts, "tags");
-
-          if (!content) return null;
-
-          return {
-            runId: run.id,
-            title,
-            content,
-            tags,
-            updatedAt: run.updated_at,
-            model: run.model || "--",
-          } as GalleryItem;
-        })
-      );
-
-      return details.filter(Boolean) as GalleryItem[];
-    },
+    queryFn: async () =>
+      get<{ items: AgentGalleryItem[] }>(`${getVersionedApiPath("/agent/goals")}?status=done&size=24`),
     enabled: isAuthenticated,
     staleTime: 30 * 1000,
   });
 
-  const items = useMemo(() => galleryQuery.data || [], [galleryQuery.data]);
+  const items = useMemo(() => galleryQuery.data?.items || [], [galleryQuery.data]);
   const error = galleryQuery.error instanceof Error ? "作品库加载失败，请稍后重试" : "";
   const hasItems = items.length > 0;
 
@@ -108,7 +69,7 @@ export function AgentGallery() {
       <div className="p-6 md:p-8 lg:px-12 max-w-7xl mx-auto w-full flex flex-col flex-1 overflow-y-auto custom-scrollbar">
         <SubPageHeader
           title="作品库画廊"
-          description="展示 AI 代理经过计划与执行后最终生成的文章与素材卡片。"
+          description="展示 AI 代理基于 goals / conversations 执行后沉淀的文章草稿与视频提示词。"
           action={
             <button
               type="button"
@@ -134,35 +95,44 @@ export function AgentGallery() {
         {hasItems && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {items.map((item) => (
-              <article
-                key={item.runId}
+              <Link
+                key={item.goal_id}
+                href={buildThreadHref(item)}
                 className="group flex flex-col bg-gradient-to-b from-[#11141c]/90 to-[#0a0c11]/90 border border-white/5 rounded-2xl p-5 gap-4 transition-all duration-300 hover:-translate-y-1 hover:border-[#3882f6]/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] min-h-[260px]"
               >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="bg-[#3882f6]/10 px-2 py-1 rounded border border-[#3882f6]/20 text-[10px] uppercase tracking-wide text-[#a5c6f7]">
+                    {taskTypeLabel(item.task_type)}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">{sourceLabel(item.source)}</span>
+                </div>
+
                 <h4 className="text-[17px] font-bold text-[#f2f5fe] leading-snug line-clamp-2" title={item.title}>
                   {item.title}
                 </h4>
+
                 <p className="text-[13px] leading-relaxed text-[#8896b0] line-clamp-4 flex-1">
-                  {excerpt(item.content)}
+                  {excerpt(item.preview.content || item.preview.video_prompt || item.summary)}
                 </p>
 
                 <div className="flex items-center justify-between text-[11px] text-[#4d5b7a] mt-auto pt-4 border-t border-white/5">
-                  <span className="bg-black/30 px-2 py-1 rounded text-zinc-400">{item.model}</span>
-                  <span>{formatDateTime(item.updatedAt)}</span>
+                  <span className="bg-black/30 px-2 py-1 rounded text-zinc-400">{item.status}</span>
+                  <span>{formatDateTime(item.updated_at)}</span>
                 </div>
 
-                {item.tags && (
+                {item.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-1">
-                    {item.tags.split(',').slice(0, 3).map((tag) => (
+                    {item.tags.slice(0, 3).map((tag) => (
                       <span key={tag} className="px-2 py-0.5 rounded-md bg-[#3882f6]/10 text-[#a5c6f7] text-[10px] whitespace-nowrap border border-[#3882f6]/20">
-                        {tag.trim()}
+                        {tag}
                       </span>
                     ))}
-                    {item.tags.split(',').length > 3 && (
+                    {item.tags.length > 3 && (
                       <span className="px-2 py-0.5 rounded-md bg-zinc-800/50 text-zinc-400 text-[10px]">...</span>
                     )}
                   </div>
                 )}
-              </article>
+              </Link>
             ))}
           </div>
         )}

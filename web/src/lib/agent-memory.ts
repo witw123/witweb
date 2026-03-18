@@ -4,6 +4,12 @@ import { invokeModelJson, invokeModelText } from "@/lib/model-runtime";
 import { agentPlatformRepository } from "@/lib/repositories";
 import { z } from "@/lib/validate";
 
+const MEMORY_WRITE_MIN_CONFIDENCE = 0.6;
+const MEMORY_RECALL_MIN_CONFIDENCE = 0.72;
+const MEMORY_RECALL_LIMIT = 5;
+const MEMORY_RECALL_FETCH_LIMIT = 12;
+const MEMORY_SUMMARY_CHAR_BUDGET = 320;
+
 const memoryExtractionSchema = z.object({
   items: z.array(
     z.object({
@@ -27,6 +33,20 @@ type MemoryContext = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeMemoryKey(key: string) {
+  return key.trim().toLowerCase();
+}
+
+function normalizeMemoryValue(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function truncateMemoryText(value: string, max = MEMORY_SUMMARY_CHAR_BUDGET) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.length > max ? `${trimmed.slice(0, max)}...` : trimmed;
 }
 
 function fallbackExtractMemories(content: string) {
@@ -99,7 +119,11 @@ export async function extractAndPersistUserMemories(username: string, content: s
       value: item.value.trim().slice(0, 300),
       confidence: Math.max(0, Math.min(1, item.confidence)),
     }))
-    .filter((item) => item.key && item.value);
+    .filter((item) => item.key && item.value && item.confidence >= MEMORY_WRITE_MIN_CONFIDENCE)
+    .filter((item, index, list) => {
+      const signature = `${normalizeMemoryKey(item.key)}::${normalizeMemoryValue(item.value)}`;
+      return list.findIndex((candidate) => `${normalizeMemoryKey(candidate.key)}::${normalizeMemoryValue(candidate.value)}` === signature) === index;
+    });
 
   const ts = nowIso();
   for (const item of deduped) {
@@ -175,23 +199,35 @@ export async function updateConversationMemory(username: string, conversationId:
 export async function getRagMemoryContext(username: string, conversationId?: string | null): Promise<MemoryContext> {
   const [conversationMemory, userMemories] = await Promise.all([
     conversationId ? agentPlatformRepository.getConversationMemory(conversationId, username) : Promise.resolve(null),
-    agentPlatformRepository.listUserMemories(username, 8),
+    agentPlatformRepository.listUserMemories(username, MEMORY_RECALL_FETCH_LIMIT),
   ]);
 
+  const longTermMemories = userMemories
+    .filter((item) => item.confidence >= MEMORY_RECALL_MIN_CONFIDENCE)
+    .filter((item, index, list) => {
+      const signature = `${normalizeMemoryKey(item.memory_key)}::${normalizeMemoryValue(item.memory_value)}`;
+      return list.findIndex((candidate) => `${normalizeMemoryKey(candidate.memory_key)}::${normalizeMemoryValue(candidate.memory_value)}` === signature) === index;
+    })
+    .slice(0, MEMORY_RECALL_LIMIT)
+    .map((item) => ({
+      key: item.memory_key,
+      value: truncateMemoryText(item.memory_value, 180),
+      confidence: item.confidence,
+      source: item.source,
+    }));
+
   return {
-    conversationSummary: conversationMemory?.summary || "",
+    conversationSummary: truncateMemoryText(conversationMemory?.summary || ""),
     conversationKeyPoints: (() => {
       try {
-        return JSON.parse(conversationMemory?.key_points_json || "[]") as string[];
+        return (JSON.parse(conversationMemory?.key_points_json || "[]") as string[])
+          .map((item) => truncateMemoryText(String(item), 120))
+          .filter(Boolean)
+          .slice(0, 4);
       } catch {
         return [];
       }
     })(),
-    longTermMemories: userMemories.map((item) => ({
-      key: item.memory_key,
-      value: item.memory_value,
-      confidence: item.confidence,
-      source: item.source,
-    })),
+    longTermMemories,
   };
 }

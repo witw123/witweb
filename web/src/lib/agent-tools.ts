@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { AgentAttachment } from "@/features/agent/types";
+import { readAgentAttachments } from "@/lib/agent-attachments";
 import { createVideoTask } from "@/lib/studio";
 import { syncPostContentLifecycle } from "@/lib/content-sync";
 import { publicProfile } from "@/lib/user";
@@ -12,6 +14,7 @@ import {
 import { generateRadarAnalysis } from "@/lib/agent-llm";
 import { dispatchContentEvent } from "@/lib/integrations/n8n";
 import { searchKnowledge } from "@/lib/knowledge";
+import { searchPublicWeb } from "@/lib/public-web-search";
 import { listRadarItems } from "@/lib/topic-radar";
 
 export type ToolRiskLevel = "read" | "write_draft" | "publish_or_send" | "admin";
@@ -38,6 +41,22 @@ function coerceString(value: unknown, fallback = "") {
 function coerceNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function coerceAttachments(value: unknown) {
+  if (!Array.isArray(value)) return [] as AgentAttachment[];
+  return value.filter((item): item is AgentAttachment => {
+    return Boolean(
+      item &&
+        typeof item === "object" &&
+        typeof (item as AgentAttachment).id === "string" &&
+        typeof (item as AgentAttachment).name === "string" &&
+        typeof (item as AgentAttachment).mime_type === "string" &&
+        typeof (item as AgentAttachment).url === "string" &&
+        typeof (item as AgentAttachment).size === "number" &&
+        ((item as AgentAttachment).kind === "image" || (item as AgentAttachment).kind === "document")
+    );
+  });
 }
 
 function slugify(text: string): string {
@@ -172,6 +191,32 @@ const tools: RegisteredTool[] = [
         query: coerceString(input.query),
         limit: Math.max(1, Math.min(8, coerceNumber(input.limit, 4))),
       }),
+  },
+  {
+    name: "web.search",
+    description: "搜索公开网页结果，补充最新的站外背景信息和参考链接",
+    riskLevel: "read",
+    permissionScope: "web:read",
+    inputSchema: { query: "string", limit: "number?" },
+    outputSchema: { query: "string", source: "string", items: "PublicWebSearchItem[]" },
+    execute: async (username, input) =>
+      searchPublicWeb(username, {
+        query: coerceString(input.query),
+        limit: Math.max(1, Math.min(8, coerceNumber(input.limit, 5))),
+      }),
+  },
+  {
+    name: "file.read",
+    description: "读取当前会话中已上传的附件内容或元数据，用于分析文档和附件上下文",
+    riskLevel: "read",
+    permissionScope: "file:read",
+    inputSchema: { attachments: "AgentAttachment[]", limit: "number?" },
+    outputSchema: { items: "AgentAttachmentReadItem[]" },
+    execute: async (_username, input) => ({
+      items: await readAgentAttachments(coerceAttachments(input.attachments), {
+        limit: Math.max(1, Math.min(8, coerceNumber(input.limit, 4))),
+      }),
+    }),
   },
   {
     name: "video.generate",

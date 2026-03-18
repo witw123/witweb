@@ -47,11 +47,18 @@
 ### Agent
 
 - `/api/v1/agent/ping`
-- `/api/v1/agent/runs`
-- `/api/v1/agent/runs/stream`
-- `/api/v1/agent/runs/[id]`
-- `/api/v1/agent/runs/[id]/continue`
-- `/api/v1/agent/runs/[id]/export-to-publish`
+- `/api/v1/agent/conversations`
+- `/api/v1/agent/conversations/[id]`
+- `/api/v1/agent/conversations/[id]/messages`
+- `/api/v1/agent/conversations/[id]/messages/stream`
+- `/api/v1/agent/conversations/by-goal/[goalId]`
+- `/api/v1/agent/goals`
+- `/api/v1/agent/goals/[id]/timeline`
+- `/api/v1/agent/goals/[id]/execute`
+- `/api/v1/agent/goals/[id]/execute/stream`
+- `/api/v1/agent/approvals/[id]/approve`
+- `/api/v1/agent/approvals/[id]/reject`
+- `/api/v1/agent/tools`
 
 ### Blog
 

@@ -29,7 +29,17 @@
       "Bash(grep -l ^/** d:/code/witweb/web/src/lib/*.ts)",
       "Bash(grep -L \"^\\\\/\\\\*\\\\*\" d:/code/witweb/web/src/lib/*.ts)",
       "Bash(find d:/code/witweb/web/src/lib -name *.ts -type f)",
-      "Bash(git -C \"d:/code/witweb\" status --short)"
+      "Bash(git -C \"d:/code/witweb\" status --short)",
+      "Bash(find d:/code/witweb/web/src -name *.ts -o -name *.tsx)",
+      "Bash(find d:/code/witweb/web/src -name *.ts -exec cat {})",
+      "Bash(2)",
+      "Bash(find d:/code/witweb/web/src -name *.tsx -exec cat {})",
+      "Bash(npm install:*)",
+      "Bash(mkdir -p /d/code/witw_ja/backend/src/main/java/com/witweb)",
+      "Bash(mkdir -p /d/code/witw_ja/backend/src/main/resources)",
+      "Bash(mkdir -p /d/code/witw_ja/backend/src/test/java)",
+      "Bash(mkdir -p /d/code/witw_ja/frontend)",
+      "Read(//d/code/witw_ja/**)"
     ]
   }
 }

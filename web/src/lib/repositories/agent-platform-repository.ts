@@ -408,6 +408,36 @@ class AgentPlatformRepository {
     );
   }
 
+  async listGoalsByUser(
+    username: string,
+    input?: {
+      limit?: number;
+      status?: AgentGoalStatus;
+    }
+  ) {
+    const limit = Math.max(1, Math.min(100, input?.limit || 24));
+
+    if (input?.status) {
+      return await pgQuery<AgentGoalRow>(
+        `SELECT *
+         FROM agent_goals
+         WHERE username = ? AND status = ?
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT ?`,
+        [username, input.status, limit]
+      );
+    }
+
+    return await pgQuery<AgentGoalRow>(
+      `SELECT *
+       FROM agent_goals
+       WHERE username = ?
+       ORDER BY updated_at DESC, created_at DESC
+       LIMIT ?`,
+      [username, limit]
+    );
+  }
+
   async setGoalConversation(goalId: string, username: string, conversationId: string) {
     await pgRun(
       `UPDATE agent_goals

@@ -1,7 +1,7 @@
-import { createAgentGoal } from "@/lib/agent-goals";
+import { createAgentGoal, listAgentGoalGalleryItems } from "@/lib/agent-goals";
 import { successResponse } from "@/lib/api-response";
 import { getAuthUser } from "@/lib/http";
-import { validateBody, z } from "@/lib/validate";
+import { validateBody, validateQuery, z } from "@/lib/validate";
 import { assertAuthenticated, withErrorHandler } from "@/middleware/error-handler";
 
 const bodySchema = z.object({
@@ -12,6 +12,24 @@ const bodySchema = z.object({
   task_type: z
     .enum(["general_assistant", "hot_topic_article", "continue_article", "article_to_video", "publish_draft"])
     .optional(),
+});
+
+const querySchema = z.object({
+  size: z.coerce.number().int().min(1).max(48).default(24),
+  status: z.enum(["planned", "waiting_approval", "running", "done", "failed"]).optional(),
+});
+
+export const GET = withErrorHandler(async (req) => {
+  const user = await getAuthUser();
+  assertAuthenticated(user);
+
+  const query = await validateQuery(req, querySchema);
+  const items = await listAgentGoalGalleryItems(user, {
+    size: query.size,
+    status: query.status,
+  });
+
+  return successResponse({ items });
 });
 
 export const POST = withErrorHandler(async (req) => {

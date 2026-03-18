@@ -17,9 +17,24 @@ export const POST = withErrorHandler(async (_req, context) => {
     async start(controller) {
       const push = (payload: unknown) => controller.enqueue(encoder.encode(streamLine(payload)));
       try {
-        push({ type: "goal_status", status: "running", title: "Goal 开始执行" });
         const timeline = await executeAgentGoal(id, user, {
           onEvent: (event) => {
+            if (event.kind === "goal_status") {
+              push({ type: "goal_status", event });
+              return;
+            }
+            if (event.kind === "tool_start") {
+              push({ type: "tool_start", event });
+              return;
+            }
+            if (event.kind === "tool_result") {
+              push({ type: "tool_result", event });
+              return;
+            }
+            if (event.kind === "artifact") {
+              push({ type: "artifact", event });
+              return;
+            }
             push({ type: "timeline", event });
           },
         });

@@ -7,6 +7,9 @@ import {
   createAgentThinkingStages,
   type AgentThinkingPhaseKey,
 } from "@/features/agent/constants";
+import type { AgentAttachment, AgentMessageMeta } from "@/features/agent/types";
+import { buildAgentAttachmentFallbackMessage } from "@/lib/agent-attachment-utils";
+import { buildAgentAttachmentContext } from "@/lib/agent-attachments";
 import {
   extractAndPersistUserMemories,
   getRagMemoryContext,
@@ -168,7 +171,7 @@ export type AgentConversationIncrementalResult = {
     content: string;
     goal_id: string | null;
     created_at: string;
-    meta?: Record<string, never>;
+    meta?: AgentMessageMeta;
   };
   assistant_message: {
     id: string;
@@ -522,6 +525,7 @@ export async function appendAgentConversationMessage(
     content: string;
     templateId?: string;
     taskType?: ContentTaskType;
+    attachments?: AgentAttachment[];
   },
   options?: {
     onPhase?: AgentConversationPhaseReporter;
@@ -542,6 +546,7 @@ export async function appendAgentConversationMessageIncremental(
     content: string;
     templateId?: string;
     taskType?: ContentTaskType;
+    attachments?: AgentAttachment[];
   },
   options?: {
     onPhase?: AgentConversationPhaseReporter;
@@ -552,11 +557,17 @@ export async function appendAgentConversationMessageIncremental(
   if (!conversation) throw new Error("conversation_not_found");
 
   const content = input.content.trim();
+  const attachments = input.attachments || [];
+  const userContent = content || buildAgentAttachmentFallbackMessage(attachments);
+  const attachmentContext = await buildAgentAttachmentContext(attachments);
+  const contentForAgent = [userContent, attachmentContext].filter(Boolean).join("\n\n");
   const ts = nowIso();
   const userMessageId = `msg_${randomUUID().replace(/-/g, "")}`;
   const assistantMessageId = `msg_${randomUUID().replace(/-/g, "")}`;
+  const userMessageMeta = attachments.length > 0 ? { attachments } : undefined;
+  const userMessageMetaJson = JSON.stringify(userMessageMeta || {});
   await reportPhase(options?.onPhase, "intent", "running");
-  const taskType = input.taskType || (await classifyConversationIntent(username, content, input.templateId));
+  const taskType = input.taskType || (await classifyConversationIntent(username, contentForAgent, input.templateId));
   await reportPhase(options?.onPhase, "intent", "done");
 
   if (taskType === "general_assistant") {
@@ -564,12 +575,12 @@ export async function appendAgentConversationMessageIncremental(
       id: userMessageId,
       conversationId,
       role: "user",
-      content,
-      metaJson: JSON.stringify({}),
+      content: userContent,
+      metaJson: userMessageMetaJson,
       ts,
     });
     await reportPhase(options?.onPhase, "memory", "running");
-    if (shouldExtractExplicitMemory(content)) {
+    if (content && shouldExtractExplicitMemory(content)) {
       await extractAndPersistUserMemories(username, content).catch(() => null);
     }
     await reportPhase(options?.onPhase, "memory", "done");
@@ -582,7 +593,7 @@ export async function appendAgentConversationMessageIncremental(
       await reportPhase(options?.onPhase, "search", "done");
       await reportPhase(options?.onPhase, "compose", "running");
     };
-    const reply = await generateDirectReply(username, conversationId, content, input.templateId, {
+    const reply = await generateDirectReply(username, conversationId, contentForAgent, input.templateId, {
       onBeforeCompose: startCompose,
       onDelta: options?.onDelta
         ? async (chunk) => {
@@ -605,7 +616,7 @@ export async function appendAgentConversationMessageIncremental(
     await agentPlatformRepository.updateConversation({
       id: conversationId,
       username,
-      title: conversation.title || buildConversationTitle(content),
+      title: conversation.title || buildConversationTitle(userContent),
       lastMessagePreview: buildPreview(reply.content),
       status: "active",
       updatedAt: replyTs,
@@ -628,7 +639,7 @@ export async function appendAgentConversationMessageIncremental(
     return {
       conversation: {
         id: conversationId,
-        title: conversation.title || buildConversationTitle(content),
+        title: conversation.title || buildConversationTitle(userContent),
         last_message_preview: buildPreview(reply.content),
         status: "active",
         created_at: conversation.created_at,
@@ -638,9 +649,10 @@ export async function appendAgentConversationMessageIncremental(
         id: userMessageId,
         conversation_id: conversationId,
         role: "user",
-        content,
+        content: userContent,
         goal_id: null,
         created_at: ts,
+        meta: userMessageMeta,
       },
       assistant_message: {
         id: assistantMessageId,
@@ -656,24 +668,26 @@ export async function appendAgentConversationMessageIncremental(
   }
 
   const goalTimeline = await createAgentGoal(username, {
-    goal: content,
+    goal: userContent,
     conversationId,
     executionMode: requiresManualConfirmation(taskType) ? "confirm" : "auto_low_risk",
     templateId: input.templateId,
     taskType,
+    attachments,
+    attachmentContext,
   });
 
   await agentPlatformRepository.createMessage({
     id: userMessageId,
     conversationId,
     role: "user",
-    content,
+    content: userContent,
     goalId: goalTimeline.goal.id,
-    metaJson: JSON.stringify({}),
+    metaJson: userMessageMetaJson,
     ts,
   });
   await reportPhase(options?.onPhase, "memory", "running");
-  if (shouldExtractExplicitMemory(content)) {
+  if (content && shouldExtractExplicitMemory(content)) {
     await extractAndPersistUserMemories(username, content).catch(() => null);
   }
   await reportPhase(options?.onPhase, "memory", "done");
@@ -711,7 +725,7 @@ export async function appendAgentConversationMessageIncremental(
   await agentPlatformRepository.updateConversation({
     id: conversationId,
     username,
-    title: conversation.title || buildConversationTitle(content),
+    title: conversation.title || buildConversationTitle(userContent),
     lastMessagePreview: buildPreview(assistantSummary),
     status: goalTimeline.goal.status || "active",
     updatedAt: replyTs,
@@ -740,7 +754,7 @@ export async function appendAgentConversationMessageIncremental(
   return {
     conversation: {
       id: conversationId,
-      title: conversation.title || buildConversationTitle(content),
+      title: conversation.title || buildConversationTitle(userContent),
       last_message_preview: buildPreview(assistantSummary),
       status: goalTimeline.goal.status || "active",
       created_at: conversation.created_at,
@@ -750,9 +764,10 @@ export async function appendAgentConversationMessageIncremental(
       id: userMessageId,
       conversation_id: conversationId,
       role: "user",
-      content,
+      content: userContent,
       goal_id: goalTimeline.goal.id,
       created_at: ts,
+      meta: userMessageMeta,
     },
     assistant_message: {
       id: assistantMessageId,
