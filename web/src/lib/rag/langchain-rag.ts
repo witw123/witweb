@@ -6,10 +6,10 @@ import { AGENT_INPUT_TEXT } from "@/features/agent/constants";
 import { getRagMemoryContext } from "@/lib/agent-memory";
 import { embedKnowledgeText, toVectorLiteral } from "@/lib/embeddings";
 import { invokeModelText } from "@/lib/model-runtime";
-import { agentPlatformRepository } from "@/lib/repositories";
+import { agentPlatformRepository, postRepository } from "@/lib/repositories";
 import { createTtlCache } from "@/lib/ttl-cache";
 
-type RetrievalSource = "vector" | "lexical" | "hybrid";
+type RetrievalSource = "vector" | "lexical" | "hybrid" | "post_fallback";
 
 export type RagCitation = {
   document_id: string;
@@ -75,6 +75,8 @@ const SYSTEM_PROMPT_TEMPLATE = PromptTemplate.fromTemplate(
     "You are a Chinese assistant for creators.",
     "Answer in Chinese with concise and accurate wording.",
     "If knowledge snippets are insufficient, explicitly say uncertainty instead of fabricating facts.",
+    'Use the exact JSON keys "answer" and "citations".',
+    "Do not wrap the JSON in markdown code fences.",
     "Return JSON only with fields:",
     '{{{{ "answer": "string", "citations": [{{{{"document_id":"string","chunk_index":0,"title":"string"}}}}] }}}}',
     "Only use citations from provided snippets.",
@@ -104,17 +106,49 @@ function nowMs() {
 }
 
 function tokenize(value: string) {
-  return value
+  const normalized = value
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ");
+  const baseTokens = normalized
     .split(/\s+/)
     .map((item) => item.trim())
     .filter((item) => item.length > 1);
+  const hanTokens: string[] = [];
+
+  for (const match of normalized.matchAll(/[\p{Script=Han}]{2,}/gu)) {
+    const segment = match[0].trim();
+    if (!segment) continue;
+    const maxGram = Math.min(4, segment.length);
+    for (let gram = 2; gram <= maxGram; gram += 1) {
+      for (let index = 0; index <= segment.length - gram; index += 1) {
+        hanTokens.push(segment.slice(index, index + gram));
+      }
+    }
+  }
+
+  return Array.from(new Set([...baseTokens, ...hanTokens]));
+}
+
+function containsHan(value: string) {
+  return /\p{Script=Han}/u.test(value);
+}
+
+function isBroadBlogCorpusQuery(query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /(所有|全部|整体|总体|汇总|总结|梳理|概括).*(博客|文章|内容|草稿)/.test(normalized) ||
+    /(博客|文章|草稿).*(所有|全部|整体|总体|汇总|总结|梳理|概括)/.test(normalized) ||
+    /(我写过什么|写过哪些|博客内容方向|文章内容方向)/.test(normalized)
+  );
 }
 
 function shouldRewriteQuery(query: string) {
   const trimmed = query.trim();
   if (!trimmed) return false;
+  if (containsHan(trimmed) && trimmed.length >= 12) {
+    return true;
+  }
   if (trimmed.length <= 32 && tokenize(trimmed).length <= 4) {
     return false;
   }
@@ -136,8 +170,14 @@ function stripThinkBlocks(raw: string): string {
   return raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
+function stripMarkdownCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json|JSON)?\s*([\s\S]*?)\s*```$/);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
 function extractJsonString(raw: string): string {
-  const cleaned = stripThinkBlocks(raw);
+  const cleaned = stripMarkdownCodeFence(stripThinkBlocks(raw));
   const trimmed = cleaned.trim();
   if (!trimmed) return trimmed;
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
@@ -149,6 +189,140 @@ function extractJsonString(raw: string): string {
 
 function estimateTokens(value: string) {
   return Math.ceil(value.length / 4);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeInlineText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function formatStructuredScalar(value: unknown): string {
+  if (typeof value === "string") return normalizeInlineText(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function renderStructuredList(items: unknown[]): string {
+  return items
+    .map((item, index) => {
+      const text = renderStructuredAnswer(item);
+      if (!text) return "";
+      return `${index + 1}. ${text}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function renderStructuredObject(record: Record<string, unknown>): string {
+  const titleKeys = ["title", "标题", "name", "名称"];
+  const summaryKeys = ["summary", "摘要", "主要内容概要", "content", "内容", "description", "说明"];
+  const statusKeys = ["status", "状态"];
+  const sizeKeys = ["length", "字数"];
+  const skipKeys = new Set(["answer", "citations", "question", "用户问题"]);
+
+  const pickText = (keys: string[]) => {
+    for (const key of keys) {
+      const value = record[key];
+      if (Array.isArray(value)) {
+        const rendered = value
+          .map((item) => renderStructuredAnswer(item))
+          .filter(Boolean)
+          .join("；");
+        if (rendered) return rendered;
+      }
+      const text = formatStructuredScalar(value);
+      if (text) return text;
+    }
+    return "";
+  };
+
+  const lines: string[] = [];
+  const title = pickText(titleKeys);
+  const summary = pickText(summaryKeys);
+  const status = pickText(statusKeys);
+  const size = pickText(sizeKeys);
+
+  if (title) lines.push(title);
+  if (summary) lines.push(summary);
+  if (size) lines.push(`字数：${size}`);
+  if (status) lines.push(`状态：${status}`);
+
+  for (const [key, value] of Object.entries(record)) {
+    if (skipKeys.has(key) || titleKeys.includes(key) || summaryKeys.includes(key) || statusKeys.includes(key) || sizeKeys.includes(key)) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const rendered = value
+        .map((item) => renderStructuredAnswer(item))
+        .filter(Boolean)
+        .join("；");
+      if (rendered) lines.push(`${key}：${rendered}`);
+      continue;
+    }
+    const scalar = formatStructuredScalar(value);
+    if (scalar) {
+      lines.push(`${key}：${scalar}`);
+    }
+  }
+
+  return lines.join("\n").trim();
+}
+
+function renderStructuredAnswer(value: unknown): string {
+  if (typeof value === "string") return normalizeInlineText(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return renderStructuredList(value);
+  if (isPlainObject(value)) return renderStructuredObject(value);
+  return "";
+}
+
+function extractStructuredAnswer(parsed: unknown): string {
+  if (!isPlainObject(parsed)) {
+    return renderStructuredAnswer(parsed);
+  }
+
+  const answerLikeKeys = ["answer", "response", "reply", "content", "summary", "回复", "回答"];
+  const supplementalTextKeys = ["说明", "总结", "结论", "备注", "note"];
+  const sections: string[] = [];
+  const consumedKeys = new Set<string>(["question", "用户问题", "citations"]);
+
+  for (const key of answerLikeKeys) {
+    const value = parsed[key];
+    const rendered = renderStructuredAnswer(value);
+    if (rendered) {
+      sections.push(rendered);
+      consumedKeys.add(key);
+      break;
+    }
+  }
+
+  for (const key of supplementalTextKeys) {
+    const value = parsed[key];
+    const rendered = renderStructuredAnswer(value);
+    if (rendered) {
+      sections.push(rendered);
+      consumedKeys.add(key);
+    }
+  }
+
+  const extraSections: string[] = [];
+  for (const [key, value] of Object.entries(parsed)) {
+    if (consumedKeys.has(key)) continue;
+    const rendered = renderStructuredAnswer(value);
+    if (!rendered) continue;
+    if (Array.isArray(value)) {
+      extraSections.push(`${key}：\n${rendered}`);
+    } else if (isPlainObject(value)) {
+      extraSections.push(`${key}：\n${rendered}`);
+    } else {
+      extraSections.push(rendered);
+    }
+  }
+
+  return [...sections, ...extraSections].join("\n\n").trim();
 }
 
 function buildCitation(params: {
@@ -210,7 +384,8 @@ async function rewriteQuery(query: string) {
   try {
     const response = await invokeModelText({
       capability: "agent_llm",
-      systemPrompt: "Rewrite the search query for creator-focused retrieval. Return one short line.",
+      systemPrompt:
+        "Rewrite the search query for creator-focused retrieval. Return one short line of concise search keywords only. No punctuation. No quotes.",
       userPrompt: query,
     });
     const result = {
@@ -227,6 +402,130 @@ async function rewriteQuery(query: string) {
     if (cacheKey) rewriteCache.set(cacheKey, result);
     return result;
   }
+}
+
+function chunkText(input: string, chunkSize = 600) {
+  const cleaned = input.replace(/\r\n/g, "\n").trim();
+  if (!cleaned) return [];
+
+  const parts: string[] = [];
+  let current = "";
+
+  for (const paragraph of cleaned.split(/\n{2,}/)) {
+    if ((current + "\n\n" + paragraph).trim().length > chunkSize && current.trim()) {
+      parts.push(current.trim());
+      current = paragraph;
+      continue;
+    }
+    current = `${current}\n\n${paragraph}`.trim();
+  }
+
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function buildBlogDocumentId(username: string, slug: string) {
+  return `blog_${username}_${slug}`.replace(/[^a-zA-Z0-9_-]+/g, "_");
+}
+
+function toSortableTs(value: string | undefined) {
+  const ts = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+async function fetchCreatorPostFallbackRows(username: string, query: string, limit: number) {
+  const posts = await postRepository.listKnowledgeSourcePosts(username, 500, 0).catch(() => []);
+  if (!posts.length) return [];
+
+  const queryTokens = tokenize(query);
+  const normalizedQuery = query.trim().toLowerCase();
+  const broadCorpusQuery = isBroadBlogCorpusQuery(query);
+  const fallbackRows: Array<{
+    id: number;
+    document_id: string;
+    document_title: string;
+    document_source_type: string;
+    content: string;
+    metadata_json: string;
+    chunk_index: number;
+    fallback_score: number;
+    updated_at: string;
+  }> = [];
+
+  for (const post of posts) {
+    const metadata = {
+      post_id: post.id,
+      slug: post.slug,
+      excerpt: post.excerpt || "",
+      tags: String(post.tags || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      status: post.status,
+      category_id: post.category_id || null,
+      cover_image_url: post.cover_image_url || "",
+      reference_label: post.title,
+    };
+    const documentId = buildBlogDocumentId(username, post.slug);
+    const titleLower = post.title.toLowerCase();
+    const excerptLower = String(post.excerpt || "").toLowerCase();
+    const tagsLower = String(post.tags || "").toLowerCase();
+    const contentChunks = chunkText(post.content || "");
+    const candidateChunks = contentChunks.length > 0 ? contentChunks : [String(post.excerpt || post.content || "").trim()].filter(Boolean);
+    const scoredChunks = candidateChunks
+      .map((content, chunkIndex) => {
+        const chunkLower = content.toLowerCase();
+        const titleMatch = normalizedQuery && titleLower.includes(normalizedQuery) ? 28 : 0;
+        const excerptMatch = normalizedQuery && excerptLower.includes(normalizedQuery) ? 14 : 0;
+        const tagMatch = normalizedQuery && tagsLower.includes(normalizedQuery) ? 12 : 0;
+        const chunkMatch = normalizedQuery && chunkLower.includes(normalizedQuery) ? 20 : 0;
+        const lexicalScore = scoreChunk(queryTokens, content, post.title) * 10;
+        const score = titleMatch + excerptMatch + tagMatch + chunkMatch + lexicalScore;
+        return {
+          content,
+          chunkIndex,
+          score,
+        };
+      })
+      .sort((a, b) => b.score - a.score || a.chunkIndex - b.chunkIndex);
+
+    const selected = scoredChunks.filter((item) => item.score > 0).slice(0, 2);
+    if (selected.length === 0) {
+      if (!broadCorpusQuery) continue;
+      const fallbackContent = candidateChunks[0];
+      if (!fallbackContent) continue;
+      fallbackRows.push({
+        id: -(post.id * 1000 + 1),
+        document_id: documentId,
+        document_title: post.title,
+        document_source_type: "blog_post",
+        content: fallbackContent,
+        metadata_json: JSON.stringify(metadata),
+        chunk_index: 0,
+        fallback_score: 16,
+        updated_at: post.updated_at,
+      });
+      continue;
+    }
+
+    for (const item of selected) {
+      fallbackRows.push({
+        id: -(post.id * 1000 + item.chunkIndex + 1),
+        document_id: documentId,
+        document_title: post.title,
+        document_source_type: "blog_post",
+        content: item.content,
+        metadata_json: JSON.stringify(metadata),
+        chunk_index: item.chunkIndex,
+        fallback_score: item.score,
+        updated_at: post.updated_at,
+      });
+    }
+  }
+
+  return fallbackRows
+    .sort((a, b) => b.fallback_score - a.fallback_score || toSortableTs(b.updated_at) - toSortableTs(a.updated_at) || b.id - a.id)
+    .slice(0, Math.max(limit, 8));
 }
 
 async function fetchHybridRows(username: string, query: string, limit: number) {
@@ -264,7 +563,10 @@ function parseRagAnswer(
         title?: unknown;
       }>;
     };
-    const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
+    const answer =
+      typeof parsed.answer === "string" && parsed.answer.trim()
+        ? parsed.answer.trim()
+        : extractStructuredAnswer(parsed);
     const citations = Array.isArray(parsed.citations)
       ? parsed.citations
           .map((item) => {
@@ -283,13 +585,13 @@ function parseRagAnswer(
       : [];
 
     return {
-      answer: answer || stripThinkBlocks(raw),
+      answer: answer || stripMarkdownCodeFence(stripThinkBlocks(raw)),
       citations,
-      parseFailed: false,
+      parseFailed: !Boolean(typeof parsed.answer === "string" && parsed.answer.trim()),
     };
   } catch {
     return {
-      answer: stripThinkBlocks(raw),
+      answer: stripMarkdownCodeFence(stripThinkBlocks(raw)),
       citations: [],
       parseFailed: true,
     };
@@ -321,12 +623,13 @@ class HybridRetriever {
 
     const retrieveMs = nowMs() - fetchStartedAt;
     const rerankStartedAt = nowMs();
-    const merged = new Map<number, RagRetrievedChunk>();
+    const merged = new Map<string, RagRetrievedChunk>();
     const { queryTokens, queryEmbedding, vectorRows, lexicalRows } = firstPass;
+    let usedPostFallback = false;
 
     for (const row of vectorRows) {
       const metadata = JSON.parse(row.metadata_json || "{}") as Record<string, unknown>;
-      merged.set(row.id, {
+      merged.set(`${row.document_id}:${row.chunk_index}`, {
         id: row.id,
         document_id: row.document_id,
         title: row.document_title,
@@ -347,14 +650,14 @@ class HybridRetriever {
 
     for (const row of lexicalRows) {
       const lexicalScore = scoreChunk(queryTokens, row.content, row.document_title) * 10;
-      const existing = merged.get(row.id);
+      const existing = merged.get(`${row.document_id}:${row.chunk_index}`);
       if (existing) {
         existing.score += lexicalScore;
         existing.retrieval_source = "hybrid";
         continue;
       }
       const metadata = JSON.parse(row.metadata_json || "{}") as Record<string, unknown>;
-      merged.set(row.id, {
+      merged.set(`${row.document_id}:${row.chunk_index}`, {
         id: row.id,
         document_id: row.document_id,
         title: row.document_title,
@@ -373,6 +676,37 @@ class HybridRetriever {
       });
     }
 
+    if (merged.size < limit || isBroadBlogCorpusQuery(input.query)) {
+      const postFallbackRows = await fetchCreatorPostFallbackRows(input.username, rewrittenQuery, Math.max(limit * 2, 8));
+      for (const row of postFallbackRows) {
+        const metadata = JSON.parse(row.metadata_json || "{}") as Record<string, unknown>;
+        const key = `${row.document_id}:${row.chunk_index}`;
+        const existing = merged.get(key);
+        if (existing) {
+          existing.score = Math.max(existing.score, row.fallback_score);
+          continue;
+        }
+        usedPostFallback = true;
+        merged.set(key, {
+          id: row.id,
+          document_id: row.document_id,
+          title: row.document_title,
+          source_type: row.document_source_type,
+          content: row.content,
+          metadata,
+          score: row.fallback_score,
+          retrieval_source: "post_fallback",
+          citation: buildCitation({
+            documentId: row.document_id,
+            chunkIndex: row.chunk_index,
+            title: row.document_title,
+            sourceType: row.document_source_type,
+            metadata,
+          }),
+        });
+      }
+    }
+
     const reranked = Array.from(merged.values()).sort((a, b) => b.score - a.score || b.id - a.id);
     const filtered = reranked.filter((item) => item.score >= minScore).slice(0, limit);
     const finalChunks = filtered.length > 0 ? filtered : reranked.slice(0, limit);
@@ -382,7 +716,7 @@ class HybridRetriever {
     const result = {
       query: input.query,
       rewritten_query: rewrittenQuery,
-      retrieval_strategy: `${strategy}+langchain_hybrid_pgvector`,
+      retrieval_strategy: `${strategy}+langchain_hybrid_pgvector${usedPostFallback ? "+posts_fallback" : ""}`,
       retrieval_confidence: normalizeConfidence(finalChunks),
       filtered_count: Math.max(0, reranked.length - finalChunks.length),
       citations,

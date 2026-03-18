@@ -76,6 +76,22 @@ function looksLikeCasualConversation(content: string) {
   return /(你是谁|介绍一下你自己|你能做什么|你会什么|自我介绍|介绍你自己)/.test(normalized);
 }
 
+function inferConversationKnowledgeLimit(content: string) {
+  const normalized = content.trim().toLowerCase();
+  if (!normalized) return 3;
+  if (
+    /(所有|全部|整体|总体|汇总|总结|梳理|概括).*(博客|文章|内容|草稿)/.test(normalized) ||
+    /(博客|文章|草稿).*(所有|全部|整体|总体|汇总|总结|梳理|概括)/.test(normalized) ||
+    /(我写过什么|写过哪些|博客内容方向|文章内容方向)/.test(normalized)
+  ) {
+    return 8;
+  }
+  if (/(博客|文章|草稿|发布|内容|写过|帖子)/.test(normalized)) {
+    return 6;
+  }
+  return 3;
+}
+
 async function generateCasualReply(
   username: string,
   conversationId: string,
@@ -274,20 +290,15 @@ async function generateDirectReply(
   }
 ) {
   const template = templateId ? await getPromptTemplate(username, templateId) : null;
+  const knowledgeLimit = inferConversationKnowledgeLimit(content);
   if (isLangChainRagEnabled()) {
     try {
       const ragReply = await runLangChainRagReply({
         username,
         conversationId,
-        query: [
-          template?.task_prompt || "",
-          content,
-          "Reply directly in Chinese. Do not trigger tools or create drafts unless explicitly requested.",
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
+        query: content,
         model: getModelDescriptor().id,
-        limit: 3,
+        limit: knowledgeLimit,
         streamAnswer: Boolean(options?.onDelta),
         onChunk: options?.onDelta
           ? async (chunk) => {
@@ -327,7 +338,7 @@ async function generateDirectReply(
     }
   }
 
-  const knowledge = await searchKnowledge(username, { query: content, limit: 3 }).catch(() => ({ items: [] }));
+  const knowledge = await searchKnowledge(username, { query: content, limit: knowledgeLimit }).catch(() => ({ items: [] }));
   const memoryContext = await getRagMemoryContext(username, conversationId).catch(() => ({
     conversationSummary: "",
     conversationKeyPoints: [],

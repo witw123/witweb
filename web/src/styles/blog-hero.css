@@ -1,9 +1,10 @@
 .hero-section {
   position: relative;
   isolation: isolate;
-  min-height: clamp(480px, 72vh, 760px);
-  padding-top: clamp(40px, 8vh, 84px);
-  padding-bottom: clamp(32px, 7vh, 72px);
+  min-height: calc(100vh - var(--header-height));
+  min-height: calc(100dvh - var(--header-height));
+  padding-top: clamp(32px, 6vh, 72px);
+  padding-bottom: clamp(28px, 5vh, 56px);
   background:
     radial-gradient(1100px 420px at 50% -8%, rgba(0, 112, 243, 0.18), rgba(0, 0, 0, 0)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0));
@@ -78,9 +79,10 @@
 
 @media (max-width: 768px) {
   .hero-section {
-    min-height: clamp(360px, 58vh, 520px);
-    padding-top: 28px;
-    padding-bottom: 20px;
+    min-height: calc(100vh - var(--header-height));
+    min-height: calc(100dvh - var(--header-height));
+    padding-top: 24px;
+    padding-bottom: 18px;
   }
 
   .hero-title {
