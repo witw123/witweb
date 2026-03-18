@@ -1,9 +1,12 @@
 .hero-section {
   position: relative;
   isolation: isolate;
+  min-height: clamp(480px, 72vh, 760px);
+  padding-top: clamp(40px, 8vh, 84px);
+  padding-bottom: clamp(32px, 7vh, 72px);
   background:
-    radial-gradient(1100px 420px at 50% -8%, rgba(0, 112, 243, 0.14), rgba(0, 0, 0, 0)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
+    radial-gradient(1100px 420px at 50% -8%, rgba(0, 112, 243, 0.18), rgba(0, 0, 0, 0)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0));
 }
 
 /* ── Simplified grid background ── */
@@ -45,11 +48,39 @@
   justify-content: center;
 }
 
+.hero-scroll-hint {
+  display: flex;
+  justify-content: center;
+}
+
+.hero-scroll-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  color: rgba(191, 219, 254, 0.82);
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.hero-scroll-link::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.hero-scroll-link:hover {
+  color: rgba(219, 234, 254, 0.96);
+  transform: translateY(1px);
+}
+
 @media (max-width: 768px) {
   .hero-section {
-    min-height: calc(70vh - var(--header-height));
-    padding-top: 36px;
-    padding-bottom: 24px;
+    min-height: clamp(360px, 58vh, 520px);
+    padding-top: 28px;
+    padding-bottom: 20px;
   }
 
   .hero-title {
@@ -64,5 +95,9 @@
   .hero-actions .btn-hero {
     width: 100%;
     min-height: 44px;
+  }
+
+  .hero-scroll-hint {
+    margin-top: 20px;
   }
 }

@@ -70,18 +70,14 @@ export default function BlogListPage() {
     router.push(`/post/${slug}#comments`);
   }, [router]);
 
-  const scrollToPosts = useCallback(() => {
-    document.getElementById("posts-anchor")?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
   const isLoading = status === "loading";
   const hasError = status === "error";
 
   return (
     <div className="blog-list-page">
-      {!hasCategoryFilter && !isAuthenticated && (
+      {!hasCategoryFilter && (
         <HeroSection
-          primaryAction={{ label: "开始阅读", onClick: scrollToPosts }}
+          primaryAction={{ label: "开始阅读", href: "#posts-anchor" }}
           secondaryAction={{ label: "关于我", href: "/about" }}
         />
       )}
