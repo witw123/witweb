@@ -100,7 +100,7 @@ export default function RegisterPage() {
       if (data.data?.profile) {
         login(data.data.profile);
       }
-      window.location.replace("/");
+      window.location.replace("/#posts-anchor");
     } catch (error) {
       logError({
         source: "auth.register",

@@ -79,7 +79,7 @@ export default function BlogListPage() {
 
   return (
     <div className="blog-list-page">
-      {!hasCategoryFilter && (
+      {!hasCategoryFilter && !isAuthenticated && (
         <HeroSection
           primaryAction={{ label: "开始阅读", onClick: scrollToPosts }}
           secondaryAction={{ label: "关于我", href: "/about" }}

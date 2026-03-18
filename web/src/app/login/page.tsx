@@ -27,8 +27,8 @@ export default function LoginPage() {
   /**
    * 处理登录提交
    *
-   * 成功后同步更新前端认证上下文，再整页跳转首页。
-   * 这样可以确保浏览器已经写入登录 Cookie，避免部署环境里仅客户端跳转时出现首屏空白。
+   * 成功后同步更新前端认证上下文，再整页跳转到文章区域。
+   * 这样可以确保浏览器已经写入登录 Cookie，也避免用户先落到全屏 Hero 首屏。
    */
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -70,7 +70,7 @@ export default function LoginPage() {
       if (data.data?.profile) {
         login(data.data.profile);
       }
-      window.location.replace("/");
+      window.location.replace("/#posts-anchor");
     } catch (error) {
       logError({
         source: "auth.login",
