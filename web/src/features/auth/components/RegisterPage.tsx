@@ -16,7 +16,6 @@
 import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { resizeImageToDataUrl } from "@/utils/image";
 import { useAuth } from "@/app/providers";
 import { logError } from "@/lib/logger";
@@ -31,7 +30,6 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
-  const router = useRouter();
   const { login } = useAuth();
   const turnstileEnabled =
     process.env.NEXT_PUBLIC_TURNSTILE_ENABLED === "true" && !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -102,7 +100,7 @@ export default function RegisterPage() {
       if (data.data?.profile) {
         login(data.data.profile);
       }
-      router.push("/");
+      window.location.replace("/");
     } catch (error) {
       logError({
         source: "auth.register",

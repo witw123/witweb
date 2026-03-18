@@ -9,14 +9,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { logError } from "@/lib/logger";
 import { useAuth } from "../providers";
 import TurnstileWidget from "@/components/TurnstileWidget";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -29,7 +27,8 @@ export default function LoginPage() {
   /**
    * 处理登录提交
    *
-   * 成功后同步更新前端认证上下文，再跳转首页，避免刷新前处于“已登录但 UI 未更新”的中间态。
+   * 成功后同步更新前端认证上下文，再整页跳转首页。
+   * 这样可以确保浏览器已经写入登录 Cookie，避免部署环境里仅客户端跳转时出现首屏空白。
    */
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -71,7 +70,7 @@ export default function LoginPage() {
       if (data.data?.profile) {
         login(data.data.profile);
       }
-      router.push("/");
+      window.location.replace("/");
     } catch (error) {
       logError({
         source: "auth.login",

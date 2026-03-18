@@ -9,6 +9,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import BlogListPage from "@/features/blog/components/BlogListPage";
+import { Loading } from "@/components/ui/Loading";
 
 /** 首页 ISR 刷新间隔，平衡文章更新时效与首屏缓存命中率。 */
 export const revalidate = 60;
@@ -30,11 +31,17 @@ export const metadata: Metadata = {
  * HomePage - 首页组件
  *
  * 通过 Suspense 包裹博客列表，允许服务端数据读取以流式方式返回。
- * 这里使用 `null` 作为回退内容，避免首页在极短等待时间内出现额外骨架闪烁。
+ * 使用可见加载态，避免客户端跳转期间用户只看到空白区域。
  */
 export default function HomePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="container flex min-h-[60vh] items-center justify-center py-16">
+          <Loading size="lg" text="首页加载中..." />
+        </div>
+      }
+    >
       <BlogListPage />
     </Suspense>
   );
