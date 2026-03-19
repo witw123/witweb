@@ -33,8 +33,6 @@ type Draft = {
 };
 
 const ALLOWED_PROVIDER_CODES = ["openai", "deepseek", "gemini", "anthropic", "custom_openai"] as const;
-const MINIMAX_OPENAI_MODELS = ["MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"] as const;
-
 const PRESET_OPTIONS = [
   {
     key: "minimax_openai",
@@ -165,7 +163,6 @@ const TEXT = {
   needCapability: "\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u4f7f\u7528\u6a21\u5757",
   minimaxHint: "MiniMax OpenAI \u517c\u5bb9\u63a5\u53e3\u9ed8\u8ba4\u4f7f\u7528 https://api.minimaxi.com/v1\uff0c\u4e0d\u9700\u624b\u52a8\u586b /chat/completions\u3002",
   minimaxBaseUrlError: "MiniMax \u8bf7\u4f7f\u7528 https://api.minimaxi.com/v1 \u8fd9\u7c7b OpenAI \u517c\u5bb9\u5165\u53e3\u3002",
-  minimaxModelError: "MiniMax \u6a21\u578b\u8bf7\u4f7f\u7528\u5b98\u65b9 OpenAI \u517c\u5bb9\u540d\uff0c\u4f8b\u5982 MiniMax-M2.5\u3002",
   endpointNormalized: "\u5df2\u81ea\u52a8\u89c4\u6574\u8bf7\u6c42\u5730\u5740\uff0c\u65e0\u9700\u624b\u586b /chat/completions\u3002",
   openaiHint:
     "\u9002\u7528\u4e8e OpenAI\u3001DeepSeek\u3001DashScope\u3001Gemini OpenAI \u517c\u5bb9\u5165\u53e3\u3002",
@@ -336,10 +333,6 @@ function normalizeCompatibleBaseUrl(input: string) {
 
 function isMiniMaxPreset(draft: Draft) {
   return draft.provider_preset === "minimax_openai";
-}
-
-function isValidMiniMaxModel(model: string) {
-  return MINIMAX_OPENAI_MODELS.includes(model as (typeof MINIMAX_OPENAI_MODELS)[number]);
 }
 
 function applyPresetToDraft(base: Draft, presetKey: string, providers: ApiProvider[]) {
@@ -560,9 +553,6 @@ export default function ApiManagementPage() {
       if (isMiniMaxPreset(input)) {
         if (!/^https:\/\/api\.minimaxi\.com\/v1$/i.test(baseUrl)) {
           throw new Error(TEXT.minimaxBaseUrlError);
-        }
-        if (!isValidMiniMaxModel(model)) {
-          throw new Error(TEXT.minimaxModelError);
         }
       }
 
