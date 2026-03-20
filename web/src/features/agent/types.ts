@@ -7,6 +7,24 @@ export interface AgentCitation {
   source_type?: string;
   slug?: string;
   href?: string;
+  content_preview?: string;  // 检索内容预览
+  score?: number;           // 相关性分数
+}
+
+export interface AgentRetrievalHit {
+  document_id: string;
+  title: string;
+  source_type?: string;
+  chunk_index: number;
+  content_preview: string;
+  score: number;
+  href?: string;
+}
+
+export interface AgentTokenCount {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
 }
 
 export interface AgentReplyMeta {
@@ -30,6 +48,16 @@ export interface AgentReplyMeta {
     }>;
   };
   timeline_events?: AgentTimelineEvent[];
+  // 流式可视化
+  token_count?: AgentTokenCount;
+  live_retrieval_hits?: AgentRetrievalHit[];
+  live_tool_calls?: Array<{
+    tool_name: string;
+    status: "started" | "completed" | "failed";
+    started_at: string;
+    completed_at?: string;
+    result_preview?: string;
+  }>;
 }
 
 export interface AgentAttachment {
