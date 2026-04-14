@@ -5,14 +5,14 @@ const {
   mockGetAuthIdentity,
   mockHeaders,
   mockAboutGet,
-  mockPostList,
+  mockListRecentPublished,
   mockGetSiteStats,
   mockRecordSiteVisit,
 } = vi.hoisted(() => ({
   mockGetAuthIdentity: vi.fn(),
   mockHeaders: vi.fn(),
   mockAboutGet: vi.fn(),
-  mockPostList: vi.fn(),
+  mockListRecentPublished: vi.fn(),
   mockGetSiteStats: vi.fn(),
   mockRecordSiteVisit: vi.fn(),
 }));
@@ -29,8 +29,10 @@ vi.mock("@/lib/repositories", () => ({
   aboutRepository: {
     get: mockAboutGet,
   },
+  drizzlePostRepository: {
+    listRecentPublished: mockListRecentPublished,
+  },
   postRepository: {
-    list: mockPostList,
     getSiteStats: mockGetSiteStats,
     recordSiteVisit: mockRecordSiteVisit,
   },
@@ -57,7 +59,7 @@ describe("Site public v1 APIs", () => {
       links: [],
       skills: [],
     });
-    mockPostList.mockResolvedValue({ items: [] });
+    mockListRecentPublished.mockResolvedValue([]);
     mockGetSiteStats.mockResolvedValue({
       totalPosts: 10,
       totalVisits: 20,
@@ -67,13 +69,30 @@ describe("Site public v1 APIs", () => {
   });
 
   it("GET /api/v1/about returns about content with recent posts", async () => {
+    mockListRecentPublished.mockResolvedValue([
+      {
+        title: "Latest",
+        slug: "latest",
+        created_at: "2026-03-01T00:00:00.000Z",
+        published_at: "2026-04-14T00:00:00.000Z",
+      },
+    ]);
+
     const response = await ABOUT_GET(new Request("http://localhost/api/v1/about") as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data.title).toBe("About");
-    expect(body.data.recentPosts).toEqual([]);
+    expect(mockListRecentPublished).toHaveBeenCalledWith(5);
+    expect(body.data.recentPosts).toEqual([
+      {
+        title: "Latest",
+        slug: "latest",
+        created_at: "2026-03-01T00:00:00.000Z",
+        published_at: "2026-04-14T00:00:00.000Z",
+      },
+    ]);
   });
 
   it("GET /api/v1/stats returns site stats", async () => {

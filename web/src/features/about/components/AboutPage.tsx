@@ -23,7 +23,7 @@ import { getThumbnailUrl, shouldBypassImageOptimization } from "@/utils/url";
 
 /* ── Types ── */
 type AboutLink = { label: string; url: string };
-type RecentPost = { title: string; slug: string; created_at: string };
+type RecentPost = { title: string; slug: string; created_at: string; published_at?: string };
 
 type AboutPayload = {
   title: string;
@@ -457,7 +457,7 @@ export default function AboutPage() {
                       <Link href={`/post/${post.slug}`} className="about-recent__link">
                         {post.title}
                       </Link>
-                      <time className="about-recent__date">{formatDate(post.created_at)}</time>
+                      <time className="about-recent__date">{formatDate(post.published_at || post.created_at)}</time>
                     </li>
                   ))}
                 </ul>

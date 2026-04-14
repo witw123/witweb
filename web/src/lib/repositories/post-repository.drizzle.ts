@@ -96,6 +96,35 @@ function mapListRow(
  * 负责文章（posts）的数据库操作，包括增删改查、点赞、收藏等
  */
 export class DrizzlePostRepository {
+  async listRecentPublished(limit = 5): Promise<Array<{
+    title: string;
+    slug: string;
+    created_at: string;
+    published_at: string;
+  }>> {
+    const db = getDb();
+    const safeLimit = Math.min(Math.max(Math.trunc(limit) || 5, 1), 20);
+
+    const rows = await db
+      .select({
+        title: posts.title,
+        slug: posts.slug,
+        created_at: posts.createdAt,
+        published_at: posts.updatedAt,
+      })
+      .from(posts)
+      .where(eq(posts.status, "published"))
+      .orderBy(desc(posts.updatedAt), desc(posts.createdAt), desc(posts.id))
+      .limit(safeLimit);
+
+    return rows.map((row) => ({
+      title: row.title,
+      slug: row.slug,
+      created_at: row.created_at,
+      published_at: row.published_at || row.created_at,
+    }));
+  }
+
   /**
    * 创建文章
    *

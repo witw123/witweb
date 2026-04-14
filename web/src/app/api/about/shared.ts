@@ -35,14 +35,9 @@ const updateAboutSchema = z.object({
 export async function buildAboutGetResponse(): Promise<Response> {
   const about = await aboutRepository.get();
 
-  let recentPosts: { title: string; slug: string; created_at: string }[] = [];
+  let recentPosts: { title: string; slug: string; created_at: string; published_at: string }[] = [];
   try {
-    const result = await drizzlePostRepository.list({ page: 1, size: 5 });
-    recentPosts = result.items.map((p) => ({
-      title: p.title,
-      slug: p.slug,
-      created_at: p.created_at,
-    }));
+    recentPosts = await drizzlePostRepository.listRecentPublished(5);
   } catch {}
 
   return successResponse({ ...about, recentPosts });
