@@ -200,45 +200,50 @@ export function ThinkPanel({ message, linkedGoal, conversationMemory, longTermMe
   if (!meta || !shouldShow) return null;
 
   return (
-    <div className="agent-think-panel">
+    <div className="border border-white/5 rounded-xl bg-[#0f172a]/40 overflow-hidden my-2">
       {/* 简洁的思考状态栏 - 默认显示 */}
       <button
         type="button"
-        className="w-full flex items-center justify-between py-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-200 cursor-pointer"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-zinc-400 hover:bg-white/5 hover:text-zinc-300 transition-colors duration-200 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <ThinkingIndicator
-          stages={thinkingStages}
-          tokenCount={meta.token_count}
-          isStreaming={isStreaming}
-        />
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-sky-500/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          <ThinkingIndicator
+            stages={thinkingStages}
+            tokenCount={meta.token_count}
+            isStreaming={isStreaming}
+          />
+        </div>
         <span className="text-zinc-500 text-xs">
-          {isExpanded ? "收起" : "详情"}
+          {isExpanded ? "收起思考过程" : "查看思考过程"}
         </span>
       </button>
 
       {/* 展开的详细信息 */}
       {isExpanded && (
-        <ThinkingDetails
-          stages={thinkingStages}
-          timelineEvents={timelineEvents}
-          liveToolCalls={liveToolCalls}
-          liveRetrievalHits={liveRetrievalHits}
-          linkedGoal={linkedGoal}
-        />
-      )}
+        <div className="px-4 pb-4 border-t border-white/5 bg-black/20 pt-1">
+          <ThinkingDetails
+            stages={thinkingStages}
+            timelineEvents={timelineEvents}
+            liveToolCalls={liveToolCalls}
+            liveRetrievalHits={liveRetrievalHits}
+            linkedGoal={linkedGoal}
+          />
 
-      {/* 引用列表 - 始终显示在展开区 */}
-      {hasCitations && isExpanded && (
-        <div className="mt-3">
-          <CitationList citations={citations} />
-        </div>
-      )}
+          {/* 引用列表 - 始终显示在展开区 */}
+          {hasCitations && (
+            <div className="mt-3">
+              <CitationList citations={citations} />
+            </div>
+          )}
 
-      {/* 记忆 - 始终显示在展开区 */}
-      {hasMemory && isExpanded && (
-        <div className="mt-3">
-          <LongTermMemoryBlock memories={longTermMemories} />
+          {/* 记忆 - 始终显示在展开区 */}
+          {hasMemory && (
+            <div className="mt-3">
+              <LongTermMemoryBlock memories={longTermMemories} />
+            </div>
+          )}
         </div>
       )}
     </div>

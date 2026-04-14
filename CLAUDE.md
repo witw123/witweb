@@ -191,3 +191,37 @@ APIs follow versioning strategy documented in `docs/API_VERSIONING.md`. Use the 
 ## Core Principles
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+
+---
+
+## gstack
+
+Use `/browse` from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools.
+
+If gstack skills aren't working, run `cd ~/.claude/skills/gstack && ./setup` to build the binary and register skills.
+
+### Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| `/office-hours` | YC Office Hours - Reframe your product before writing code |
+| `/plan-ceo-review` | CEO / Founder - Rethink the problem, find the 10-star product |
+| `/plan-eng-review` | Eng Manager - Lock in architecture, data flow, diagrams |
+| `/plan-design-review` | Senior Designer - Rate design dimensions, AI Slop detection |
+| `/design-consultation` | Design Partner - Build complete design systems |
+| `/review` | Staff Engineer - Find bugs that pass CI but blow up in production |
+| `/investigate` | Debugger - Systematic root-cause debugging |
+| `/design-review` | Designer Who Codes - Audit and fix design issues |
+| `/qa` | QA Lead - Test your app, find bugs, fix them |
+| `/qa-only` | QA Reporter - Same methodology but report only |
+| `/ship` | Release Engineer - Sync main, run tests, push, open PR |
+| `/document-release` | Technical Writer - Update project docs |
+| `/retro` | Eng Manager - Team-aware weekly retro |
+| `/browse` | QA Engineer - Real browser for testing (~100ms/command) |
+| `/setup-browser-cookies` | Session Manager - Import cookies from real browser |
+| `/codex` | Second Opinion - Independent review from OpenAI Codex |
+| `/careful` | Safety Guardrails - Warn before destructive commands |
+| `/freeze` | Edit Lock - Restrict file edits to one directory |
+| `/guard` | Full Safety - `/careful` + `/freeze` combined |
+| `/unfreeze` | Unlock - Remove the `/freeze` boundary |
+| `/gstack-upgrade` | Self-Updater - Upgrade gstack to latest version |

@@ -9,11 +9,21 @@ import type {
   AgentConversationDto,
   AgentConversationMessage,
   AgentGoalTimelineDto,
+  MarkdownCodeProps,
 } from "@/features/agent/types";
 import { ChatInput } from "./ChatInput";
 import { ThinkPanel } from "./ThinkPanel";
 import { GoalThreadBlock } from "./GoalThreadBlock";
 import { MessageAttachmentList } from "./MessageAttachmentList";
+import { AgentWorkbench } from "./AgentWorkbench";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+
+export interface ActiveArtifact {
+  id: string;
+  title: string;
+  content: string;
+  language?: string;
+}
 
 interface ChatThreadProps {
   activeConversationId: string | null;
@@ -68,7 +78,8 @@ export function ChatThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const [approvalError, setApprovalError] = useState("");
-  const [liveGoalEvents, setLiveGoalEvents] = useState<Record<string, import("@/features/agent/timeline").AgentTimelineEvent[]>>({});
+  const [, setLiveGoalEvents] = useState<Record<string, import("@/features/agent/timeline").AgentTimelineEvent[]>>({});
+  const [activeArtifact, setActiveArtifact] = useState<ActiveArtifact | null>(null);
 
   const patchGoalTimeline = (goalId: string, timeline: AgentGoalTimelineDto) => {
     queryClient.setQueryData<AgentConversationDto>(
@@ -81,12 +92,12 @@ export function ChatThread({
                 const llmStep = [...timeline.timeline].reverse().find((step) => step.kind === "llm" && step.status === "done");
                 const output = llmStep?.output as { content?: string } | undefined;
                 if (typeof output?.content === "string" && output.content.trim()) {
-                  return output.content.trim().slice(0, 320);
+                  return output.content.trim();
                 }
                 const createPostStep = [...timeline.timeline].reverse().find((step) => step.step_key === "create_post" && step.status === "done");
                 const input = createPostStep?.input as { content?: string; title?: string } | undefined;
                 if (typeof input?.content === "string" && input.content.trim()) {
-                  return input.content.trim().slice(0, 320);
+                  return input.content.trim();
                 }
                 if (typeof input?.title === "string" && input.title.trim()) {
                   return `${input.title.trim()} 已生成并保存为草稿。`;
@@ -248,18 +259,66 @@ export function ChatThread({
       return null;
     }
 
+    const renderCodeBlock = ({ inline, className, children, ...props }: MarkdownCodeProps) => {
+      const match = /language-(\w+)/.exec(className || "");
+      const language = match ? match[1] : "";
+      const isBlock = !inline && children;
+      
+      const contentStr = String(children).replace(/\n$/, "");
+      
+      // Only intercept big blocks or specific programming languages / markups that feel like "Artifacts"
+      if (isBlock && (language === "markdown" || language === "html" || language === "react" || contentStr.length > 250)) {
+        const title = language ? `${language.toUpperCase()} 文档/代码` : "生成的内容产物";
+        const artifactId = `art-${contentStr.length}-${Date.now()}`;
+
+        return (
+          <div className="my-4 p-4 border border-blue-500/20 bg-blue-500/5 rounded-xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="shrink-0 p-2 bg-blue-500/10 rounded-lg">
+                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-semibold text-zinc-200 truncate">{title}</span>
+                <span className="text-xs text-zinc-500 shrink-0">{contentStr.length} 字符可供预览或复制</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveArtifact({ id: artifactId, title, content: contentStr, language })}
+              className="shrink-0 ml-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+            >
+              在工作台展开
+            </button>
+          </div>
+        );
+      }
+
+      // Default rendering for small inline limits
+      return (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    };
+
     return (
       <>
-        {hasContent ? <div className="agent-answer-card">{message.content}</div> : null}
+        {hasContent ? (
+          <div className="agent-answer-card">
+            <MarkdownRenderer content={message.content} components={{ code: renderCodeBlock }} />
+          </div>
+        ) : null}
         <MessageAttachmentList attachments={attachments} />
       </>
     );
   };
 
   return (
-    <>
-      <div ref={threadRef} className="agent-chat-thread custom-scrollbar">
-        <div className="agent-chat-container">
+    <div className="flex flex-1 min-h-0 min-w-0 w-full relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative z-10">
+        <div ref={threadRef} className="agent-chat-thread custom-scrollbar flex-1">
+          <div className="agent-chat-container">
           {!activeConversationId ? (
             <div className="agent-welcome">
               <div className="agent-capability-note">
@@ -359,6 +418,22 @@ export function ChatThread({
         onTaskTypeChange={onDraftTaskTypeChange}
         disabled={conversationQuery.isFetching && !!activeConversationId}
       />
-    </>
+      </div>
+
+      {activeArtifact && (
+        <div className="pointer-events-none absolute inset-0 z-50 md:pointer-events-auto md:relative md:z-auto flex shrink-0">
+          <div
+            className="md:hidden absolute inset-0 bg-black/50 pointer-events-auto"
+            onClick={() => setActiveArtifact(null)}
+          />
+          <div className="pointer-events-auto relative w-full md:w-auto h-full flex pt-[60px] md:pt-0">
+            <AgentWorkbench
+              artifact={activeArtifact}
+              onClose={() => setActiveArtifact(null)}
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

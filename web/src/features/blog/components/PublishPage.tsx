@@ -323,7 +323,7 @@ export default function PublishPage() {
   }
 
   // 上传成功后把 Markdown 图片标记插入到当前光标位置，保持写作流连续。
-  async function uploadImage(file: File) {
+  const uploadImage = useCallback(async (file: File) => {
     if (!isAuthenticated) {
       router.push("/login");
       return;
@@ -364,7 +364,7 @@ export default function PublishPage() {
     } finally {
       setUploading(false);
     }
-  }
+  }, [isAuthenticated, router, setContent, setStatus, textareaRef]);
 
   const handleImageUpload = useCallback(() => {
     fileInputRef.current?.click();
@@ -421,8 +421,6 @@ export default function PublishPage() {
     [uploadImage]
   );
 
-  const pageTitle = isEditing ? "编辑文章" : "发布新文章";
-  const pageDesc = isEditing ? "修改文章内容后点击更新。" : "写下你的想法与实践记录。";
   const submitLabel = isEditing ? "更新文章" : "发布文章";
   const submittingLabel = isEditing ? "更新中..." : "发布中...";
 

@@ -1,5 +1,42 @@
 import type { AgentTimelineEvent } from "@/features/agent/timeline";
 
+// ============================================================================
+// Error Types
+// ============================================================================
+
+export type AgentErrorCategory = "network" | "auth" | "validation" | "server" | "unknown";
+
+export interface AgentError {
+  message: string;
+  category: AgentErrorCategory;
+  retryable: boolean;
+  originalError?: unknown;
+}
+
+// ============================================================================
+// Markdown Types
+// ============================================================================
+
+export interface MarkdownCodeProps extends React.HTMLAttributes<HTMLElement> {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+  node?: unknown;
+}
+
+export interface MarkdownPreProps extends React.HTMLAttributes<HTMLPreElement> {
+  children?: React.ReactNode;
+}
+
+export type MarkdownComponents = {
+  code?: (props: MarkdownCodeProps) => React.ReactNode;
+  pre?: (props: MarkdownPreProps) => React.ReactNode;
+} & Record<string, unknown>;
+
+// ============================================================================
+// Citation Types
+// ============================================================================
+
 export interface AgentCitation {
   document_id: string;
   chunk_index: number;
@@ -7,8 +44,8 @@ export interface AgentCitation {
   source_type?: string;
   slug?: string;
   href?: string;
-  content_preview?: string;  // 检索内容预览
-  score?: number;           // 相关性分数
+  content_preview?: string;
+  score?: number;
 }
 
 export interface AgentRetrievalHit {

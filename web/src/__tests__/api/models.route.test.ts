@@ -1,12 +1,17 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-const { mockListAvailableModels } = vi.hoisted(() => ({
+const { mockListAvailableModels, mockResolveApiConfig } = vi.hoisted(() => ({
   mockListAvailableModels: vi.fn(),
+  mockResolveApiConfig: vi.fn(),
 }));
 
 vi.mock("@/lib/ai-models", () => ({
   listAvailableModels: mockListAvailableModels,
+}));
+
+vi.mock("@/lib/api-registry", () => ({
+  resolveApiConfig: mockResolveApiConfig,
 }));
 
 import { GET } from "@/app/api/v1/models/route";
@@ -17,6 +22,7 @@ describe("Models API", () => {
       { id: "gemini-3-pro", status: "ready" },
       { id: "deepseek-chat", status: "missing_credentials" },
     ]);
+    mockResolveApiConfig.mockResolvedValue(null);
 
     const response = await GET({} as never);
     const body = await response.json();

@@ -1,6 +1,6 @@
 // Agent display name mappings and formatters
 
-import type { AgentRetrievalHit, AgentTokenCount } from "@/features/agent/types";
+import type { AgentTokenCount } from "@/features/agent/types";
 
 export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   "profile.read": "读取创作者资料",
