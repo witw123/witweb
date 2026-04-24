@@ -709,6 +709,7 @@ export async function appendAgentConversationMessageIncremental(
     await options?.onDelta?.(chunk, assistantMessageId);
   }
   const replyTs = nowIso();
+  const memoryContext = await getRagMemoryContext(username, conversationId).catch(() => null);
   const goalReplyMeta = {
     rag_strategy: "goal_timeline",
     knowledge_hit_count: 0,
@@ -717,8 +718,8 @@ export async function appendAgentConversationMessageIncremental(
     citations: [],
     execution_stage: goalTimeline.goal.status,
     memory_used: {
-      conversation_summary: "",
-      long_term_memory_count: 0,
+      conversation_summary: memoryContext?.conversationSummary || "",
+      long_term_memory_count: memoryContext?.longTermMemories.length || 0,
     },
     thinking: buildDoneThinking(["intent", "memory", "goal"]),
     timeline_events: goalTimeline.events || [],
@@ -741,14 +742,8 @@ export async function appendAgentConversationMessageIncremental(
     status: goalTimeline.goal.status || "active",
     updatedAt: replyTs,
   });
-  const memoryContext = await getRagMemoryContext(username, conversationId).catch(() => null);
   runInBackground(() => updateConversationMemory(username, conversationId));
   await reportPhase(options?.onPhase, "goal", "done");
-
-  goalReplyMeta.memory_used = {
-    conversation_summary: memoryContext?.conversationSummary || "",
-    long_term_memory_count: memoryContext?.longTermMemories.length || 0,
-  };
 
   emitConversationTrace("goal", {
     conversation_id: conversationId,

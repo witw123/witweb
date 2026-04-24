@@ -10,6 +10,7 @@ import type {
   AgentReplyMeta,
 } from "@/features/agent/types";
 import { createAgentThinkingStages, upsertAgentThinkingStage } from "@/features/agent/constants";
+import { readNdjsonStream, readResponseError } from "@/features/agent/streaming";
 import { getErrorMessage, isApiClientError, post } from "@/lib/api-client";
 import { getVersionedApiPath } from "@/lib/api-version";
 
@@ -49,6 +50,17 @@ interface OptimisticSnapshot {
   previousConversations?: AgentConversationSummary[];
 }
 
+interface ConversationStreamResult {
+  conversationId: string;
+  data: ConversationStreamDonePayload;
+}
+
+type ConversationStreamEvent =
+  | { type: "phase"; key: string; title: string; status: "pending" | "running" | "done" }
+  | { type: "delta"; message_id: string; chunk: string }
+  | { type: "done"; conversation: ConversationStreamDonePayload }
+  | { type: "error"; message: string };
+
 export function useConversationStream(options: ConversationStreamOptions) {
   const { conversationId, onConversationReady, showAdvanced, taskType, callbacks } = options;
   const queryClient = useQueryClient();
@@ -75,7 +87,7 @@ export function useConversationStream(options: ConversationStreamOptions) {
     [queryClient]
   );
 
-  const mutation = useMutation({
+  const mutation = useMutation<ConversationStreamResult, Error, ConversationStreamInput>({
     mutationFn: async (input: ConversationStreamInput) => {
       const { content, attachments } = input;
       const userContent = content.trim();
@@ -207,13 +219,11 @@ export function useConversationStream(options: ConversationStreamOptions) {
       });
 
       if (!response.ok || !response.body) {
-        throw new Error(`conversation_stream_failed:${response.status}`);
+        const message = await readResponseError(response, `conversation_stream_failed:${response.status}`);
+        throw new Error(message);
       }
 
       // Process stream
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
       let result: ConversationStreamDonePayload | null = null;
 
       const applyPhase = (event: { key: string; title: string; status: "pending" | "running" | "done" }) => {
@@ -231,48 +241,30 @@ export function useConversationStream(options: ConversationStreamOptions) {
         });
       };
 
-      while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          const payload = JSON.parse(trimmed) as
-            | { type: "phase"; key: string; title: string; status: "pending" | "running" | "done" }
-            | { type: "delta"; message_id: string; chunk: string }
-            | { type: "done"; conversation: ConversationStreamDonePayload }
-            | { type: "error"; message: string };
-
-          if (payload.type === "phase") {
-            applyPhase(payload);
-          } else if (payload.type === "delta") {
-            queryClient.setQueryData<AgentConversationDto>(
-              ["agent-conversations", activeConversationId, "detail"],
-              (current) => {
-                if (!current) return current;
-                return {
-                  ...current,
-                  messages: current.messages.map((message) =>
-                    message.id === optimisticAssistantMessage.id
-                      ? { ...message, content: `${message.content || ""}${payload.chunk}`, local_status: "streaming" }
-                      : message
-                  ),
-                };
-              }
-            );
-          } else if (payload.type === "done") {
-            result = payload.conversation;
-          } else if (payload.type === "error") {
-            throw new Error(payload.message || "conversation_stream_failed");
-          }
+      await readNdjsonStream<ConversationStreamEvent>(response.body, async (payload) => {
+        if (payload.type === "phase") {
+          applyPhase(payload);
+        } else if (payload.type === "delta") {
+          queryClient.setQueryData<AgentConversationDto>(
+            ["agent-conversations", activeConversationId, "detail"],
+            (current) => {
+              if (!current) return current;
+              return {
+                ...current,
+                messages: current.messages.map((message) =>
+                  message.id === optimisticAssistantMessage.id
+                    ? { ...message, content: `${message.content || ""}${payload.chunk}`, local_status: "streaming" }
+                    : message
+                ),
+              };
+            }
+          );
+        } else if (payload.type === "done") {
+          result = payload.conversation;
+        } else if (payload.type === "error") {
+          throw new Error(payload.message || "conversation_stream_failed");
         }
-
-        if (done) break;
-      }
+      });
 
       if (!result) {
         throw new Error("conversation_stream_missing_result");
@@ -374,12 +366,34 @@ export function useConversationStream(options: ConversationStreamOptions) {
             }
           );
         } else {
-          // Full rollback
-          queryClient.setQueryData(
-            ["agent-conversations", snapshot.conversationId, "detail"],
-            snapshot.previousConversation
-          );
-          queryClient.setQueryData(["agent-conversations"], snapshot.previousConversations);
+          const current = queryClient.getQueryData<AgentConversationDto>([
+            "agent-conversations",
+            snapshot.conversationId,
+            "detail",
+          ]);
+          const streamingMessage = current?.messages.find((m) => m.id === snapshot.assistantMessageId);
+
+          if (streamingMessage?.content) {
+            queryClient.setQueryData<AgentConversationDto>(
+              ["agent-conversations", snapshot.conversationId, "detail"],
+              (currentValue) => {
+                if (!currentValue) return currentValue;
+                return {
+                  ...currentValue,
+                  messages: currentValue.messages.map((m) =>
+                    m.id === snapshot.assistantMessageId ? { ...m, local_status: "stopped" } : m
+                  ),
+                };
+              }
+            );
+          } else {
+            // Full rollback only when no useful assistant content was received.
+            queryClient.setQueryData(
+              ["agent-conversations", snapshot.conversationId, "detail"],
+              snapshot.previousConversation
+            );
+            queryClient.setQueryData(["agent-conversations"], snapshot.previousConversations);
+          }
         }
       }
 

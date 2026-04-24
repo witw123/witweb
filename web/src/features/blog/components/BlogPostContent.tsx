@@ -146,6 +146,19 @@ export function BlogPostContent({
               </span>
             </div>
           </div>
+
+          <div className="post-taxonomy">
+            <span className="category-chip">{post.category_name || "未分类"}</span>
+            {tagList.length > 0 && (
+              <div className="tag-list flex flex-wrap gap-2">
+                {tagList.map((tag) => (
+                  <span key={tag} className="tag-pill">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -167,22 +180,6 @@ export function BlogPostContent({
               </aside>
             )}
             <article className="min-w-0">
-              {post && (
-                <div className="post-meta-stack mb-8 flex flex-wrap items-center gap-3">
-                  <div className="category-row">
-                    <span className="category-chip">{post.category_name || "未分类"}</span>
-                  </div>
-                  {tagList.length > 0 && (
-                    <div className="tag-list flex flex-wrap gap-2">
-                      {tagList.map((tag) => (
-                        <span key={tag} className="tag-pill">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
               <div
                 className={`markdown ${isPlainText ? "markdown--plain" : ""}`}
                 dangerouslySetInnerHTML={{ __html: markdownHtml }}

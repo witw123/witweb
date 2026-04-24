@@ -11,6 +11,8 @@ import type {
   AgentGoalTimelineDto,
   MarkdownCodeProps,
 } from "@/features/agent/types";
+import type { AgentTimelineEvent } from "@/features/agent/timeline";
+import { readNdjsonStream, readResponseError } from "@/features/agent/streaming";
 import { ChatInput } from "./ChatInput";
 import { ThinkPanel } from "./ThinkPanel";
 import { GoalThreadBlock } from "./GoalThreadBlock";
@@ -78,7 +80,7 @@ export function ChatThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const [approvalError, setApprovalError] = useState("");
-  const [, setLiveGoalEvents] = useState<Record<string, import("@/features/agent/timeline").AgentTimelineEvent[]>>({});
+  const [liveGoalEvents, setLiveGoalEvents] = useState<Record<string, AgentTimelineEvent[]>>({});
   const [activeArtifact, setActiveArtifact] = useState<ActiveArtifact | null>(null);
 
   const patchGoalTimeline = (goalId: string, timeline: AgentGoalTimelineDto) => {
@@ -149,7 +151,7 @@ export function ChatThread({
 
   const approvalMutation = useMutation({
     mutationFn: async ({ approvalId, action, goalId }: { approvalId: number; action: "approve" | "reject"; goalId: string }) => {
-      const approvalResult = await post<{ timeline_event?: import("@/features/agent/timeline").AgentTimelineEvent }>(
+      const approvalResult = await post<{ timeline_event?: AgentTimelineEvent }>(
         getVersionedApiPath(`/agent/approvals/${approvalId}/${action}`)
       );
       if (approvalResult.timeline_event) {
@@ -164,56 +166,45 @@ export function ChatThread({
           credentials: "include",
         });
         if (!response.ok || !response.body) {
-          throw new Error(`goal_execute_stream_failed:${response.status}`);
+          const message = await readResponseError(response, `goal_execute_stream_failed:${response.status}`);
+          throw new Error(message);
         }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            const payload = JSON.parse(trimmed) as
-              | { type: "goal_status"; event: import("@/features/agent/timeline").AgentTimelineEvent }
-              | { type: "tool_start"; event: import("@/features/agent/timeline").AgentTimelineEvent }
-              | { type: "tool_result"; event: import("@/features/agent/timeline").AgentTimelineEvent }
-              | { type: "artifact"; event: import("@/features/agent/timeline").AgentTimelineEvent }
-              | { type: "timeline"; event: import("@/features/agent/timeline").AgentTimelineEvent }
-              | { type: "done"; timeline: AgentGoalTimelineDto }
-              | { type: "error"; message: string };
-
-            if (
-              payload.type === "timeline" ||
-              payload.type === "goal_status" ||
-              payload.type === "tool_start" ||
-              payload.type === "tool_result" ||
-              payload.type === "artifact"
-            ) {
-              setLiveGoalEvents((current) => ({
-                ...current,
-                [goalId]: [...(current[goalId] || []), payload.event],
-              }));
-              continue;
-            }
-
-            if (payload.type === "done") {
-              patchGoalTimeline(goalId, payload.timeline);
-              continue;
-            }
-
-            if (payload.type === "error") {
-              throw new Error(payload.message || "goal_execute_stream_failed");
-            }
+        await readNdjsonStream<
+          | { type: "goal_status"; event: AgentTimelineEvent }
+          | { type: "tool_start"; event: AgentTimelineEvent }
+          | { type: "tool_result"; event: AgentTimelineEvent }
+          | { type: "artifact"; event: AgentTimelineEvent }
+          | { type: "timeline"; event: AgentTimelineEvent }
+          | { type: "done"; timeline: AgentGoalTimelineDto }
+          | { type: "error"; message: string }
+        >(response.body, async (payload) => {
+          if (
+            payload.type === "timeline" ||
+            payload.type === "goal_status" ||
+            payload.type === "tool_start" ||
+            payload.type === "tool_result" ||
+            payload.type === "artifact"
+          ) {
+            setLiveGoalEvents((current) => ({
+              ...current,
+              [goalId]: [...(current[goalId] || []), payload.event],
+            }));
+            return;
           }
 
-          if (done) break;
-        }
+          if (payload.type === "done") {
+            patchGoalTimeline(goalId, payload.timeline);
+            setLiveGoalEvents((current) => ({ ...current, [goalId]: [] }));
+            return;
+          }
+
+          if (payload.type === "error") {
+            throw new Error(payload.message || "goal_execute_stream_failed");
+          }
+        });
+      } else {
+        const timeline = await get<AgentGoalTimelineDto>(getVersionedApiPath(`/agent/goals/${goalId}/timeline`));
+        patchGoalTimeline(goalId, timeline);
       }
     },
     onSuccess: () => {
@@ -392,7 +383,9 @@ export function ChatThread({
                               goalTimeline={linkedGoal}
                               approvalError={approvalError}
                               onApprove={(approvalId) => approvalMutation.mutate({ approvalId, action: "approve", goalId: linkedGoal.goal.id })}
+                              onReject={(approvalId) => approvalMutation.mutate({ approvalId, action: "reject", goalId: linkedGoal.goal.id })}
                               approvalPending={approvalMutation.isPending}
+                              liveEvents={liveGoalEvents[linkedGoal.goal.id] || []}
                             />
                           )}
                         </>

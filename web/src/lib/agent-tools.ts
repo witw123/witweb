@@ -16,6 +16,7 @@ import { dispatchContentEvent } from "@/lib/integrations/n8n";
 import { searchKnowledge } from "@/lib/knowledge";
 import { searchPublicWeb } from "@/lib/public-web-search";
 import { listRadarItems } from "@/lib/topic-radar";
+import { z } from "@/lib/validate";
 
 export type ToolRiskLevel = "read" | "write_draft" | "publish_or_send" | "admin";
 
@@ -77,6 +78,41 @@ async function ensureUniqueSlug(base: string): Promise<string> {
   return slug;
 }
 
+const blogCreatePostInputSchema = z.object({
+  title: z.string().trim().min(1, "title_required"),
+  content: z.string().trim().min(1, "content_required"),
+  tags: z.string().trim().optional().default(""),
+  excerpt: z.string().trim().optional().default(""),
+  category_id: z.coerce.number().optional().nullable(),
+  status: z.enum(["draft", "published"]).optional().default("draft"),
+  slug: z.string().trim().optional().default(""),
+  cover_image_url: z.string().trim().optional().default(""),
+});
+
+const videoGenerateInputSchema = z.object({
+  prompt: z.string().trim().min(1, "prompt_required"),
+  model: z.string().trim().optional().default("sora-2"),
+  url: z.string().trim().optional().default(""),
+  aspectRatio: z.string().trim().optional().default("9:16"),
+  duration: z.coerce.number().optional().default(10),
+  remixTargetId: z.string().trim().optional().default(""),
+  size: z.string().trim().optional().default("small"),
+});
+
+const n8nDispatchInputSchema = z.object({
+  event_type: z
+    .enum(["content.draft.created", "content.post.published", "content.video.ready"])
+    .optional()
+    .default("content.draft.created"),
+  payload: z.record(z.unknown()).optional().default({}),
+  goal_id: z.string().trim().optional().default(""),
+});
+
+const messageDraftInputSchema = z.object({
+  receiver: z.string().trim().min(1, "receiver_required"),
+  content: z.string().trim().min(1, "content_required"),
+});
+
 const tools: RegisteredTool[] = [
   {
     name: "blog.list_posts",
@@ -110,20 +146,21 @@ const tools: RegisteredTool[] = [
     },
     outputSchema: { id: "number", slug: "string", status: "string" },
     execute: async (username, input) => {
-      const title = coerceString(input.title);
-      const content = coerceString(input.content);
-      const base = slugify(coerceString(input.slug, title) || title);
+      const parsed = blogCreatePostInputSchema.parse(input);
+      const title = parsed.title;
+      const content = parsed.content;
+      const base = slugify(parsed.slug || title);
       const slug = await ensureUniqueSlug(base);
-      const status = coerceString(input.status, "draft") === "published" ? "published" : "draft";
+      const status = parsed.status === "published" ? "published" : "draft";
       const id = await postRepository.create({
         title,
         slug,
         content,
-        excerpt: coerceString(input.excerpt) || null,
-        cover_image_url: coerceString(input.cover_image_url) || null,
+        excerpt: parsed.excerpt || null,
+        cover_image_url: parsed.cover_image_url || null,
         author: username,
-        tags: coerceString(input.tags),
-        category_id: coerceNumber(input.category_id, 0) || null,
+        tags: parsed.tags,
+        category_id: parsed.category_id || null,
         status,
       });
       await syncPostContentLifecycle(username, {
@@ -131,10 +168,10 @@ const tools: RegisteredTool[] = [
         slug,
         title,
         content,
-        excerpt: coerceString(input.excerpt) || null,
-        cover_image_url: coerceString(input.cover_image_url) || null,
-        tags: coerceString(input.tags),
-        category_id: coerceNumber(input.category_id, 0) || null,
+        excerpt: parsed.excerpt || null,
+        cover_image_url: parsed.cover_image_url || null,
+        tags: parsed.tags,
+        category_id: parsed.category_id || null,
         status,
       }).catch(() => null);
       return { id, slug, status };
@@ -226,14 +263,15 @@ const tools: RegisteredTool[] = [
     inputSchema: { prompt: "string", model: "string?", duration: "number?", aspectRatio: "string?" },
     outputSchema: { task_id: "string", status: "string" },
     execute: async (username, input) => {
+      const parsed = videoGenerateInputSchema.parse(input);
       const payload = {
-        model: coerceString(input.model, "sora-2"),
-        prompt: coerceString(input.prompt),
-        url: coerceString(input.url) || undefined,
-        aspectRatio: coerceString(input.aspectRatio, "9:16"),
-        duration: Math.max(3, coerceNumber(input.duration, 10)),
-        remixTargetId: coerceString(input.remixTargetId) || undefined,
-        size: coerceString(input.size, "small"),
+        model: parsed.model,
+        prompt: parsed.prompt,
+        url: parsed.url || undefined,
+        aspectRatio: parsed.aspectRatio,
+        duration: Math.max(3, parsed.duration),
+        remixTargetId: parsed.remixTargetId || undefined,
+        size: parsed.size,
         webHook: "-1",
         shutProgress: false,
       };
@@ -261,15 +299,14 @@ const tools: RegisteredTool[] = [
     permissionScope: "integrations:n8n",
     inputSchema: { event_type: "string", payload: "object", goal_id: "string?" },
     outputSchema: { delivery_id: "string", status: "string" },
-    execute: async (username, input) =>
-      dispatchContentEvent(username, {
-        eventType: coerceString(input.event_type, "content.draft.created") as
-          | "content.draft.created"
-          | "content.post.published"
-          | "content.video.ready",
-        payload: (input.payload as Record<string, unknown>) || {},
-        goalId: coerceString(input.goal_id) || null,
-      }),
+    execute: async (username, input) => {
+      const parsed = n8nDispatchInputSchema.parse(input);
+      return dispatchContentEvent(username, {
+        eventType: parsed.event_type,
+        payload: parsed.payload,
+        goalId: parsed.goal_id || null,
+      });
+    },
   },
   {
     name: "profile.read",
@@ -288,8 +325,9 @@ const tools: RegisteredTool[] = [
     inputSchema: { receiver: "string", content: "string" },
     outputSchema: { receiver: "string", content: "string", preview: "string" },
     execute: async (_username, input) => {
-      const receiver = coerceString(input.receiver);
-      const content = coerceString(input.content);
+      const parsed = messageDraftInputSchema.parse(input);
+      const receiver = parsed.receiver;
+      const content = parsed.content;
       return {
         receiver,
         content,
@@ -304,12 +342,14 @@ const tools: RegisteredTool[] = [
     permissionScope: "messages:send",
     inputSchema: { receiver: "string", content: "string" },
     outputSchema: { conversationId: "number", messageId: "number" },
-    execute: async (username, input) =>
-      messageRepository.sendMessage({
+    execute: async (username, input) => {
+      const parsed = messageDraftInputSchema.parse(input);
+      return messageRepository.sendMessage({
         sender: username,
-        receiver: coerceString(input.receiver),
-        content: coerceString(input.content),
-      }),
+        receiver: parsed.receiver,
+        content: parsed.content,
+      });
+    },
   },
 ];
 

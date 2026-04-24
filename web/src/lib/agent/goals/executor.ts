@@ -391,7 +391,7 @@ export async function createAgentGoal(
     }
   }
 
-  if (executionMode === "auto_low_risk") {
+  if (executionMode === "auto_low_risk" || executionMode === "confirm") {
     return await executeAgentGoal(goalId, username);
   }
 
@@ -435,6 +435,10 @@ export async function executeAgentGoal(
   const goal = await agentPlatformRepository.getGoalById(goalId, username);
   if (!goal) throw new Error("goal_not_found");
 
+  if (goal.status === "done" || goal.status === "running") {
+    return await getAgentGoalTimeline(goalId, username);
+  }
+
   const plan = parseJson<StoredPlan>(goal.plan_json, {
     model: getModelDescriptor().id,
     task_type: inferAutonomousTaskType(goal.goal),
@@ -472,16 +476,56 @@ export async function executeAgentGoal(
       continue;
     }
 
-    if (step.requires_approval && !(await approvalGranted(goalId, step.step_key))) {
-      waitingApproval = true;
-      await agentPlatformRepository.updateGoalStepByKey({
+    let preapprovedInputPayload: Record<string, unknown> | null = null;
+    if (step.requires_approval) {
+      const approval = await agentPlatformRepository.getApprovalByStepKey(goalId, step.step_key);
+      if (approval?.status === "rejected") {
+        hasFailure = true;
+        const rejectedAt = nowIso();
+        await agentPlatformRepository.updateGoalStepByKey({
+          goalId,
+          stepKey: step.step_key,
+          status: "failed",
+          outputJson: JSON.stringify({ error: "approval_rejected" }),
+          finishedAt: rejectedAt,
+        });
+        await emitGoalEvent(
+          options?.onEvent,
+          buildStepEvent(goalId, step, "failed", "用户已拒绝该操作", rejectedAt),
+          runtimeEvents
+        );
+        break;
+      }
+
+      preapprovedInputPayload = await resolveStepInput(
+        username,
         goalId,
-        stepKey: step.step_key,
-        status: "skipped_waiting_approval",
-        outputJson: JSON.stringify({ waiting_approval: true }),
-        finishedAt: nowIso(),
-      });
-      continue;
+        goal.conversation_id || null,
+        goal.goal,
+        plan,
+        step,
+        draftCache
+      );
+      if (step.tool_name) {
+        await agentPlatformRepository.updateApprovalPayloadByStepKey(
+          goalId,
+          step.step_key,
+          JSON.stringify(preapprovedInputPayload)
+        );
+      }
+
+      if (!(await approvalGranted(goalId, step.step_key))) {
+        waitingApproval = true;
+        await agentPlatformRepository.updateGoalStepByKey({
+          goalId,
+          stepKey: step.step_key,
+          status: "skipped_waiting_approval",
+          inputJson: JSON.stringify(preapprovedInputPayload),
+          outputJson: JSON.stringify({ waiting_approval: true }),
+          finishedAt: nowIso(),
+        });
+        break;
+      }
     }
 
     const stepStartedAt = Date.now();
@@ -600,15 +644,17 @@ export async function executeAgentGoal(
           continue;
         }
 
-        const inputPayload = await resolveStepInput(
-          username,
-          goalId,
-          goal.conversation_id || null,
-          goal.goal,
-          plan,
-          step,
-          draftCache
-        );
+        const inputPayload =
+          preapprovedInputPayload ||
+          (await resolveStepInput(
+            username,
+            goalId,
+            goal.conversation_id || null,
+            goal.goal,
+            plan,
+            step,
+            draftCache
+          ));
         if (step.requires_approval) {
           await agentPlatformRepository.updateApprovalPayloadByStepKey(
             goalId,

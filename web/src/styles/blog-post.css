@@ -67,11 +67,21 @@
   border-color: rgba(148, 163, 184, 0.4);
 }
 
-.blog-post-page .post-meta-stack {
+.post-taxonomy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  padding-left: 52px;
+  margin-top: -6px;
 }
 
-.blog-post-page .post-meta-stack .tag-pill {
+.post-taxonomy .category-chip,
+.post-taxonomy .tag-pill {
+  min-height: 30px;
+}
+
+.post-taxonomy .tag-pill {
   border-color: rgba(100, 116, 139, 0.49);
   background: rgba(15, 23, 42, 0.5);
   color: rgba(226, 232, 240, 0.9);
@@ -163,31 +173,8 @@
   color: rgba(226, 232, 240, 0.95);
 }
 
-/* Editorial: Drop cap for first paragraph */
-.markdown > p:first-of-type::first-letter {
-  float: left;
-  font-family: var(--font-heading);
-  font-size: 3.8rem;
-  font-weight: 700;
-  line-height: 0.85;
-  padding-right: 12px;
-  padding-top: 6px;
-  color: rgba(96, 165, 250, 0.9);
-}
-
 .markdown--plain {
   max-width: 78ch;
-}
-
-.markdown--plain > p:first-of-type::first-letter {
-  float: none;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-  padding-right: 0;
-  padding-top: 0;
-  color: inherit;
 }
 
 .markdown>*+* {
@@ -400,6 +387,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .post-taxonomy {
+    padding-left: 0;
+    margin-top: 0;
   }
 
   .post-hero-actions {

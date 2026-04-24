@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockReadAgentAttachments,
   mockSearchPublicWeb,
+  mockFindBySlug,
+  mockCreatePost,
+  mockSendMessage,
 } = vi.hoisted(() => ({
   mockReadAgentAttachments: vi.fn(),
   mockSearchPublicWeb: vi.fn(),
+  mockFindBySlug: vi.fn(),
+  mockCreatePost: vi.fn(),
+  mockSendMessage: vi.fn(),
 }));
 
 vi.mock("@/lib/agent-attachments", () => ({
@@ -22,7 +28,7 @@ vi.mock("@/lib/studio", () => ({
 }));
 
 vi.mock("@/lib/content-sync", () => ({
-  syncPostContentLifecycle: vi.fn(),
+  syncPostContentLifecycle: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@/lib/user", () => ({
@@ -30,9 +36,9 @@ vi.mock("@/lib/user", () => ({
 }));
 
 vi.mock("@/lib/repositories", () => ({
-  drizzlePostRepository: { findBySlug: vi.fn() },
-  messageRepository: { sendMessage: vi.fn() },
-  postRepository: { create: vi.fn() },
+  drizzlePostRepository: { findBySlug: mockFindBySlug },
+  messageRepository: { sendMessage: mockSendMessage },
+  postRepository: { create: mockCreatePost },
   videoTaskRepository: { create: vi.fn(), updateStatus: vi.fn() },
 }));
 
@@ -57,6 +63,9 @@ import { executeAgentTool, listAgentTools } from "@/lib/agent-tools";
 describe("agent tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFindBySlug.mockResolvedValue(null);
+    mockCreatePost.mockResolvedValue(42);
+    mockSendMessage.mockResolvedValue({ conversationId: 1, messageId: 2 });
   });
 
   it("registers web.search and file.read as read-only tools", () => {
@@ -138,5 +147,59 @@ describe("agent tools", () => {
         }),
       ],
     });
+  });
+
+  it("rejects blog.create_post when title or content is empty", async () => {
+    await expect(
+      executeAgentTool("alice", "blog.create_post", {
+        title: "",
+        content: "body",
+      })
+    ).rejects.toThrow();
+
+    await expect(
+      executeAgentTool("alice", "blog.create_post", {
+        title: "title",
+        content: "",
+      })
+    ).rejects.toThrow();
+
+    expect(mockCreatePost).not.toHaveBeenCalled();
+  });
+
+  it("creates a validated blog draft", async () => {
+    const result = await executeAgentTool("alice", "blog.create_post", {
+      title: "AI Agent",
+      content: "draft body",
+      tags: "AI,Agent",
+      status: "draft",
+    });
+
+    expect(mockCreatePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "AI Agent",
+        content: "draft body",
+        status: "draft",
+      })
+    );
+    expect(result).toEqual({ id: 42, slug: "ai-agent", status: "draft" });
+  });
+
+  it("rejects messages.send when receiver or content is empty", async () => {
+    await expect(
+      executeAgentTool("alice", "messages.send", {
+        receiver: "",
+        content: "hello",
+      })
+    ).rejects.toThrow();
+
+    await expect(
+      executeAgentTool("alice", "messages.send", {
+        receiver: "bob",
+        content: "",
+      })
+    ).rejects.toThrow();
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
   });
 });
