@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  witweb:
+    image: witweb_web:latest
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://witweb:WitwebPass2026@music_room_postgres_1:5432/witweb
+      - PG_POOL_MAX=10
+      - PG_IDLE_TIMEOUT_MS=30000
+      - PG_CONNECTION_TIMEOUT_MS=5000
+      - PG_SSL=false
+      - AUTH_SECRET=7/wodxGkXC+MAtomsrcYAZnyPqKGcXbAtN42jmlvFaI=
+      - ENCRYPTION_KEY=EYUBajaf/4scb9a2PdApsfn9cBzp9uU6ofSh1LoWYxs=
+    volumes:
+      - ./uploads:/app/public/uploads
+    networks:
+      - music_room_default
+
+networks:
+  music_room_default:
+    external: true
