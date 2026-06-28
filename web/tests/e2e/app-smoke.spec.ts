@@ -66,9 +66,7 @@ test("authenticated user can publish a post", async ({ page, request }) => {
   await page.goto("/publish");
   await page.getByPlaceholder("文章标题").fill(`E2E Post ${Date.now()}`);
   await page.getByPlaceholder("如: AI, 随笔, 教程").fill("e2e,test");
-  await page
-    .getByPlaceholder("支持 Markdown；普通文本也会保留换行和段落格式。")
-    .fill("This is an end-to-end publish test.");
+  await page.getByPlaceholder(/在此写下你的想法/).fill("This is an end-to-end publish test.");
   await page.getByRole("button", { name: "发布文章" }).click();
 
   await expect(page.getByText("已发布。")).toBeVisible();
