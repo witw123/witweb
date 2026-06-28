@@ -116,7 +116,9 @@ export async function compressImageFile(
   const qualityStep = options?.qualityStep ?? 0.08;
 
   const image = await loadImageFromFile(file);
+  const { scale } = getTargetSize(image, maxSize);
   let { width, height } = getTargetSize(image, maxSize);
+  if (scale === 1 && file.size <= maxBytes) return file;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) return file;

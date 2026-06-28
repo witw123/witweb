@@ -237,7 +237,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     const resized = await resizeImageToDataUrl(file, 256);
     setAvatarUrl(resized || "");
     setPreviewAvatar(resized || "");
-    setTimeout(() => handleSave(undefined, true), 0);
+    await handleSave(undefined, true, resized || "");
   }
 
   async function uploadCover(file: File) {
@@ -278,7 +278,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
     }
   }
 
-  async function handleSave(nextCover?: string, silent: boolean = false) {
+  async function handleSave(nextCover?: string, silent: boolean = false, nextAvatar?: string) {
     if (!silent) setStatus("saving");
     try {
       if (!isAuthenticated) {
@@ -292,7 +292,7 @@ export default function ProfilePage({ targetUsername }: { targetUsername?: strin
         },
         body: JSON.stringify({
           nickname,
-          avatar_url: avatarUrl,
+          avatar_url: typeof nextAvatar === "string" ? nextAvatar : avatarUrl,
           cover_url: typeof nextCover === "string" ? nextCover : coverUrl,
           bio,
         }),

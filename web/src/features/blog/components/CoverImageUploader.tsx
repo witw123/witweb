@@ -10,7 +10,7 @@ import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils/cn";
 import { uploadImageRequest } from "@/lib/upload-image-client";
-import { resizeImageFile } from "@/utils/image";
+import { compressImageFile } from "@/utils/image";
 
 export interface CoverImageUploaderProps {
   value?: string;
@@ -28,8 +28,11 @@ export function CoverImageUploader({ value, onChange, disabled, className }: Cov
     async (file: File) => {
       setUploading(true);
       try {
-        // 封面图在上传前先压缩，避免大图直接进入文章列表和详情页首屏。
-        const resized = await resizeImageFile(file, 1200);
+        // 生产反代默认限制请求体大小，上传前压缩可避免封面大图被 nginx 拦截。
+        const resized = await compressImageFile(file, {
+          maxSize: 1200,
+          maxBytes: 900 * 1024,
+        });
         const formData = new FormData();
         formData.append("file", resized);
         const imageUrl = await uploadImageRequest({

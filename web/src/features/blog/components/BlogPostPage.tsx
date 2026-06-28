@@ -12,7 +12,7 @@ import createDOMPurify from "dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { put, post as postRequest } from "@/lib/api-client";
 import { useAuth } from "@/app/providers";
-import { resizeImageFile } from "@/utils/image";
+import { compressImageFile } from "@/utils/image";
 import { getVersionedApiPath } from "@/lib/api-version";
 import { logError } from "@/lib/logger";
 import { uploadImageRequest } from "@/lib/upload-image-client";
@@ -269,7 +269,10 @@ export default function BlogPostPage() {
       return null;
     }
 
-    const resized = await resizeImageFile(file, 1600);
+    const resized = await compressImageFile(file, {
+      maxSize: 1600,
+      maxBytes: 900 * 1024,
+    });
     const formData = new FormData();
     formData.append("file", resized);
 

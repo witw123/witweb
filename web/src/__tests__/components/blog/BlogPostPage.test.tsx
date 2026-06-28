@@ -8,12 +8,16 @@ const {
   mockUseRouter,
   mockUsePostCache,
   mockPut,
+  mockCompressImageFile,
+  mockUploadImageRequest,
 } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockUseParams: vi.fn(),
   mockUseRouter: vi.fn(),
   mockUsePostCache: vi.fn(),
   mockPut: vi.fn(),
+  mockCompressImageFile: vi.fn(),
+  mockUploadImageRequest: vi.fn(),
 }));
 
 vi.mock("@/app/providers", () => ({
@@ -76,6 +80,14 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 
+vi.mock("@/utils/image", () => ({
+  compressImageFile: mockCompressImageFile,
+}));
+
+vi.mock("@/lib/upload-image-client", () => ({
+  uploadImageRequest: mockUploadImageRequest,
+}));
+
 describe("BlogPostPage", () => {
   function createPostCacheResult(overrides: Record<string, unknown> = {}) {
     return {
@@ -123,6 +135,8 @@ describe("BlogPostPage", () => {
       isAuthenticated: true,
     });
     mockPut.mockResolvedValue({});
+    mockCompressImageFile.mockImplementation(async (file) => file);
+    mockUploadImageRequest.mockResolvedValue("/uploads/editor.jpg");
     mockUsePostCache.mockReturnValue(createPostCacheResult());
   });
 
@@ -165,5 +179,32 @@ describe("BlogPostPage", () => {
       );
     });
     expect(refreshPost).toHaveBeenCalled();
+  });
+
+  it("compresses inline editor images before uploading them", async () => {
+    const image = new File(["large image"], "inline.png", { type: "image/png" });
+    const compressed = new File(["compressed"], "inline.jpg", { type: "image/jpeg" });
+    mockCompressImageFile.mockResolvedValue(compressed);
+
+    render(<BlogPostPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    const inputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    const input = inputs.item(inputs.length - 1);
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, { target: { files: [image] } });
+
+    await waitFor(() => {
+      expect(mockCompressImageFile).toHaveBeenCalledWith(image, {
+        maxSize: 1600,
+        maxBytes: 900 * 1024,
+      });
+    });
+    expect(mockUploadImageRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        formData: expect.any(FormData),
+        source: "blog.post.upload-image",
+      }),
+    );
   });
 });

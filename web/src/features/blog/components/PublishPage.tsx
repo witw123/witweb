@@ -12,12 +12,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { uploadImageRequest } from "@/lib/upload-image-client";
-import { resizeImageFile } from "@/utils/image";
+import { compressImageFile } from "@/utils/image";
 import { cn } from "@/lib/utils/cn";
 import { useCategories, usePublishPost, useMarkdownEditor, useMarkdownPreview } from "../hooks";
 import { MarkdownToolbar, type ToolbarAction } from "./MarkdownToolbar";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { CoverImageUploader } from "./CoverImageUploader";
+import { TagInput } from "./TagInput";
 
 const AGENT_DRAFT_KEY = "agent_publish_draft_v1";
 const LOCAL_DRAFT_KEY_PREFIX = "publish_local_draft_v1";
@@ -331,7 +332,10 @@ export default function PublishPage() {
 
     setUploading(true);
     try {
-      const resized = await resizeImageFile(file, 1600);
+      const resized = await compressImageFile(file, {
+        maxSize: 1600,
+        maxBytes: 900 * 1024,
+      });
       const formData = new FormData();
       formData.append("file", resized);
       const imageUrl = await uploadImageRequest({
@@ -593,11 +597,11 @@ export default function PublishPage() {
 
               <div>
                 <span className="text-sm font-bold text-zinc-300 block mb-2">标签</span>
-                <input
-                  className="input w-full bg-zinc-900/80 border-zinc-800 text-sm"
+                <TagInput
                   value={tags}
-                  onChange={(e) => setTags(e.target.value)}
+                  onChange={setTags}
                   placeholder="如: AI, 随笔, 教程"
+                  disabled={publishing}
                 />
               </div>
 

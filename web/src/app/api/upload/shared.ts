@@ -8,6 +8,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { createdResponse, errorResponses } from "@/lib/api-response";
+import { appConfig } from "@/lib/config";
 import { getAuthUser } from "@/lib/http";
 import { assertAuthenticated } from "@/middleware/error-handler";
 
@@ -31,8 +32,13 @@ export async function handleUploadPost(req: Request) {
     return errorResponses.badRequest("缺少文件");
   }
 
-  if (!file.type.startsWith("image/")) {
-    return errorResponses.badRequest("仅支持上传图片文件");
+  if (!file.type.startsWith("image/") || !appConfig.allowedUploadTypes.includes(file.type)) {
+    return errorResponses.badRequest(`仅支持上传图片文件（${appConfig.allowedUploadTypes.join(", ")}）`);
+  }
+
+  const maxBytes = appConfig.maxUploadSize * 1024 * 1024;
+  if (file.size > maxBytes) {
+    return errorResponses.badRequest(`图片不能超过 ${appConfig.maxUploadSize}MB`);
   }
 
   const arrayBuffer = await file.arrayBuffer();
