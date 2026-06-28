@@ -34,7 +34,7 @@ jobs:
         working-directory: web
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: witweb
           POSTGRES_USER: postgres
@@ -80,7 +80,7 @@ jobs:
         working-directory: web
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: witweb
           POSTGRES_USER: postgres
@@ -120,7 +120,7 @@ jobs:
         working-directory: web
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: witweb
           POSTGRES_USER: postgres
