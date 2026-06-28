@@ -5,16 +5,21 @@ ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+RUN apk add --no-cache su-exec
 
 COPY public ./public
 COPY .next/standalone ./
 COPY .next/static ./.next/static
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-USER nextjs
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
+    mkdir -p /app/public/uploads && \
+    chown -R nextjs:nodejs /app/public/uploads
 
 EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]

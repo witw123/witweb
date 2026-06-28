@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import type { AgentAttachment } from "@/features/agent/types";
+import { getUploadsDir } from "@/lib/uploads";
 import {
   AGENT_ATTACHMENT_LIMIT,
   formatAgentAttachmentSize,
@@ -42,10 +43,6 @@ export interface AgentAttachmentReadItem {
   kind: AgentAttachment["kind"];
   access: "full_text" | "metadata_only";
   content_excerpt?: string;
-}
-
-function getUploadsDir() {
-  return path.resolve(process.cwd(), "..", "uploads");
 }
 
 function normalizeMimeType(file: File) {

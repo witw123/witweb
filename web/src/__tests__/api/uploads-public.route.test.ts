@@ -38,4 +38,30 @@ describe("public uploads route", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
   });
+
+  it("serves files from UPLOAD_DIR when configured", async () => {
+    const previousUploadDir = process.env.UPLOAD_DIR;
+    const uploadsDir = path.resolve(process.cwd(), "..", "uploads");
+    process.env.UPLOAD_DIR = uploadsDir;
+
+    try {
+      const fileName = writeUploadFixture(
+        `vitest-public-upload-env-${Date.now()}.webp`,
+        Buffer.from("webp"),
+      );
+
+      const response = await GET(new Request(`http://localhost/uploads/${fileName}`), {
+        params: Promise.resolve({ path: [fileName] }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("image/webp");
+    } finally {
+      if (previousUploadDir === undefined) {
+        delete process.env.UPLOAD_DIR;
+      } else {
+        process.env.UPLOAD_DIR = previousUploadDir;
+      }
+    }
+  });
 });

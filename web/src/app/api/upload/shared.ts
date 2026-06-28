@@ -10,6 +10,7 @@ import path from "path";
 import { createdResponse, errorResponses } from "@/lib/api-response";
 import { appConfig } from "@/lib/config";
 import { getAuthUser } from "@/lib/http";
+import { getUploadsDir } from "@/lib/uploads";
 import { assertAuthenticated } from "@/middleware/error-handler";
 
 /**
@@ -47,7 +48,7 @@ export async function handleUploadPost(req: Request) {
   const ext = path.extname(safeName) || ".png";
   const name = `${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`;
 
-  const targetDir = path.resolve(process.cwd(), "..", "uploads");
+  const targetDir = getUploadsDir();
   await fs.mkdir(targetDir, { recursive: true });
   await fs.writeFile(path.join(targetDir, name), buffer);
 
