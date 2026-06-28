@@ -18,7 +18,6 @@ import { useCategories, usePublishPost, useMarkdownEditor, useMarkdownPreview } 
 import { MarkdownToolbar, type ToolbarAction } from "./MarkdownToolbar";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { CoverImageUploader } from "./CoverImageUploader";
-import { TagInput } from "./TagInput";
 
 const AGENT_DRAFT_KEY = "agent_publish_draft_v1";
 const LOCAL_DRAFT_KEY_PREFIX = "publish_local_draft_v1";
@@ -121,6 +120,7 @@ export default function PublishPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const loadedDraftUserRef = useRef<string | null>(null);
   const initialDraft = useMemo(() => readImportedDraft(), []);
 
@@ -184,6 +184,13 @@ export default function PublishPage() {
   });
 
   const { html: previewHtml } = useMarkdownPreview({ content });
+
+  useEffect(() => {
+    const textarea = titleTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [title]);
 
   useEffect(() => {
     if (!initialDraft.imported || typeof window === "undefined") return;
@@ -457,8 +464,10 @@ export default function PublishPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-0 items-stretch bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden mt-6 mb-12 shadow-xl shadow-black/20">
             <div className="flex flex-col min-w-0 p-6 lg:p-8">
               <textarea
+                ref={titleTextareaRef}
                 className="publish-seamless-title"
-                rows={title.length > 30 ? 2 : 1}
+                rows={1}
+                wrap="soft"
                 value={title}
                 onChange={(e) => setTitle(e.target.value.replace(/\n/g, ""))}
                 placeholder="文章标题..."
@@ -597,9 +606,10 @@ export default function PublishPage() {
 
               <div>
                 <span className="text-sm font-bold text-zinc-300 block mb-2">标签</span>
-                <TagInput
+                <input
+                  className="input w-full bg-zinc-900/80 border-zinc-800 text-sm"
                   value={tags}
-                  onChange={setTags}
+                  onChange={(e) => setTags(e.target.value)}
                   placeholder="如: AI, 随笔, 教程"
                   disabled={publishing}
                 />
